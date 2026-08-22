@@ -26,6 +26,9 @@ env/
 coverage.xml
 htmlcov/
 
+# Local Memory OS runtime data, including SQLite WAL and SHM files
+/memory/runtime/
+
 # Editor and temporary files
 .idea/
 .vscode/
