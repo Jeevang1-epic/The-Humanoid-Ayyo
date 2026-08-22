@@ -27,6 +27,11 @@ Human / Environment
 
 These are architectural boundaries, not claims of implemented functionality.
 
+The standalone [Memory OS core](MEMORY_OS.md) now implements the persistence and
+domain boundary for provenance-aware owner memory. Memory validation,
+consolidation, the Personal Cognitive Twin, cognition, and ROS adaptation remain
+separate future layers.
+
 ## Invariants
 
 - General foundations may be pretrained.
@@ -48,6 +53,8 @@ These are architectural boundaries, not claims of implemented functionality.
   before it can affect world or memory state.
 - Memory validation owns provenance, uncertainty, contradiction handling, and
   consolidation boundaries.
+- The Memory OS preserves evidence, revisions, retractions, and unresolved
+  conflicts without depending on ROS 2 or future cognitive components.
 - Executive cognition and the model gateway can propose only structured actions;
   the task planner and safety kernel constrain what can proceed.
 - The immutable safety kernel is independent of cognition and learned policy.

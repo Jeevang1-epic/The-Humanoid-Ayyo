@@ -7,7 +7,7 @@ can mature behind stable boundaries before physical hardware is introduced.
 
 ## Current status
 
-Ayyo is at the engineering-foundation stage.
+Ayyo is at the Memory OS Core stage.
 
 Implemented:
 
@@ -15,12 +15,13 @@ Implemented:
 - A ROS 2 workspace with three minimal package foundations
 - Local environment verification, build, and test scripts
 - A verified local ROS 2, Gazebo, and RViz development setup
+- A standalone, provenance-aware Memory OS core with SQLite persistence
 
 Planned, but not implemented:
 
 - Ayyo robot model and simulation integration
 - Perception
-- Memory OS and Personal Cognitive Twin
+- Personal Cognitive Twin
 - Cognition and safety runtime
 - Robot skills, manipulation, and navigation
 - Teach Mode and learning pipeline
@@ -62,14 +63,22 @@ Run package tests:
 ./scripts/test_workspace.sh
 ```
 
+Run Memory OS tests:
+
+```bash
+PYTHONPATH=memory/src python3 -m unittest discover -s memory/tests -v
+```
+
 ## Repository layout
 
 ```text
 docs/          Architecture, roadmap, safety, and status
+memory/        Standalone Memory OS core and its tests
 ros2_ws/src/   ROS 2 interfaces, description, and bringup packages
 scripts/       Local environment, build, and test commands
 tests/         Repository-level tests when justified
 ```
 
-The roadmap defines the intended progression; none of its runtime systems are
-implemented in this foundation.
+The roadmap defines the intended progression. Memory persistence is implemented;
+the Personal Cognitive Twin and all cognition and robot runtime systems remain
+planned.
