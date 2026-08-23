@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ast
 import json
 from pathlib import Path
 import subprocess
@@ -189,9 +190,51 @@ def test_description_package_has_no_cognition_dependency() -> None:
 
 def test_package_resources_are_declared_for_installation() -> None:
     cmake = (PACKAGE_ROOT / 'CMakeLists.txt').read_text(encoding='utf-8')
-    assert 'DIRECTORY meshes urdf' in cmake
+    assert 'DIRECTORY launch meshes rviz urdf' in cmake
     assert 'scripts/validate_description.py' in cmake
 
 
 def test_validation_api_reports_expected_counts() -> None:
     assert validate_package(PACKAGE_ROOT) == (35, 34, 18, 33)
+
+
+def test_rviz_launch_has_only_description_display_nodes() -> None:
+    launch_source = (PACKAGE_ROOT / 'launch' / 'view_robot.launch.py').read_text(
+        encoding='utf-8'
+    )
+    tree = ast.parse(launch_source)
+    node_packages: set[str] = set()
+    launch_arguments: set[str] = set()
+    for call in (node for node in ast.walk(tree) if isinstance(node, ast.Call)):
+        if isinstance(call.func, ast.Name) and call.func.id == 'Node':
+            package_keyword = next(
+                keyword for keyword in call.keywords if keyword.arg == 'package'
+            )
+            assert isinstance(package_keyword.value, ast.Constant)
+            node_packages.add(package_keyword.value.value)
+        if isinstance(call.func, ast.Name) and call.func.id == 'DeclareLaunchArgument':
+            argument = call.args[0]
+            assert isinstance(argument, ast.Constant)
+            launch_arguments.add(argument.value)
+    assert node_packages == {
+        'joint_state_publisher',
+        'joint_state_publisher_gui',
+        'robot_state_publisher',
+        'rviz2',
+    }
+    assert launch_arguments == {
+        'start_rviz',
+        'use_joint_state_publisher_gui',
+        'use_meshes',
+        'use_sim_time',
+    }
+    assert 'ros_gz' not in launch_source
+
+
+def test_rviz_configuration_exposes_model_and_tf() -> None:
+    config = (PACKAGE_ROOT / 'rviz' / 'ayyo.rviz').read_text(encoding='utf-8')
+    assert 'Fixed Frame: base_link' in config
+    assert 'Class: rviz_default_plugins/RobotModel' in config
+    assert 'Value: /robot_description' in config
+    assert 'Class: rviz_default_plugins/TF' in config
+    assert 'Collision Enabled: false' in config
