@@ -25,16 +25,36 @@ from .models import (
     SimulationControlResult,
     rebuild_command,
 )
+from .limits import (
+    CONTROLLED_JOINT_ALLOWLIST,
+    UrdfJointContract,
+    UrdfJointLimitCatalog,
+)
+from .adapter import (
+    DEFAULT_FEEDBACK_TIMEOUT_NS,
+    DEFAULT_POSITION_TOLERANCE,
+    POSITION_CONTROLLER_NAME,
+    AuthorityRevalidator,
+    DevelopmentAuthorityGate,
+    PositionControllerGateway,
+    SimulationControlAdapter,
+)
 
 __all__ = [
     "CONTROL_SCHEMA_VERSION",
     "MAX_COMMAND_WINDOW_NS",
     "MAX_CONTROL_TARGETS",
+    "CONTROLLED_JOINT_ALLOWLIST",
+    "DEFAULT_FEEDBACK_TIMEOUT_NS",
+    "DEFAULT_POSITION_TOLERANCE",
+    "POSITION_CONTROLLER_NAME",
+    "AuthorityRevalidator",
     "ControlAuthority",
     "ControlAuthorityKind",
     "ControlCommandType",
     "ControllerLifecycle",
     "ControllerSnapshot",
+    "DevelopmentAuthorityGate",
     "ControlFailure",
     "ControlFailureCode",
     "ControlFingerprint",
@@ -43,9 +63,13 @@ __all__ = [
     "ControlValidationError",
     "JointPositionTarget",
     "JointStateSample",
+    "PositionControllerGateway",
     "RuntimeControlRejectedError",
     "SimulationControlCommand",
+    "SimulationControlAdapter",
     "SimulationControlError",
     "SimulationControlResult",
+    "UrdfJointContract",
+    "UrdfJointLimitCatalog",
     "rebuild_command",
 ]
