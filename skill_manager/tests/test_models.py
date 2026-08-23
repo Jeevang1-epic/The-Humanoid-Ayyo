@@ -165,6 +165,10 @@ class SkillModelTest(unittest.TestCase):
                 )
             )
 
+    def test_invalid_failure_semantics_are_rejected(self) -> None:
+        with self.assertRaises(InvalidSkillDefinitionError):
+            skill(failure_semantics="retry")
+
 
 if __name__ == "__main__":
     unittest.main()
