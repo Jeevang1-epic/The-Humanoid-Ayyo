@@ -1,0 +1,21 @@
+# This interface is available only when explicit development injection is enabled.
+uint8 SET_POSITION=1
+uint8 command_type
+string[] joint_names
+float64[] positions
+builtin_interfaces/Time issued_at
+builtin_interfaces/Duration valid_for
+string injection_id
+---
+uint8 REJECTED=0
+uint8 COMPLETED=1
+uint8 status
+string failure_code
+string detail
+string command_id
+string command_fingerprint
+string result_id
+string result_fingerprint
+float64 initial_position
+float64 final_position
+builtin_interfaces/Time observed_at
