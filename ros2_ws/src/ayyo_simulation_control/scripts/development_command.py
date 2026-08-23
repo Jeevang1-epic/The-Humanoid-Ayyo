@@ -38,16 +38,16 @@ def main(arguments: list[str] | None = None) -> int:
         parameter_overrides=[Parameter('use_sim_time', value=True)],
     )
     try:
+        client = node.create_client(SetDevelopmentJointPosition, SERVICE_NAME)
+        if not client.wait_for_service(timeout_sec=5.0):
+            print('FAIL: development control service is unavailable', file=sys.stderr)
+            return 1
         deadline = time.monotonic() + 5.0
         while node.get_clock().now().nanoseconds <= 0 and time.monotonic() < deadline:
             rclpy.spin_once(node, timeout_sec=0.1)
         now_ns = node.get_clock().now().nanoseconds
         if now_ns <= 0:
             print('FAIL: simulation clock is unavailable', file=sys.stderr)
-            return 1
-        client = node.create_client(SetDevelopmentJointPosition, SERVICE_NAME)
-        if not client.wait_for_service(timeout_sec=5.0):
-            print('FAIL: development control service is unavailable', file=sys.stderr)
             return 1
         request = SetDevelopmentJointPosition.Request()
         request.command_type = SetDevelopmentJointPosition.Request.SET_POSITION

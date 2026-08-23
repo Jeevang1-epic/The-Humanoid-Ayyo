@@ -112,6 +112,8 @@ def test_development_client_cannot_select_ros_endpoints() -> None:
     assert '--service' not in source
     assert '--action' not in source
     assert 'subprocess' not in source
+    assert source.index('client.wait_for_service') < source.index('now_ns =')
+    assert source.index('now_ns =') < source.index('client.call_async')
 
 
 def test_ros_wrapper_installs_single_owned_core_and_scripts() -> None:
