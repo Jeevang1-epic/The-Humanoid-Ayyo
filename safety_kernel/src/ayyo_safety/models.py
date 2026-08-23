@@ -109,6 +109,36 @@ _REASON_RANK = {reason: index for index, reason in enumerate(SafetyReason)}
 _REVALIDATION_RANK = {
     reason: index for index, reason in enumerate(SafetyRevalidationReason)
 }
+_HAZARD_BASE_REASON = {
+    HazardClass.INFORMATIONAL_READ_ONLY: (
+        SafetyReason.INFORMATIONAL_OPERATION_ELIGIBLE
+    ),
+    HazardClass.INTERNAL_NON_ACTUATING: SafetyReason.INTERNAL_OPERATION_ELIGIBLE,
+    HazardClass.EXTERNAL_DIGITAL_EFFECT: (
+        SafetyReason.EXTERNAL_EFFECT_APPROVAL_REQUIRED
+    ),
+    HazardClass.PHYSICAL_MOVEMENT: (
+        SafetyReason.PHYSICAL_MOVEMENT_INFORMATION_UNAVAILABLE
+    ),
+    HazardClass.PHYSICAL_CONTACT: (
+        SafetyReason.PHYSICAL_CONTACT_INFORMATION_UNAVAILABLE
+    ),
+    HazardClass.PRIVILEGED_HIGH_IMPACT: SafetyReason.PRIVILEGED_APPROVAL_REQUIRED,
+    HazardClass.EMERGENCY_SAFETY_CRITICAL: SafetyReason.EMERGENCY_OPERATION_BLOCKED,
+    HazardClass.UNCLASSIFIED: SafetyReason.UNKNOWN_CAPABILITY_CLASS,
+}
+_HAZARD_MINIMUM_DISPOSITION = {
+    HazardClass.INFORMATIONAL_READ_ONLY: SafetyDisposition.ELIGIBLE_FOR_DOWNSTREAM,
+    HazardClass.INTERNAL_NON_ACTUATING: SafetyDisposition.ELIGIBLE_FOR_DOWNSTREAM,
+    HazardClass.EXTERNAL_DIGITAL_EFFECT: SafetyDisposition.EXTERNAL_APPROVAL_REQUIRED,
+    HazardClass.PHYSICAL_MOVEMENT: SafetyDisposition.DEFERRED,
+    HazardClass.PHYSICAL_CONTACT: SafetyDisposition.DEFERRED,
+    HazardClass.PRIVILEGED_HIGH_IMPACT: (
+        SafetyDisposition.EXTERNAL_APPROVAL_REQUIRED
+    ),
+    HazardClass.EMERGENCY_SAFETY_CRITICAL: SafetyDisposition.BLOCKED,
+    HazardClass.UNCLASSIFIED: SafetyDisposition.BLOCKED,
+}
 
 
 def _validate_text(
@@ -562,6 +592,39 @@ class SafetyStepDecision:
         ):
             raise SafetyDecisionInvariantError(
                 "unclassified capabilities must be explicitly blocked"
+            )
+        if _HAZARD_BASE_REASON[hazard_class] not in reason_codes:
+            raise SafetyDecisionInvariantError(
+                "step reasons must identify the evaluated hazard rule"
+            )
+        if _DISPOSITION_RANK[disposition] < _DISPOSITION_RANK[
+            _HAZARD_MINIMUM_DISPOSITION[hazard_class]
+        ]:
+            raise SafetyDecisionInvariantError(
+                "a step cannot weaken its hazard class disposition"
+            )
+        approval_reasons = {
+            SafetyReason.EXTERNAL_EFFECT_APPROVAL_REQUIRED,
+            SafetyReason.PRIVILEGED_APPROVAL_REQUIRED,
+            SafetyReason.EXECUTIVE_APPROVAL_UNVERIFIED,
+        }
+        if disposition is SafetyDisposition.EXTERNAL_APPROVAL_REQUIRED and not (
+            set(reason_codes) & approval_reasons
+        ):
+            raise SafetyDecisionInvariantError(
+                "approval-required steps need an explicit approval reason"
+            )
+        defer_reasons = {
+            SafetyReason.PHYSICAL_MOVEMENT_INFORMATION_UNAVAILABLE,
+            SafetyReason.PHYSICAL_CONTACT_INFORMATION_UNAVAILABLE,
+            SafetyReason.REQUIRED_CONTEXT_UNAVAILABLE,
+            SafetyReason.UNVERIFIED_ASSUMPTION,
+        }
+        if disposition is SafetyDisposition.DEFERRED and not (
+            set(reason_codes) & defer_reasons
+        ):
+            raise SafetyDecisionInvariantError(
+                "deferred steps need an explicit deferral reason"
             )
         object.__setattr__(self, "step_id", step_id)
         object.__setattr__(self, "capability_id", capability_id)

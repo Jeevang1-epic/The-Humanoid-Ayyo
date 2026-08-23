@@ -14,6 +14,7 @@ from ayyo_executive import (
     DecisionReason,
     ExecutiveDecision,
     ExecutiveDecisionType,
+    ExecutiveError,
     ExpectedResultCategory,
     FailurePolicy,
     Fingerprint,
@@ -788,7 +789,7 @@ def snapshot_proposal(proposal: ExecutiveDecision) -> SafetyProposalSnapshot:
         )
     except SafetyKernelError:
         raise
-    except Exception as error:
+    except (AttributeError, ExecutiveError, TypeError) as error:
         raise InvalidSafetyProposalError(
             "proposal could not be safely inspected"
         ) from error

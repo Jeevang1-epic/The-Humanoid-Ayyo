@@ -21,6 +21,7 @@ from .models import (
     SafetyPrerequisiteDefinition,
     SafetyPrerequisiteKind,
     SafetyReason,
+    _validate_identifier,
     fingerprint_document,
 )
 
@@ -210,9 +211,12 @@ class SafetyPolicy:
         )
 
     def capability_rule(self, capability_id: str) -> CapabilitySafetyRule | None:
-        if not isinstance(capability_id, str):
-            raise InvalidSafetyPolicyError("capability_id must be a string")
-        return self._capability_index.get(capability_id)
+        validated = _validate_identifier(
+            capability_id,
+            field_name="capability_id",
+            error_type=InvalidSafetyPolicyError,
+        )
+        return self._capability_index.get(validated)
 
     def hazard_rule(self, hazard_class: HazardClass) -> HazardRule:
         if not isinstance(hazard_class, HazardClass):
