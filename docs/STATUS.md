@@ -138,6 +138,9 @@
 - Runtime robot skill implementations
 - Production-authorized statically typed ROS services and backend handlers
 - Runtime timeout enforcement, resource scheduling, and lock arbitration
+- ROS packaging wrappers for the standalone Skill Manager and its upstream
+  Python dependency chain; the Runtime Bridge colcon wrapper alone is not a
+  self-contained bare-overlay import
 - Additional controlled joints, trajectory/whole-body control, friction/contact
   tuning, and validated dynamics
 - Manipulation integration

@@ -72,6 +72,15 @@ single-owned Python core into the colcon overlay with `ament_cmake_python`; it
 does not duplicate the source tree. Business logic and unit tests require no
 live ROS graph.
 
+The colcon wrapper predates ROS packages for the standalone Skill Manager and
+its upstream Python distributions. It therefore installs only the
+Runtime-Bridge-owned source: importing `ayyo_runtime_bridge` from a bare colcon
+overlay requires the standalone dependency chain to be installed or present on
+`PYTHONPATH`. This packaging limitation does not change eligibility semantics
+and is not silently replaced with a mock. The development ROS adapter imports
+only the simulation-control top-level core, so it does not rely on that optional
+upstream import path.
+
 ## ROS endpoint contract
 
 V1 supports exactly one endpoint kind: `SERVICE_REQUEST`. Topic publication and

@@ -430,7 +430,7 @@ ROS graph is empty and no Gazebo process for this partition remains:
 
 ```bash
 ros2 node list --no-daemon
-pgrep -af 'ayyo_control_manual_121|simulation.launch.py' || true
+pgrep -af 'gz sim.*ayyo_foundation.sdf|simulation.launch.py' || true
 ```
 
 ## Known limitations and future expansion
