@@ -18,7 +18,11 @@ from ayyo_skill_manager import (
 from .binding import RuntimeRequest, bind_runtime_request, rebuild_invocation, rebuild_registry
 from .canonical import JSONValue
 from .endpoints import RosEndpointAvailability
-from .errors import InvalidRuntimeBindingError, InvalidRuntimeContractError
+from .errors import (
+    InvalidRuntimeBindingError,
+    InvalidRuntimeContractError,
+    StaleRuntimeDecisionError,
+)
 from .models import RuntimeFingerprint, RuntimeFingerprintKind, fingerprint_document
 from .registry import RuntimeEndpointRegistry
 
@@ -404,3 +408,17 @@ class RuntimeBridge:
             runtime_registry_fingerprint=current.runtime_registry_fingerprint,
             request=None,
         )
+
+    def assert_current(
+        self,
+        prior_decision: RuntimeDecision,
+        current_binding: SkillBindingResult,
+    ) -> RuntimeDecision:
+        """Return a current decision or raise a typed stale-decision failure."""
+
+        result = self.revalidate(prior_decision, current_binding)
+        if result.status is RuntimeEligibility.STALE:
+            raise StaleRuntimeDecisionError(
+                "runtime eligibility decision no longer matches current bound state"
+            )
+        return result

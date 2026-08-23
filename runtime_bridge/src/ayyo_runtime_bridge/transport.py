@@ -83,6 +83,7 @@ class RuntimeResultStatus(StrEnum):
     NOT_DISPATCHED = "not_dispatched"
     TRANSPORT_UNAVAILABLE = "transport_unavailable"
     REJECTED_BEFORE_DISPATCH = "rejected_before_dispatch"
+    TRANSPORT_REJECTED = "transport_rejected"
     ACCEPTED_BY_TRANSPORT = "accepted_by_transport"
     TRANSPORT_FAILURE = "transport_failure"
 
@@ -169,7 +170,7 @@ class RuntimeDispatchResult:
                 )
         elif self.receipt is not None:
             if not (
-                self.status is RuntimeResultStatus.REJECTED_BEFORE_DISPATCH
+                self.status is RuntimeResultStatus.TRANSPORT_REJECTED
                 and self.receipt.acceptance is TransportAcceptance.REJECTED
             ):
                 raise InvalidRuntimeContractError(
@@ -334,7 +335,7 @@ class RuntimeDispatcher:
             )
         except RuntimeTransportRejectedError as error:
             return _result(
-                status=RuntimeResultStatus.REJECTED_BEFORE_DISPATCH,
+                status=RuntimeResultStatus.TRANSPORT_REJECTED,
                 decision=decision,
                 transport_id=transport_id,
                 failure_code=RuntimeFailureCode.TRANSPORT_REJECTED,
@@ -362,7 +363,7 @@ class RuntimeDispatcher:
             )
         if receipt.acceptance is TransportAcceptance.REJECTED:
             return _result(
-                status=RuntimeResultStatus.REJECTED_BEFORE_DISPATCH,
+                status=RuntimeResultStatus.TRANSPORT_REJECTED,
                 decision=decision,
                 transport_id=transport_id,
                 failure_code=RuntimeFailureCode.TRANSPORT_REJECTED,

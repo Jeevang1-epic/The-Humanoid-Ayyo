@@ -103,7 +103,7 @@ class RuntimeTransportTest(unittest.TestCase):
             rejected,
         )
         self.assertIs(
-            RuntimeResultStatus.REJECTED_BEFORE_DISPATCH,
+            RuntimeResultStatus.TRANSPORT_REJECTED,
             rejected_result.status,
         )
         self.assertIs(RuntimeFailureCode.TRANSPORT_REJECTED, rejected_result.failure_code)
@@ -116,7 +116,7 @@ class RuntimeTransportTest(unittest.TestCase):
             ),
             (
                 RuntimeTransportRejectedError("service rejected request"),
-                RuntimeResultStatus.REJECTED_BEFORE_DISPATCH,
+                RuntimeResultStatus.TRANSPORT_REJECTED,
             ),
             (
                 RuntimeTransportError("runtime transport failure"),

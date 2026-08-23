@@ -20,6 +20,7 @@ from ayyo_runtime_bridge import (
     RuntimeEndpointRegistry,
     RuntimeEligibility,
     RuntimeReason,
+    StaleRuntimeDecisionError,
 )
 
 from helpers import endpoint, proposal, runtime_registry, skill, skill_binding
@@ -193,6 +194,16 @@ class RuntimeEligibilityTest(unittest.TestCase):
     def test_current_decision_revalidates_idempotently(self) -> None:
         prior = self.bridge.evaluate(self.binding)
         self.assertIs(prior, self.bridge.revalidate(prior, self.binding))
+        self.assertIs(prior, self.bridge.assert_current(prior, self.binding))
+
+    def test_assert_current_raises_typed_stale_error(self) -> None:
+        prior = self.bridge.evaluate(self.binding)
+        changed = skill_binding(
+            self.definition,
+            source_proposal=proposal(request_id="request-2"),
+        )
+        with self.assertRaises(StaleRuntimeDecisionError):
+            self.bridge.assert_current(prior, changed)
 
 
 if __name__ == "__main__":
