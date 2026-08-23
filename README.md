@@ -7,7 +7,7 @@ can mature behind stable boundaries before physical hardware is introduced.
 
 ## Current status
 
-Ayyo has reached the deterministic Immutable Safety Kernel v1 review stage.
+Ayyo has reached the deterministic Skill Manager v1 review stage.
 
 Implemented:
 
@@ -27,13 +27,17 @@ Implemented:
   proposal graphs, applies explicit fail-closed hazard policy, retains approval
   and safety prerequisites, and binds immutable decisions to proposal and
   policy fingerprints without executing actions
+- A standalone Skill Manager that explicitly registers immutable skill and
+  backend declarations, validates bounded parameter contracts, and binds
+  unchanged Safety-reviewed proposal steps to inert, fingerprinted invocation
+  contracts without executing skills or calling ROS
 
 Planned, but not implemented:
 
 - Ayyo robot model and simulation integration
 - Perception
 - Natural-language/model integration and authenticated identity/approval
-- Robot skills, manipulation, and navigation
+- Runtime skill implementations, manipulation, and navigation
 - Teach Mode and learning pipeline
 - Physical hardware
 
@@ -47,7 +51,8 @@ independent of cognition and learned policies. See
 [docs/MEMORY_VALIDATION.md](docs/MEMORY_VALIDATION.md),
 [docs/PERSONAL_CONTEXT_TWIN.md](docs/PERSONAL_CONTEXT_TWIN.md),
 [docs/EXECUTIVE_COGNITION.md](docs/EXECUTIVE_COGNITION.md),
-[docs/SAFETY_KERNEL.md](docs/SAFETY_KERNEL.md), and
+[docs/SAFETY_KERNEL.md](docs/SAFETY_KERNEL.md),
+[docs/SKILL_MANAGER.md](docs/SKILL_MANAGER.md), and
 [docs/SAFETY.md](docs/SAFETY.md).
 
 ## Supported environment
@@ -112,6 +117,13 @@ PYTHONPATH=memory/src:memory_validation/src:personal_context/src:executive/src:s
 python3 -m unittest discover -s safety_kernel/tests -v
 ```
 
+Run Skill Manager tests:
+
+```bash
+PYTHONPATH=memory/src:personal_context/src:executive/src:safety_kernel/src:skill_manager/src \
+python3 -m unittest discover -s skill_manager/tests -v
+```
+
 ## Repository layout
 
 ```text
@@ -121,12 +133,14 @@ memory_validation/  Deterministic evidence policy layer and its tests
 personal_context/  Deterministic owner-context projection and its tests
 executive/     Deterministic Executive proposal planning and its tests
 safety_kernel/  Immutable deterministic proposal safety review and its tests
+skill_manager/  Immutable declarative skill contracts and Safety binding
 ros2_ws/src/   ROS 2 interfaces, description, and bringup packages
 scripts/       Local environment, build, and test commands
 tests/         Repository-level tests when justified
 ```
 
 The roadmap defines the intended progression. Memory persistence, deterministic
-candidate validation, Personal Context Twin v1, Executive Cognition v1, and
-Immutable Safety Kernel v1 are implemented. Authenticated identity/approval,
-skills, physical-safety subsystems, and robot execution remain planned.
+candidate validation, Personal Context Twin v1, Executive Cognition v1,
+Immutable Safety Kernel v1, and Skill Manager v1 are implemented. Authenticated
+identity/approval, runtime skill implementations, physical-safety subsystems,
+and robot execution remain planned.

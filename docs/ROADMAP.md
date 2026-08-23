@@ -11,7 +11,8 @@ foundation.
 3. **Executive Cognition** — Structured reasoning interfaces, uncertainty
    handling, and bounded action proposals.
 4. **Identity / Permissions / Safety** — Explicit authority, permission checks,
-   immutable runtime safety boundaries, and auditability.
+   immutable runtime safety boundaries, declarative skill contracts, and
+   auditability.
 5. **ROS 2 simulated embodiment** — Replaceable simulation interfaces and a first
    justified robot description.
 6. **Developmental simulation scenarios** — Repeatable environments for testing
@@ -27,8 +28,10 @@ foundation.
     earlier safety and validation gates are mature.
 
 Stages 1 through 3 now have bounded v1 implementations. The immutable
-proposal-review portion of stage 4 is implemented as Safety Kernel v1.
-Authenticated identity, permissions, approval verification, audit persistence,
-and physical-safety integration remain future stage 4 work. Executive proposals
-and Safety eligibility do not count as authorization or physical-safety
-certification.
+proposal-review portion of stage 4 is implemented as Safety Kernel v1, and the
+declarative Safety-to-runtime contract boundary is implemented as Skill Manager
+v1. Authenticated identity, permissions, approval verification, live backend
+attestation, audit persistence, resource scheduling, runtime skill
+implementations, and physical-safety integration remain future work. Executive
+proposals, Safety eligibility, and Skill Manager runtime-handoff eligibility do
+not count as authorization, execution, or physical-safety certification.
