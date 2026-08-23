@@ -1,0 +1,131 @@
+"""Spawn the authoritative Ayyo description in Gazebo Harmonic."""
+
+from launch import LaunchDescription
+from launch.actions import (
+    DeclareLaunchArgument,
+    IncludeLaunchDescription,
+    TimerAction,
+)
+from launch.conditions import IfCondition, UnlessCondition
+from launch.launch_description_sources import PythonLaunchDescriptionSource
+from launch.substitutions import (
+    Command,
+    FindExecutable,
+    LaunchConfiguration,
+    PathJoinSubstitution,
+)
+from launch_ros.actions import Node
+from launch_ros.parameter_descriptions import ParameterValue
+from launch_ros.substitutions import FindPackageShare
+
+
+def generate_launch_description() -> LaunchDescription:
+    """Build the non-actuating Gazebo development launch graph."""
+    headless = LaunchConfiguration('headless')
+    use_meshes = LaunchConfiguration('use_meshes')
+    spawn_x = LaunchConfiguration('spawn_x')
+    spawn_y = LaunchConfiguration('spawn_y')
+    spawn_z = LaunchConfiguration('spawn_z')
+    spawn_yaw = LaunchConfiguration('spawn_yaw')
+
+    world_file = PathJoinSubstitution(
+        [FindPackageShare('ayyo_simulation'), 'worlds', 'ayyo_foundation.sdf']
+    )
+    xacro_file = PathJoinSubstitution(
+        [FindPackageShare('ayyo_description'), 'urdf', 'ayyo.urdf.xacro']
+    )
+    robot_description = ParameterValue(
+        Command(
+            [
+                FindExecutable(name='xacro'),
+                ' ',
+                xacro_file,
+                ' use_meshes:=',
+                use_meshes,
+                ' simulation_mode:=true simulation_static:=true',
+            ]
+        ),
+        value_type=str,
+    )
+    description_parameters = {
+        'robot_description': robot_description,
+        'use_sim_time': True,
+    }
+    gazebo_launch = PathJoinSubstitution(
+        [FindPackageShare('ros_gz_sim'), 'launch', 'gz_sim.launch.py']
+    )
+
+    gazebo_server = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(gazebo_launch),
+        launch_arguments={
+            'gz_args': ['-r -s ', world_file],
+            'on_exit_shutdown': 'true',
+        }.items(),
+        condition=IfCondition(headless),
+    )
+    gazebo_graphical = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(gazebo_launch),
+        launch_arguments={
+            'gz_args': ['-r ', world_file],
+            'on_exit_shutdown': 'true',
+        }.items(),
+        condition=UnlessCondition(headless),
+    )
+    spawn_ayyo = Node(
+        package='ros_gz_sim',
+        executable='create',
+        name='spawn_ayyo',
+        output='screen',
+        parameters=[
+            {
+                'world': 'ayyo_foundation',
+                'topic': 'robot_description',
+                'name': 'ayyo',
+                'allow_renaming': False,
+                'x': spawn_x,
+                'y': spawn_y,
+                'z': spawn_z,
+                'Y': spawn_yaw,
+            }
+        ],
+    )
+
+    return LaunchDescription(
+        [
+            DeclareLaunchArgument(
+                'headless',
+                default_value='true',
+                description='Run only the Gazebo server for automated smoke tests.',
+            ),
+            DeclareLaunchArgument(
+                'use_meshes',
+                default_value='false',
+                description='Use reviewed final meshes instead of development proxies.',
+            ),
+            DeclareLaunchArgument('spawn_x', default_value='0.0'),
+            DeclareLaunchArgument('spawn_y', default_value='0.0'),
+            DeclareLaunchArgument(
+                'spawn_z',
+                default_value='0.95',
+                description='Base-link height that places proxy feet on the ground.',
+            ),
+            DeclareLaunchArgument('spawn_yaw', default_value='0.0'),
+            gazebo_server,
+            gazebo_graphical,
+            Node(
+                package='robot_state_publisher',
+                executable='robot_state_publisher',
+                name='ayyo_sim_robot_state_publisher',
+                output='screen',
+                parameters=[description_parameters],
+            ),
+            Node(
+                package='joint_state_publisher',
+                executable='joint_state_publisher',
+                name='ayyo_sim_joint_state_publisher',
+                output='screen',
+                parameters=[description_parameters],
+            ),
+            TimerAction(period=2.0, actions=[spawn_ayyo]),
+        ]
+    )
