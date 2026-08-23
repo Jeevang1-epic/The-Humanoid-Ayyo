@@ -97,9 +97,36 @@ model_ready() {
   grep -qw 'ayyo' <<<"$models" && grep -qw 'ground_plane' <<<"$models"
 }
 
+wait_for_launch_exit() {
+  for _ in {1..100}; do
+    if ! kill -0 "$launch_pid" 2>/dev/null; then
+      wait "$launch_pid" 2>/dev/null || true
+      launch_pid=""
+      return 0
+    fi
+    sleep 0.1
+  done
+  return 1
+}
+
+shutdown_launch() {
+  kill -INT "$launch_pid"
+  if wait_for_launch_exit; then
+    return 0
+  fi
+  kill -TERM "$launch_pid"
+  if wait_for_launch_exit; then
+    return 0
+  fi
+  printf 'FAIL: simulation launch survived bounded SIGINT and SIGTERM\n' >&2
+  return 1
+}
+
 wait_until 'ROS simulation nodes are running' simulation_nodes_ready
 wait_until 'TF is available' tf_ready
 wait_until 'ROS-Gazebo clock bridge is healthy' clock_ready
 wait_until 'Ayyo entity is spawned in Gazebo' model_ready
+shutdown_launch
+printf 'PASS: simulation processes shut down cleanly\n'
 
 printf 'PASS: headless simulation smoke validation completed\n'

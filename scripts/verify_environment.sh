@@ -31,7 +31,7 @@ else
   fail "ROS_DISTRO must be jazzy; found ${ROS_DISTRO:-unset}"
 fi
 
-for command_name in ros2 colcon gz rviz2; do
+for command_name in ros2 colcon gz rviz2 check_urdf; do
   if command -v "$command_name" >/dev/null 2>&1; then
     pass "$command_name is available"
   else
@@ -48,7 +48,11 @@ if command -v gz >/dev/null 2>&1; then
 fi
 
 for package_name in \
+  joint_state_publisher \
+  robot_state_publisher \
   ros_gz_bridge \
+  ros_gz_sim \
+  xacro \
   moveit_ros_move_group \
   nav2_bringup \
   controller_manager; do

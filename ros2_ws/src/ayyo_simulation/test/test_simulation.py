@@ -204,6 +204,7 @@ def test_headless_smoke_script_checks_complete_lifecycle() -> None:
         'ros2 topic echo --once /clock',
         'gz model --list',
         'kill -INT',
+        'simulation processes shut down cleanly',
     ):
         assert expected in script
     assert 'headless:=true' in script

@@ -6,18 +6,13 @@
     it only after choosing a concrete simulation or hardware system below the
     Runtime Bridge and physical-safety boundaries.
   -->
-  <xacro:macro name="ayyo_controlled_joint"
-               params="name lower upper velocity effort">
+  <xacro:macro name="ayyo_controlled_joint" params="name">
     <joint name="${name}">
-      <command_interface name="position">
-        <param name="min">${lower}</param>
-        <param name="max">${upper}</param>
-      </command_interface>
+      <!-- Position limits remain single-owned by the corresponding URDF joint. -->
+      <command_interface name="position"/>
       <state_interface name="position"/>
       <state_interface name="velocity"/>
       <state_interface name="effort"/>
-      <param name="max_velocity">${velocity}</param>
-      <param name="max_effort">${effort}</param>
     </joint>
   </xacro:macro>
 
@@ -27,44 +22,26 @@
         <plugin>${hardware_plugin}</plugin>
       </hardware>
 
-      <xacro:ayyo_controlled_joint name="neck_yaw_joint"
-        lower="-1.2" upper="1.2" velocity="1.5" effort="8.0"/>
-      <xacro:ayyo_controlled_joint name="head_pitch_joint"
-        lower="-0.6" upper="0.6" velocity="1.2" effort="8.0"/>
+      <xacro:ayyo_controlled_joint name="neck_yaw_joint"/>
+      <xacro:ayyo_controlled_joint name="head_pitch_joint"/>
 
-      <xacro:ayyo_controlled_joint name="left_shoulder_yaw_joint"
-        lower="-1.2" upper="1.2" velocity="1.2" effort="20.0"/>
-      <xacro:ayyo_controlled_joint name="left_shoulder_pitch_joint"
-        lower="-1.8" upper="1.8" velocity="1.2" effort="20.0"/>
-      <xacro:ayyo_controlled_joint name="left_elbow_flex_joint"
-        lower="0.0" upper="2.2" velocity="1.5" effort="15.0"/>
-      <xacro:ayyo_controlled_joint name="left_wrist_yaw_joint"
-        lower="-1.5" upper="1.5" velocity="1.5" effort="5.0"/>
-      <xacro:ayyo_controlled_joint name="right_shoulder_yaw_joint"
-        lower="-1.2" upper="1.2" velocity="1.2" effort="20.0"/>
-      <xacro:ayyo_controlled_joint name="right_shoulder_pitch_joint"
-        lower="-1.8" upper="1.8" velocity="1.2" effort="20.0"/>
-      <xacro:ayyo_controlled_joint name="right_elbow_flex_joint"
-        lower="0.0" upper="2.2" velocity="1.5" effort="15.0"/>
-      <xacro:ayyo_controlled_joint name="right_wrist_yaw_joint"
-        lower="-1.5" upper="1.5" velocity="1.5" effort="5.0"/>
+      <xacro:ayyo_controlled_joint name="left_shoulder_yaw_joint"/>
+      <xacro:ayyo_controlled_joint name="left_shoulder_pitch_joint"/>
+      <xacro:ayyo_controlled_joint name="left_elbow_flex_joint"/>
+      <xacro:ayyo_controlled_joint name="left_wrist_yaw_joint"/>
+      <xacro:ayyo_controlled_joint name="right_shoulder_yaw_joint"/>
+      <xacro:ayyo_controlled_joint name="right_shoulder_pitch_joint"/>
+      <xacro:ayyo_controlled_joint name="right_elbow_flex_joint"/>
+      <xacro:ayyo_controlled_joint name="right_wrist_yaw_joint"/>
 
-      <xacro:ayyo_controlled_joint name="left_hip_yaw_joint"
-        lower="-0.6" upper="0.6" velocity="1.0" effort="40.0"/>
-      <xacro:ayyo_controlled_joint name="left_hip_pitch_joint"
-        lower="-1.0" upper="1.2" velocity="1.0" effort="45.0"/>
-      <xacro:ayyo_controlled_joint name="left_knee_flex_joint"
-        lower="0.0" upper="2.0" velocity="1.0" effort="45.0"/>
-      <xacro:ayyo_controlled_joint name="left_ankle_pitch_joint"
-        lower="-0.6" upper="0.6" velocity="1.0" effort="35.0"/>
-      <xacro:ayyo_controlled_joint name="right_hip_yaw_joint"
-        lower="-0.6" upper="0.6" velocity="1.0" effort="40.0"/>
-      <xacro:ayyo_controlled_joint name="right_hip_pitch_joint"
-        lower="-1.0" upper="1.2" velocity="1.0" effort="45.0"/>
-      <xacro:ayyo_controlled_joint name="right_knee_flex_joint"
-        lower="0.0" upper="2.0" velocity="1.0" effort="45.0"/>
-      <xacro:ayyo_controlled_joint name="right_ankle_pitch_joint"
-        lower="-0.6" upper="0.6" velocity="1.0" effort="35.0"/>
+      <xacro:ayyo_controlled_joint name="left_hip_yaw_joint"/>
+      <xacro:ayyo_controlled_joint name="left_hip_pitch_joint"/>
+      <xacro:ayyo_controlled_joint name="left_knee_flex_joint"/>
+      <xacro:ayyo_controlled_joint name="left_ankle_pitch_joint"/>
+      <xacro:ayyo_controlled_joint name="right_hip_yaw_joint"/>
+      <xacro:ayyo_controlled_joint name="right_hip_pitch_joint"/>
+      <xacro:ayyo_controlled_joint name="right_knee_flex_joint"/>
+      <xacro:ayyo_controlled_joint name="right_ankle_pitch_joint"/>
     </ros2_control>
   </xacro:macro>
 </robot>

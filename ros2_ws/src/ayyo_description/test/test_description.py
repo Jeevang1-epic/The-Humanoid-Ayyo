@@ -150,6 +150,13 @@ def test_ros2_control_contract_is_dormant_and_complete(proxy_robot: ET.Element) 
     }
     assert contract_joints == movable_joints
     assert proxy_robot.find('ros2_control') is None
+    control_source = (PACKAGE_ROOT / 'urdf' / 'ayyo_ros2_control.xacro').read_text(
+        encoding='utf-8'
+    )
+    assert 'lower=' not in control_source
+    assert 'upper=' not in control_source
+    assert 'max_velocity' not in control_source
+    assert 'max_effort' not in control_source
 
 
 def test_left_and_right_contracts_are_name_symmetric(proxy_robot: ET.Element) -> None:
