@@ -61,6 +61,7 @@ class FakeGateway:
         self.hardware_lifecycle = ControllerLifecycle.ACTIVE
         self.command_subscribers = 1
         self.snapshot_observed_at_ns = 1_450_000_000
+        self.simulation_times = [1_500_000_000, 1_650_000_000]
         self.before = JointStateSample(
             joint_name="neck_yaw_joint",
             position=0.0,
@@ -72,6 +73,11 @@ class FakeGateway:
         self.dispatch_calls = 0
         self.wait_calls = 0
         self.last_command_id: str | None = None
+
+    def simulation_time_ns(self) -> int:
+        if len(self.simulation_times) > 1:
+            return self.simulation_times.pop(0)
+        return self.simulation_times[0]
 
     def snapshot(self, joint_name: str) -> ControllerSnapshot:
         state = self.before if self.before.joint_name == joint_name else None

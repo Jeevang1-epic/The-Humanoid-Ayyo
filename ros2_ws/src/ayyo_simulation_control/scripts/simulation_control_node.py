@@ -140,7 +140,7 @@ class RosPositionControllerGateway:
             elif not future.done():
                 future.cancel()
 
-    def _now_ns(self) -> int:
+    def simulation_time_ns(self) -> int:
         return self._node.get_clock().now().nanoseconds
 
     def _on_joint_state(self, message: JointState) -> None:
@@ -223,7 +223,7 @@ class RosPositionControllerGateway:
                 return
             self._controller_lifecycle = controller_lifecycle
             self._broadcaster_lifecycle = broadcaster_lifecycle
-            self._lifecycle_observed_at_ns = self._now_ns()
+            self._lifecycle_observed_at_ns = self.simulation_time_ns()
             self._controller_future = None
             self._condition.notify_all()
 
@@ -251,7 +251,7 @@ class RosPositionControllerGateway:
             if self._closing:
                 return
             self._hardware_lifecycle = lifecycle
-            self._lifecycle_observed_at_ns = self._now_ns()
+            self._lifecycle_observed_at_ns = self.simulation_time_ns()
             self._hardware_future = None
             self._condition.notify_all()
 

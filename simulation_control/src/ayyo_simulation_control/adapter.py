@@ -36,6 +36,9 @@ class AuthorityRevalidator(Protocol):
 
 @runtime_checkable
 class PositionControllerGateway(Protocol):
+    def simulation_time_ns(self) -> int:
+        ...
+
     def snapshot(self, joint_name: str) -> ControllerSnapshot:
         ...
 
@@ -224,8 +227,33 @@ class SimulationControlAdapter:
                     "The gateway snapshot names an unreviewed controller.",
                 ),
             )
-        if snapshot.observed_at_ns > now_ns or (
-            now_ns - snapshot.observed_at_ns > MAX_CONTROLLER_SNAPSHOT_AGE_NS
+        dispatch_now_ns = self.gateway.simulation_time_ns()
+        if type(dispatch_now_ns) is not int or dispatch_now_ns < 0:
+            raise ControlValidationError(
+                ControlFailureCode.CONTROLLER_UNAVAILABLE,
+                "controller gateway returned invalid simulation time",
+            )
+        if dispatch_now_ns < command.issued_at_ns:
+            return _rejected(
+                command,
+                _failure(
+                    command,
+                    ControlFailureCode.COMMAND_FROM_FUTURE,
+                    "Command issuance is ahead of the dispatch simulation clock.",
+                ),
+            )
+        if dispatch_now_ns > command.expires_at_ns:
+            return _rejected(
+                command,
+                _failure(
+                    command,
+                    ControlFailureCode.STALE_COMMAND,
+                    "Command expired before controller dispatch.",
+                ),
+            )
+        if snapshot.observed_at_ns > dispatch_now_ns or (
+            dispatch_now_ns - snapshot.observed_at_ns
+            > MAX_CONTROLLER_SNAPSHOT_AGE_NS
         ):
             return _rejected(
                 command,
@@ -290,8 +318,8 @@ class SimulationControlAdapter:
                     "Authoritative state for the requested joint is unavailable.",
                 ),
             )
-        if before.observed_at_ns > now_ns or now_ns - before.observed_at_ns > (
-            MAX_JOINT_STATE_AGE_NS
+        if before.observed_at_ns > dispatch_now_ns or (
+            dispatch_now_ns - before.observed_at_ns > MAX_JOINT_STATE_AGE_NS
         ):
             return _rejected(
                 command,
@@ -303,17 +331,6 @@ class SimulationControlAdapter:
             )
 
         # Revalidate both time and authority immediately before the controller call.
-        if now_ns > command.expires_at_ns:
-            return _rejected(
-                command,
-                _failure(
-                    command,
-                    ControlFailureCode.STALE_COMMAND,
-                    "Command expired before controller dispatch.",
-                ),
-                boundary_accepted=True,
-                initial_position=before.position,
-            )
         if not self.authority.is_current(command):
             code = (
                 ControlFailureCode.DEVELOPMENT_SESSION_CHANGED
@@ -372,6 +389,24 @@ class SimulationControlAdapter:
             raise ControlValidationError(
                 ControlFailureCode.STATE_UNAVAILABLE,
                 "controller gateway returned uncorrelated joint feedback",
+            )
+        feedback_now_ns = self.gateway.simulation_time_ns()
+        if type(feedback_now_ns) is not int or feedback_now_ns < 0:
+            raise ControlValidationError(
+                ControlFailureCode.STATE_UNAVAILABLE,
+                "controller gateway returned invalid feedback simulation time",
+            )
+        if not dispatch_now_ns <= feedback.observed_at_ns <= feedback_now_ns:
+            return _rejected(
+                command,
+                _failure(
+                    command,
+                    ControlFailureCode.STATE_STALE,
+                    "Post-dispatch feedback has incompatible simulation time.",
+                ),
+                boundary_accepted=True,
+                controller_dispatched=True,
+                initial_position=before.position,
             )
         state_changed = abs(feedback.position - before.position) >= MINIMUM_OBSERVABLE_CHANGE
         target_reached = abs(feedback.position - target.position) <= self.position_tolerance

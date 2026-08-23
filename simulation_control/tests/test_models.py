@@ -220,6 +220,57 @@ class SimulationControlModelTests(unittest.TestCase):
                 observed_at_ns=None,
             )
 
+    def test_result_rejects_impossible_evidence_order(self) -> None:
+        control_command = command()
+        failure = ControlFailure(
+            code=ControlFailureCode.CONTROLLER_REJECTED,
+            detail="The reviewed controller rejected the command.",
+            command=control_command,
+        )
+        impossible = (
+            (False, True, False, False, False, None, None, None),
+            (True, True, True, False, True, 0.0, 0.25, 1_600_000_000),
+            (True, True, False, False, False, 0.0, 0.25, None),
+        )
+        for evidence in impossible:
+            with self.subTest(evidence=evidence):
+                with self.assertRaises(ControlValidationError):
+                    SimulationControlResult(
+                        status=ControlResultStatus.REJECTED,
+                        command=control_command,
+                        failure=failure,
+                        boundary_accepted=evidence[0],
+                        controller_dispatched=evidence[1],
+                        feedback_observed=evidence[2],
+                        state_changed=evidence[3],
+                        target_reached=evidence[4],
+                        initial_position=evidence[5],
+                        final_position=evidence[6],
+                        observed_at_ns=evidence[7],
+                    )
+
+    def test_result_feedback_cannot_predate_command(self) -> None:
+        control_command = command()
+        failure = ControlFailure(
+            code=ControlFailureCode.TARGET_NOT_REACHED,
+            detail="The feedback did not prove the requested motion.",
+            command=control_command,
+        )
+        with self.assertRaisesRegex(ControlValidationError, "predates"):
+            SimulationControlResult(
+                status=ControlResultStatus.REJECTED,
+                command=control_command,
+                failure=failure,
+                boundary_accepted=True,
+                controller_dispatched=True,
+                feedback_observed=True,
+                state_changed=True,
+                target_reached=False,
+                initial_position=0.0,
+                final_position=0.1,
+                observed_at_ns=999_999_999,
+            )
+
     def test_rejected_result_retains_typed_failure(self) -> None:
         control_command = command()
         failure = ControlFailure(
@@ -236,7 +287,7 @@ class SimulationControlModelTests(unittest.TestCase):
             feedback_observed=False,
             state_changed=False,
             target_reached=False,
-            initial_position=None,
+            initial_position=0.0,
             final_position=None,
             observed_at_ns=None,
         )

@@ -74,6 +74,17 @@ class SimulationControlAdapterTests(unittest.TestCase):
                 self.assertIs(expected, result.failure.code)
                 self.assertEqual(0, gateway.dispatch_calls)
 
+    def test_expiry_is_revalidated_with_fresh_dispatch_time(self) -> None:
+        gateway = FakeGateway()
+        gateway.simulation_times = [2_000_000_001]
+        result = self.adapter(gateway).execute(
+            development_command(),
+            now_ns=1_500_000_000,
+        )
+        self.assertIs(ControlFailureCode.STALE_COMMAND, result.failure.code)
+        self.assertEqual(0, gateway.dispatch_calls)
+        self.assertFalse(result.boundary_accepted)
+
     def test_disabled_or_changed_development_gate_fails_closed(self) -> None:
         cases = (
             development_gate(False),
@@ -94,6 +105,29 @@ class SimulationControlAdapterTests(unittest.TestCase):
                     result.failure.code,
                 )
                 self.assertEqual(0, gateway.dispatch_calls)
+
+    def test_authority_is_revalidated_immediately_before_dispatch(self) -> None:
+        class ChangingAuthority:
+            def __init__(self) -> None:
+                self.calls = 0
+
+            def is_current(self, _command) -> bool:
+                self.calls += 1
+                return self.calls == 1
+
+        gateway = FakeGateway()
+        authority = ChangingAuthority()
+        result = self.adapter(gateway, gate=authority).execute(
+            development_command(),
+            now_ns=1_500_000_000,
+        )
+        self.assertEqual(2, authority.calls)
+        self.assertIs(
+            ControlFailureCode.DEVELOPMENT_SESSION_CHANGED,
+            result.failure.code,
+        )
+        self.assertTrue(result.boundary_accepted)
+        self.assertEqual(0, gateway.dispatch_calls)
 
     def test_controller_and_hardware_lifecycle_are_explicit(self) -> None:
         cases = (
@@ -209,6 +243,25 @@ class SimulationControlAdapterTests(unittest.TestCase):
                 )
                 self.assertIs(ControlFailureCode.TARGET_NOT_REACHED, result.failure.code)
                 self.assertFalse(result.target_reached)
+
+    def test_feedback_time_must_follow_dispatch_and_not_be_future(self) -> None:
+        cases = (1_400_000_000, 1_700_000_000)
+        for observed_at_ns in cases:
+            with self.subTest(observed_at_ns=observed_at_ns):
+                gateway = FakeGateway()
+                gateway.feedback = JointStateSample(
+                    joint_name="neck_yaw_joint",
+                    position=0.25,
+                    observed_at_ns=observed_at_ns,
+                    sequence=8,
+                )
+                result = self.adapter(gateway).execute(
+                    development_command(0.25),
+                    now_ns=1_500_000_000,
+                )
+                self.assertIs(ControlFailureCode.STATE_STALE, result.failure.code)
+                self.assertTrue(result.controller_dispatched)
+                self.assertFalse(result.feedback_observed)
 
 
 if __name__ == "__main__":

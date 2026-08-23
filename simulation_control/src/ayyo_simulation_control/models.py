@@ -521,6 +521,21 @@ class SimulationControlResult:
                 ControlFailureCode.MALFORMED_COMMAND,
                 "control result evidence flags must be booleans",
             )
+        evidence_chain = (
+            boundary_accepted,
+            controller_dispatched,
+            feedback_observed,
+            state_changed,
+            target_reached,
+        )
+        if any(
+            evidence_chain[index] and not evidence_chain[index - 1]
+            for index in range(1, len(evidence_chain))
+        ):
+            raise ControlValidationError(
+                ControlFailureCode.MALFORMED_COMMAND,
+                "control result evidence cannot skip a causal boundary",
+            )
         if initial_position is not None and (
             type(initial_position) not in {int, float} or not math.isfinite(initial_position)
         ):
@@ -541,6 +556,27 @@ class SimulationControlResult:
             raise ControlValidationError(
                 ControlFailureCode.STATE_UNAVAILABLE,
                 "result observation timestamp is invalid",
+            )
+        if boundary_accepted != (initial_position is not None):
+            raise ControlValidationError(
+                ControlFailureCode.STATE_UNAVAILABLE,
+                "boundary acceptance requires exactly one initial state value",
+            )
+        if (
+            feedback_observed
+            and (final_position is None or observed_at_ns is None)
+        ) or (
+            not feedback_observed
+            and (final_position is not None or observed_at_ns is not None)
+        ):
+            raise ControlValidationError(
+                ControlFailureCode.STATE_UNAVAILABLE,
+                "feedback evidence requires final state and observation time",
+            )
+        if observed_at_ns is not None and observed_at_ns < command.issued_at_ns:
+            raise ControlValidationError(
+                ControlFailureCode.STATE_UNAVAILABLE,
+                "feedback observation predates command issuance",
             )
         if status is ControlResultStatus.COMPLETED:
             if failure is not None or not all(flags):
