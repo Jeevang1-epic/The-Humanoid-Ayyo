@@ -1,0 +1,13 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+  <xacro:macro name="ayyo_gazebo" params="static_model">
+    <!--
+      Foundation v1 deliberately spawns a static, non-actuating development
+      model. No Gazebo system plugin, controller, or hardware interface is
+      loaded by the authoritative description.
+    -->
+    <gazebo>
+      <static>${str(static_model).lower()}</static>
+    </gazebo>
+  </xacro:macro>
+</robot>
