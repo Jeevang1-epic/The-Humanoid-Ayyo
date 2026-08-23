@@ -38,6 +38,7 @@ from .models import (
     ResourceRequirement,
     SemanticVersion,
     SkillAvailability,
+    SkillDefinition,
     SkillFingerprint,
     SkillFingerprintKind,
     SkillLifecycle,
@@ -186,6 +187,7 @@ class SkillInvocation:
     invocation_id: str
     status: InvocationStatus
     selection: SkillSelection
+    skill_definition: SkillDefinition
     backend_id: str
     expected_result: ExpectedResultCategory
     output_schema: ValueSchema
@@ -205,6 +207,7 @@ class SkillInvocation:
     source_safety_fingerprint: SafetyFingerprint
     source_proposal_fingerprint: SafetyFingerprint
     source_policy_fingerprint: SafetyFingerprint
+    source_policy_version: str
     fingerprint: SkillFingerprint
     _parameters: JSONValue = field(repr=False, compare=False)
 
@@ -213,19 +216,10 @@ class SkillInvocation:
         *,
         status: InvocationStatus,
         selection: SkillSelection,
-        backend_id: str,
+        skill_definition: SkillDefinition,
         parameters: dict[str, JSONValue],
-        expected_result: ExpectedResultCategory,
-        output_schema: ValueSchema,
         context_references: tuple[ContextReference, ...],
-        required_resources: tuple[ResourceRequirement, ...],
         required_approvals: tuple[SafetyApprovalRequirement, ...],
-        safety_classification: HazardClass,
-        timeout_ms: int,
-        concurrency_policy: ConcurrencyPolicy,
-        idempotency: IdempotencyClass,
-        failure_semantics: FailureSemantics,
-        lifecycle: SkillLifecycle,
         source_request_id: str,
         source_executive_decision_id: str,
         source_executive_fingerprint: ExecutiveFingerprint,
@@ -233,27 +227,32 @@ class SkillInvocation:
         source_safety_fingerprint: SafetyFingerprint,
         source_proposal_fingerprint: SafetyFingerprint,
         source_policy_fingerprint: SafetyFingerprint,
+        source_policy_version: str,
     ) -> None:
         if not isinstance(status, InvocationStatus):
             raise SkillInvocationInvariantError("invocation status is invalid")
         if type(selection) is not SkillSelection:
             raise SkillInvocationInvariantError("invocation selection is invalid")
-        backend_id = validate_identifier(
-            backend_id,
-            field_name="invocation backend_id",
-            error_type=SkillInvocationInvariantError,
-        )
-        parameter_copy = copy_json(
-            parameters,
-            field_name="invocation parameters",
-            error_type=SkillInvocationInvariantError,
-        )
-        if type(parameter_copy) is not dict:
-            raise SkillInvocationInvariantError("invocation parameters must be an object")
-        if not isinstance(expected_result, ExpectedResultCategory):
-            raise SkillInvocationInvariantError("invocation expected result is invalid")
-        if not isinstance(output_schema, ValueSchema):
-            raise SkillInvocationInvariantError("invocation output schema is invalid")
+        if type(skill_definition) is not SkillDefinition:
+            raise SkillInvocationInvariantError("invocation skill definition is invalid")
+        if (
+            selection.skill_id != skill_definition.skill_id
+            or selection.skill_version != skill_definition.version
+            or selection.skill_fingerprint != skill_definition.fingerprint
+            or selection.capability_id not in skill_definition.capability_ids
+        ):
+            raise SkillInvocationInvariantError(
+                "invocation selection does not match its skill definition"
+            )
+        try:
+            parameter_copy = validate_parameters(
+                skill_definition.input_schema,
+                parameters,
+            )
+        except InvalidSkillParametersError as error:
+            raise SkillInvocationInvariantError(
+                "invocation parameters do not match the skill definition"
+            ) from error
         if not isinstance(context_references, tuple) or not all(
             type(item) is ContextReference for item in context_references
         ):
@@ -272,10 +271,10 @@ class SkillInvocation:
             raise SkillInvocationInvariantError("invocation context references must be unique")
         if any(not item.required for item in context_references):
             raise SkillInvocationInvariantError("invocation context references must be required")
-        if not isinstance(required_resources, tuple) or not all(
-            isinstance(item, ResourceRequirement) for item in required_resources
-        ):
-            raise SkillInvocationInvariantError("invocation resources are invalid")
+        if set(context_keys) != set(skill_definition.required_context):
+            raise SkillInvocationInvariantError(
+                "invocation context does not match the skill definition"
+            )
         if not isinstance(required_approvals, tuple) or not all(
             isinstance(item, SafetyApprovalRequirement) for item in required_approvals
         ):
@@ -295,18 +294,17 @@ class SkillInvocation:
             raise SkillInvocationInvariantError("eligible invocation cannot retain approvals")
         if status is InvocationStatus.EXTERNAL_APPROVAL_REQUIRED and not required_approvals:
             raise SkillInvocationInvariantError("approval-gated invocation requires approvals")
-        if not isinstance(safety_classification, HazardClass) or safety_classification is HazardClass.UNCLASSIFIED:
-            raise SkillInvocationInvariantError("invocation safety classification is invalid")
-        if type(timeout_ms) is not int or timeout_ms <= 0:
-            raise SkillInvocationInvariantError("invocation timeout is invalid")
-        for value, enum_type, field_name in (
-            (concurrency_policy, ConcurrencyPolicy, "concurrency policy"),
-            (idempotency, IdempotencyClass, "idempotency"),
-            (failure_semantics, FailureSemantics, "failure semantics"),
-            (lifecycle, SkillLifecycle, "lifecycle"),
+        selected_approval_classes = {
+            item.approval_class
+            for item in required_approvals
+            if item.affected_step_id == selection.source_step_id
+        }
+        if not set(skill_definition.required_approval_classes).issubset(
+            selected_approval_classes
         ):
-            if not isinstance(value, enum_type):
-                raise SkillInvocationInvariantError(f"invocation {field_name} is invalid")
+            raise SkillInvocationInvariantError(
+                "invocation approvals do not satisfy the selected skill step"
+            )
         for value, field_name in (
             (source_request_id, "source_request_id"),
             (source_executive_decision_id, "source_executive_decision_id"),
@@ -326,33 +324,36 @@ class SkillInvocation:
         ):
             if not isinstance(value, SafetyFingerprint) or value.kind is not kind:
                 raise SkillInvocationInvariantError(f"source {field_name} fingerprint is invalid")
+        if type(source_policy_version) is not str or not source_policy_version:
+            raise SkillInvocationInvariantError("source policy version is invalid")
         document: dict[str, JSONValue] = {
-            "backend_id": backend_id,
-            "concurrency_policy": concurrency_policy.value,
+            "backend_id": skill_definition.backend_id,
+            "concurrency_policy": skill_definition.concurrency_policy.value,
             "context_references": [_context_document(item) for item in context_references],
-            "expected_result": expected_result.value,
-            "failure_semantics": failure_semantics.value,
-            "idempotency": idempotency.value,
-            "lifecycle": lifecycle.value,
-            "output_schema": schema_document(output_schema),
+            "expected_result": skill_definition.expected_result.value,
+            "failure_semantics": skill_definition.failure_semantics.value,
+            "idempotency": skill_definition.idempotency.value,
+            "lifecycle": skill_definition.lifecycle.value,
+            "output_schema": schema_document(skill_definition.output_schema),
             "parameters": parameter_copy,
             "required_approvals": [_approval_document(item) for item in required_approvals],
             "required_resources": [
                 {"access": item.access.value, "resource_id": item.resource_id}
-                for item in required_resources
+                for item in skill_definition.required_resources
             ],
-            "safety_classification": safety_classification.value,
+            "safety_classification": skill_definition.safety_classification.value,
             "schema": "ayyo.skill-manager.invocation.v1",
             "selection_fingerprint": str(selection.fingerprint),
             "source_executive_decision_id": source_executive_decision_id,
             "source_executive_fingerprint": str(source_executive_fingerprint),
             "source_policy_fingerprint": str(source_policy_fingerprint),
+            "source_policy_version": source_policy_version,
             "source_proposal_fingerprint": str(source_proposal_fingerprint),
             "source_request_id": source_request_id,
             "source_safety_decision_id": source_safety_decision_id,
             "source_safety_fingerprint": str(source_safety_fingerprint),
             "status": status.value,
-            "timeout_ms": timeout_ms,
+            "timeout_ms": skill_definition.timeout_ms,
         }
         fingerprint = fingerprint_document(
             SkillFingerprintKind.INVOCATION,
@@ -362,19 +363,20 @@ class SkillInvocation:
         object.__setattr__(self, "invocation_id", f"skill-invocation-{fingerprint.digest}")
         object.__setattr__(self, "status", status)
         object.__setattr__(self, "selection", selection)
-        object.__setattr__(self, "backend_id", backend_id)
+        object.__setattr__(self, "skill_definition", skill_definition)
+        object.__setattr__(self, "backend_id", skill_definition.backend_id)
         object.__setattr__(self, "_parameters", parameter_copy)
-        object.__setattr__(self, "expected_result", expected_result)
-        object.__setattr__(self, "output_schema", output_schema)
+        object.__setattr__(self, "expected_result", skill_definition.expected_result)
+        object.__setattr__(self, "output_schema", skill_definition.output_schema)
         object.__setattr__(self, "context_references", context_references)
-        object.__setattr__(self, "required_resources", required_resources)
+        object.__setattr__(self, "required_resources", skill_definition.required_resources)
         object.__setattr__(self, "required_approvals", required_approvals)
-        object.__setattr__(self, "safety_classification", safety_classification)
-        object.__setattr__(self, "timeout_ms", timeout_ms)
-        object.__setattr__(self, "concurrency_policy", concurrency_policy)
-        object.__setattr__(self, "idempotency", idempotency)
-        object.__setattr__(self, "failure_semantics", failure_semantics)
-        object.__setattr__(self, "lifecycle", lifecycle)
+        object.__setattr__(self, "safety_classification", skill_definition.safety_classification)
+        object.__setattr__(self, "timeout_ms", skill_definition.timeout_ms)
+        object.__setattr__(self, "concurrency_policy", skill_definition.concurrency_policy)
+        object.__setattr__(self, "idempotency", skill_definition.idempotency)
+        object.__setattr__(self, "failure_semantics", skill_definition.failure_semantics)
+        object.__setattr__(self, "lifecycle", skill_definition.lifecycle)
         object.__setattr__(self, "source_request_id", source_request_id)
         object.__setattr__(self, "source_executive_decision_id", source_executive_decision_id)
         object.__setattr__(self, "source_executive_fingerprint", source_executive_fingerprint)
@@ -382,6 +384,7 @@ class SkillInvocation:
         object.__setattr__(self, "source_safety_fingerprint", source_safety_fingerprint)
         object.__setattr__(self, "source_proposal_fingerprint", source_proposal_fingerprint)
         object.__setattr__(self, "source_policy_fingerprint", source_policy_fingerprint)
+        object.__setattr__(self, "source_policy_version", source_policy_version)
         object.__setattr__(self, "fingerprint", fingerprint)
 
     @property
@@ -430,6 +433,10 @@ class SkillBindingResult:
             raise SkillInvocationInvariantError("binding and invocation statuses disagree")
         if self.invocation.selection != self.selection:
             raise SkillInvocationInvariantError("binding and invocation selections disagree")
+        if self.invocation.source_safety_decision_id != self.source_safety_decision_id:
+            raise SkillInvocationInvariantError(
+                "binding and invocation Safety decision IDs disagree"
+            )
         if self.status is BindingStatus.ELIGIBLE_FOR_RUNTIME_HANDOFF and self.reasons:
             raise SkillInvocationInvariantError("eligible binding cannot carry blockers")
         if self.status is BindingStatus.EXTERNAL_APPROVAL_REQUIRED and self.reasons != (
@@ -496,6 +503,18 @@ class SkillManagerService:
                 safety_decision,
                 {BindingReason.REGISTRY_SELECTION_STALE},
             )
+        if (
+            selection.registry_version != self.registry.version
+            or selection.registry_fingerprint != self.registry.fingerprint
+            or selection.skill_version != skill.version
+            or selection.skill_fingerprint != skill.fingerprint
+            or selection.capability_id not in skill.capability_ids
+        ):
+            return self._ineligible(
+                selection,
+                safety_decision,
+                {BindingReason.REGISTRY_SELECTION_STALE},
+            )
         current_selection = self.registry.selection(
             skill_id=skill.skill_id,
             capability_id=selection.capability_id,
@@ -550,7 +569,9 @@ class SkillManagerService:
         if safety_step is not None and safety_step.hazard_class is not skill.safety_classification:
             reasons.add(BindingReason.SAFETY_CLASSIFICATION_INCOMPATIBLE)
         safety_approval_classes = {
-            item.approval_class for item in safety_decision.required_approvals
+            item.approval_class
+            for item in safety_decision.required_approvals
+            if item.affected_step_id == selection.source_step_id
         }
         if not set(skill.required_approval_classes).issubset(safety_approval_classes):
             reasons.add(BindingReason.APPROVAL_REQUIREMENTS_INCOMPATIBLE)
@@ -585,19 +606,10 @@ class SkillManagerService:
         invocation = SkillInvocation(
             status=invocation_status,
             selection=selection,
-            backend_id=skill.backend_id,
+            skill_definition=skill,
             parameters=parameters,
-            expected_result=skill.expected_result,
-            output_schema=skill.output_schema,
             context_references=context_references,
-            required_resources=skill.required_resources,
             required_approvals=safety_decision.required_approvals,
-            safety_classification=skill.safety_classification,
-            timeout_ms=skill.timeout_ms,
-            concurrency_policy=skill.concurrency_policy,
-            idempotency=skill.idempotency,
-            failure_semantics=skill.failure_semantics,
-            lifecycle=skill.lifecycle,
             source_request_id=safety_decision.source_request_id,
             source_executive_decision_id=safety_decision.source_decision_id,
             source_executive_fingerprint=safety_decision.source_decision_fingerprint,
@@ -605,6 +617,7 @@ class SkillManagerService:
             source_safety_fingerprint=safety_decision.decision_fingerprint,
             source_proposal_fingerprint=safety_decision.proposal_fingerprint,
             source_policy_fingerprint=safety_decision.policy_fingerprint,
+            source_policy_version=safety_decision.policy_version,
         )
         return SkillBindingResult(
             status=result_status,

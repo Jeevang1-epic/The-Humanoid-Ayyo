@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from types import MappingProxyType
 from typing import Mapping
+from typing import TYPE_CHECKING
 
 from .canonical import JSONValue
 from .errors import InvalidSkillRegistryError
@@ -20,6 +21,9 @@ from .models import (
 
 
 MAX_REGISTRY_SKILLS = 256
+
+if TYPE_CHECKING:
+    from .binding import SkillSelection
 
 
 @dataclass(frozen=True, slots=True, init=False)
@@ -139,7 +143,7 @@ class SkillRegistry:
         skill_id: str,
         capability_id: str,
         source_step_id: str,
-    ):
+    ) -> SkillSelection:
         from .binding import SkillSelection
 
         skill = self.resolve(skill_id)

@@ -4,7 +4,14 @@ from dataclasses import FrozenInstanceError
 import unittest
 
 from ayyo_executive import ApprovalRequirement, ExpectedResultCategory
-from ayyo_safety import ApprovalClass, HazardClass, SafetyDisposition
+from ayyo_safety import (
+    ApprovalClass,
+    CapabilitySafetyRule,
+    HazardClass,
+    SafetyDisposition,
+    SafetyKernel,
+    SafetyPolicy,
+)
 from ayyo_skill_manager import (
     BindingReason,
     BindingStatus,
@@ -12,6 +19,11 @@ from ayyo_skill_manager import (
     InvocationStatus,
     SchemaProperty,
     SkillAvailability,
+    SkillInvocation,
+    SkillInvocationInvariantError,
+    SkillManagerService,
+    SkillRegistry,
+    SemanticVersion,
     ValueSchema,
     ValueType,
 )
@@ -146,6 +158,20 @@ class SafetyBindingTest(unittest.TestCase):
         self.assertEqual((BindingReason.REGISTRY_SELECTION_STALE,), result.reasons)
         self.assertIsNone(result.invocation)
 
+    def test_stale_selection_capability_is_ineligible_not_an_exception(self) -> None:
+        old_manager = service(skill(capability_ids=("context.inspect", "context.read")))
+        new_manager = service(skill(capability_ids=("context.inspect",)))
+        source = proposal((plan_step(),))
+        decision = new_manager.safety_kernel.evaluate(source)
+        old_selection = old_manager.registry.selection(
+            skill_id="context.inspect.primary",
+            capability_id="context.read",
+            source_step_id="step-1",
+        )
+        result = new_manager.bind(source, decision, old_selection)
+        self.assertEqual((BindingReason.REGISTRY_SELECTION_STALE,), result.reasons)
+        self.assertIsNone(result.invocation)
+
     def test_unavailable_skill_is_ineligible(self) -> None:
         manager = service(skill(availability=SkillAvailability.DEGRADED))
         result = self.bind(manager, proposal((plan_step(),)))
@@ -194,6 +220,53 @@ class SafetyBindingTest(unittest.TestCase):
         )
         self.assertIsNone(result.invocation)
 
+    def test_approval_on_another_step_cannot_satisfy_selected_skill(self) -> None:
+        approval = ApprovalRequirement("owner-confirmation", "Owner must confirm.")
+        definition = skill(
+            required_approval_classes=(ApprovalClass.EXECUTIVE_DECLARED,),
+        )
+        registry = SkillRegistry(
+            version=SemanticVersion("1.0.0"),
+            skills=(definition,),
+        )
+        kernel = SafetyKernel(
+            SafetyPolicy(
+                capability_rules=(
+                    CapabilitySafetyRule(
+                        capability_id="context.inspect",
+                        hazard_class=HazardClass.INFORMATIONAL_READ_ONLY,
+                    ),
+                    CapabilitySafetyRule(
+                        capability_id="context.other",
+                        hazard_class=HazardClass.INFORMATIONAL_READ_ONLY,
+                    ),
+                )
+            )
+        )
+        manager = SkillManagerService(registry, kernel)
+        source = proposal(
+            (
+                plan_step(step_id="step-1"),
+                plan_step(
+                    step_id="step-2",
+                    capability_id="context.other",
+                    required_approvals=(approval,),
+                ),
+            )
+        )
+        decision = kernel.evaluate(source)
+        selection = registry.selection(
+            skill_id=definition.skill_id,
+            capability_id="context.inspect",
+            source_step_id="step-1",
+        )
+        result = manager.bind(source, decision, selection)
+        self.assertIn(
+            BindingReason.APPROVAL_REQUIREMENTS_INCOMPATIBLE,
+            result.reasons,
+        )
+        self.assertIsNone(result.invocation)
+
     def test_invocation_parameters_are_immutable_defensive_data(self) -> None:
         input_schema = ValueSchema(
             ValueType.OBJECT,
@@ -228,6 +301,33 @@ class SafetyBindingTest(unittest.TestCase):
         )
         self.assertEqual(left.invocation.fingerprint, right.invocation.fingerprint)
         self.assertEqual(left.invocation.invocation_id, right.invocation.invocation_id)
+
+    def test_public_invocation_rejects_a_mismatched_skill_contract(self) -> None:
+        manager = service(skill())
+        source = proposal((plan_step(),))
+        result = self.bind(manager, source)
+        invocation = result.invocation
+        mismatched_skill = skill(skill_id="context.inspect.alternate")
+        with self.assertRaisesRegex(
+            SkillInvocationInvariantError,
+            "does not match",
+        ):
+            SkillInvocation(
+                status=invocation.status,
+                selection=invocation.selection,
+                skill_definition=mismatched_skill,
+                parameters=invocation.parameters,
+                context_references=invocation.context_references,
+                required_approvals=invocation.required_approvals,
+                source_request_id=invocation.source_request_id,
+                source_executive_decision_id=invocation.source_executive_decision_id,
+                source_executive_fingerprint=invocation.source_executive_fingerprint,
+                source_safety_decision_id=invocation.source_safety_decision_id,
+                source_safety_fingerprint=invocation.source_safety_fingerprint,
+                source_proposal_fingerprint=invocation.source_proposal_fingerprint,
+                source_policy_fingerprint=invocation.source_policy_fingerprint,
+                source_policy_version=invocation.source_policy_version,
+            )
 
 
 if __name__ == "__main__":
