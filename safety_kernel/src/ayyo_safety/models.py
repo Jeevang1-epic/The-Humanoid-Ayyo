@@ -652,6 +652,10 @@ class SafetyDecision:
                 field_name=field_name,
                 error_type=SafetyDecisionInvariantError,
             )
+        if policy_version != SAFETY_POLICY_VERSION:
+            raise SafetyDecisionInvariantError(
+                "safety decision policy version is unsupported"
+            )
         if (
             not isinstance(source_decision_fingerprint, ExecutiveFingerprint)
             or source_decision_fingerprint.kind

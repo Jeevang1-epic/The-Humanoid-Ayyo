@@ -29,6 +29,7 @@ from .models import (
     UnresolvedSafetyPrerequisite,
 )
 from .policy import SafetyPolicy
+from .service import SafetyKernel
 
 __all__ = [
     "SAFETY_POLICY_VERSION",
@@ -45,6 +46,7 @@ __all__ = [
     "SafetyFingerprint",
     "SafetyFingerprintKind",
     "SafetyKernelError",
+    "SafetyKernel",
     "SafetyPlanInvariantError",
     "SafetyPolicy",
     "SafetyPrerequisiteKind",
