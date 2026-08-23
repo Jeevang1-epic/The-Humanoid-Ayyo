@@ -38,6 +38,7 @@ class RuntimeEndpointBinding:
     capability_id: str
     backend_id: str
     endpoint: RosServiceEndpoint
+    skill_definition: SkillDefinition
     fingerprint: RuntimeFingerprint
 
     def __init__(
@@ -99,6 +100,7 @@ class RuntimeEndpointBinding:
         object.__setattr__(self, "capability_id", capability_id)
         object.__setattr__(self, "backend_id", endpoint.backend_id)
         object.__setattr__(self, "endpoint", endpoint)
+        object.__setattr__(self, "skill_definition", skill_definition)
         object.__setattr__(
             self,
             "fingerprint",

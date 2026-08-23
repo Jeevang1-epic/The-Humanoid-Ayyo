@@ -1,7 +1,18 @@
 from __future__ import annotations
 
-from ayyo_executive import ExpectedResultCategory
-from ayyo_safety import HazardClass
+from ayyo_executive import (
+    DecisionReason,
+    ExecutiveDecision,
+    ExecutiveDecisionType,
+    ExpectedResultCategory,
+    FailurePolicy,
+    Fingerprint,
+    FingerprintKind,
+    Plan,
+    PlanStep,
+)
+from ayyo_personal_context import ContextSnapshotVersion
+from ayyo_safety import CapabilitySafetyRule, HazardClass, SafetyKernel, SafetyPolicy
 from ayyo_skill_manager import (
     ConcurrencyPolicy,
     FailureSemantics,
@@ -10,11 +21,23 @@ from ayyo_skill_manager import (
     SkillAvailability,
     SkillDefinition,
     SkillLifecycle,
+    SkillManagerService,
+    SkillRegistry,
     ValueSchema,
     ValueType,
 )
 
-from ayyo_runtime_bridge import RosEndpointAvailability, RosServiceEndpoint
+from ayyo_runtime_bridge import (
+    RosEndpointAvailability,
+    RosServiceEndpoint,
+    RuntimeEndpointBinding,
+    RuntimeEndpointRegistry,
+)
+
+
+REQUEST_FINGERPRINT = Fingerprint(FingerprintKind.REQUEST, "1" * 64)
+CAPABILITY_FINGERPRINT = Fingerprint(FingerprintKind.CAPABILITY_CONTRACT, "2" * 64)
+SNAPSHOT_VERSION = ContextSnapshotVersion("3" * 64)
 
 
 def skill(
@@ -65,4 +88,89 @@ def endpoint(
         response_schema=definition.output_schema,
         timeout_ms=definition.timeout_ms,
         availability=availability,
+    )
+
+
+def proposal(
+    *,
+    parameters: dict | None = None,
+    request_id: str = "request-1",
+    step_id: str = "step-1",
+    capability_id: str = "context.inspect",
+) -> ExecutiveDecision:
+    step = PlanStep(
+        step_id=step_id,
+        capability_id=capability_id,
+        parameters={} if parameters is None else parameters,
+        dependencies=(),
+        preconditions=(),
+        required_context=(),
+        required_approvals=(),
+        constraints=(),
+        expected_result=ExpectedResultCategory.INFORMATION,
+        failure_policy=FailurePolicy.STOP_PLAN,
+    )
+    return ExecutiveDecision(
+        request_id=request_id,
+        owner_subject="owner",
+        decision_type=ExecutiveDecisionType.PROPOSE,
+        reason_codes=(DecisionReason.READY_FOR_SAFETY_REVIEW,),
+        explanation="Bind this inert proposal to a runtime test endpoint.",
+        context_snapshot_version=SNAPSHOT_VERSION,
+        request_fingerprint=REQUEST_FINGERPRINT,
+        capability_contract_fingerprint=CAPABILITY_FINGERPRINT,
+        context_references=(),
+        assumptions=(),
+        required_capabilities=(capability_id,),
+        required_approvals=(),
+        constraints=(),
+        proposed_plan=Plan((step,)),
+    )
+
+
+def skill_binding(
+    definition: SkillDefinition,
+    *,
+    source_proposal: ExecutiveDecision | None = None,
+):
+    source = source_proposal or proposal(capability_id=definition.capability_ids[0])
+    kernel = SafetyKernel(
+        SafetyPolicy(
+            capability_rules=(
+                CapabilitySafetyRule(
+                    capability_id=definition.capability_ids[0],
+                    hazard_class=definition.safety_classification,
+                ),
+            )
+        )
+    )
+    skill_registry = SkillRegistry(
+        version=SemanticVersion("1.0.0"),
+        skills=(definition,),
+    )
+    manager = SkillManagerService(skill_registry, kernel)
+    decision = kernel.evaluate(source)
+    selection = skill_registry.selection(
+        skill_id=definition.skill_id,
+        capability_id=definition.capability_ids[0],
+        source_step_id=source.proposed_plan.steps[0].step_id,
+    )
+    return manager.bind(source, decision, selection)
+
+
+def runtime_registry(
+    definition: SkillDefinition,
+    *,
+    contract: RosServiceEndpoint | None = None,
+    version: str = "1.0.0",
+) -> RuntimeEndpointRegistry:
+    endpoint_contract = contract or endpoint(definition)
+    binding = RuntimeEndpointBinding(
+        skill_definition=definition,
+        capability_id=definition.capability_ids[0],
+        endpoint=endpoint_contract,
+    )
+    return RuntimeEndpointRegistry(
+        version=SemanticVersion(version),
+        bindings=(binding,),
     )

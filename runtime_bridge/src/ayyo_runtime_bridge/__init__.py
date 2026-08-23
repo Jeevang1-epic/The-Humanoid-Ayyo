@@ -30,6 +30,7 @@ from .registry import (
     RuntimeEndpointBinding,
     RuntimeEndpointRegistry,
 )
+from .binding import RuntimeRequest, bind_runtime_request
 
 __all__ = [
     "MAX_RUNTIME_IDENTIFIER_LENGTH",
@@ -49,9 +50,11 @@ __all__ = [
     "RosServiceEndpoint",
     "RuntimeEndpointBinding",
     "RuntimeEndpointRegistry",
+    "RuntimeRequest",
     "RuntimeTransportError",
     "RuntimeTransportRejectedError",
     "RuntimeTransportUnavailableError",
     "RuntimeValidationError",
     "StaleRuntimeDecisionError",
+    "bind_runtime_request",
 ]
