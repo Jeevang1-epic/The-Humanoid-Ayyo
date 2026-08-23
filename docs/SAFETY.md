@@ -3,8 +3,10 @@
 This document defines architectural boundaries for Ayyo. It is not a safety
 certification. The deterministic proposal-review portion is implemented by
 [Immutable Safety Kernel v1](SAFETY_KERNEL.md); identity, authenticated
-approval, skill execution, motion/contact safety, hardware limits, and physical
-emergency-stop systems are not implemented.
+approval, runtime skill execution, motion/contact safety, hardware limits, and
+physical emergency-stop systems are not implemented. The declarative Skill
+Manager binding described in [SKILL_MANAGER.md](SKILL_MANAGER.md) is implemented
+but grants no authority.
 
 ## Non-negotiable boundaries
 
@@ -28,6 +30,13 @@ emergency-stop systems are not implemented.
 - `ELIGIBLE_FOR_DOWNSTREAM` means only eligible for further consideration. It
   is not execution authority, authenticated approval, or physical-safety
   certification.
+- A Skill Manager `ELIGIBLE_FOR_RUNTIME_HANDOFF` result means only that an
+  unchanged Safety-reviewed step matches an immutable declarative skill
+  contract. It does not authenticate approval, prove backend availability,
+  schedule resources, or authorize execution.
+- Skill approval requirements must be retained from Safety and matched to the
+  selected step. Approval evidence from another step and proposal parameters
+  such as `approved: true` cannot satisfy them.
 - Approval metadata and convenient proposal booleans never grant approval.
 - Unknown capabilities, conflicting declarations, missing required safety
   metadata, and emergency/safety-critical operations are blocked by the v1

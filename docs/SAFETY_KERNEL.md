@@ -32,7 +32,9 @@ Executive Cognition
     ↓ declarative proposal
 Immutable Safety Kernel v1
     ↓ immutable decision only
-Future identity / approval authority and Skill Manager
+Skill Manager v1 declarative binding
+    ↓
+Future identity / approval authority and runtime bridge
     ↓
 Future ROS 2 bridge and physical controls
 ```
@@ -44,9 +46,10 @@ network, model, subprocess, shell, or filesystem-execution dependency.
 Executive Cognition owns planning and context dependency declaration. The
 Safety Kernel independently checks the plan structure and applies immutable
 hazard policy. A future trusted approval authority must authenticate approvals.
-A future Skill Manager must map an unchanged eligible proposal to an
-implementation. Lower physical-control layers must enforce motion, collision,
-force, workspace, and emergency-stop protections.
+The implemented Skill Manager maps an unchanged eligible proposal step to an
+immutable declarative skill contract, but it does not attest or invoke the
+backend. Lower runtime and physical-control layers must enforce authorization,
+motion, collision, force, workspace, and emergency-stop protections.
 
 ## Non-goals
 
@@ -261,13 +264,14 @@ V1 has no authenticated identity, permission store, trusted approval evidence,
 policy/decision signature or attestation mechanism, audit persistence, live
 capability discovery, perception, robot-state input, environment-state input,
 collision model, motion/contact safety evaluator, emergency-stop hardware,
-Skill Manager, execution, ROS bridge, simulation behavior, or physical
-actuation.
+direct Skill Manager dependency, execution, ROS bridge, simulation behavior, or
+physical actuation. The separate implemented Skill Manager consumes this
+package's public decisions without changing Safety Kernel responsibility.
 
 Consequently, physical movement and contact cannot become eligible in v1, and
 an approval requirement cannot become satisfied inside this package. Emergency
-behavior is blocked rather than fabricated. Future identity, approval, Skill
-Manager, ROS, and physical-control integrations must consume the unchanged
-proposal and decision bindings, revalidate at their own authority boundary, and
-may only add restrictions. They must not reinterpret `ELIGIBLE_FOR_DOWNSTREAM`
-as permission or a physical-safety guarantee.
+behavior is blocked rather than fabricated. The Skill Manager and future
+identity, approval, ROS, and physical-control integrations must consume the
+unchanged proposal and decision bindings, revalidate at their own authority
+boundary, and may only add restrictions. They must not reinterpret
+`ELIGIBLE_FOR_DOWNSTREAM` as permission or a physical-safety guarantee.

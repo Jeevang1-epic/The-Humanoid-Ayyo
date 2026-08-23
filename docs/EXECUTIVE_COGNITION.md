@@ -23,7 +23,9 @@ Executive Cognition v1
         ↓ proposals only
 Immutable Safety Kernel v1
         ↓ review decisions only
-Future identity / approval authority and Skill Manager
+Skill Manager v1 through the Safety decision
+        ↓
+Future identity / approval authority and runtime bridge
         ↓
 Future task / skill execution and ROS bridge
 ```
@@ -66,8 +68,9 @@ capabilities. A lookup is one of:
   be formed.
 
 `AVAILABLE_FOR_PROPOSAL` is not authorization, proof of runtime readiness, or a
-safety result. There is no Skill Manager integration in v1, so the package
-cannot independently attest that an implementation exists.
+safety result. The Executive package does not consult Skill Manager v1, so it
+cannot independently attest that an implementation exists. Skill Manager is a
+separate downstream consumer of unchanged Executive and Safety contracts.
 
 A `CapabilityDefinition` records the canonical ID, description, typed parameter
 contract, required context, approvals, assumptions, preconditions, constraints,
@@ -238,9 +241,11 @@ reasoning, model/LLM integration, live capability discovery, identity proof,
 authorization, persistence, network access, perception, learning, physical
 safety, execution, ROS behavior, navigation, manipulation, or motion control.
 
-Safety Kernel v1 now consumes the unchanged Executive proposal and independently
-revalidates its graph and cross-field relationships. Future work may translate
-authenticated user intent into the structured request, attest capability
-availability through a Skill Manager, and attach trusted authorization outside
-both Executive and Safety packages. Those layers must not weaken the fail-closed
-behavior described here.
+Safety Kernel v1 consumes the unchanged Executive proposal and independently
+revalidates its graph and cross-field relationships. Skill Manager v1 now binds
+unchanged Safety-reviewed steps to explicit declarative skill contracts, but it
+does not feed runtime attestation back into Executive availability. Future work
+may translate authenticated user intent into the structured request, attest
+live backend availability, and attach trusted authorization outside Executive,
+Safety, and Skill Manager. Those layers must not weaken the fail-closed behavior
+described here.

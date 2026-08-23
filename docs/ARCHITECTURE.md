@@ -35,8 +35,10 @@ owner-isolated state from Memory OS. The proposal-only
 public API, validates explicit capability contracts, and produces deterministic
 declarative plans. The [Immutable Safety Kernel](SAFETY_KERNEL.md) independently
 validates those proposals and emits deterministic fail-closed review decisions.
-Identity/approval authority, the Skill Manager, physical-safety subsystems, and
-ROS adaptation remain separate future layers.
+The declarative [Skill Manager](SKILL_MANAGER.md) now registers immutable skill
+contracts and binds unchanged Safety-reviewed proposal steps without executing
+them. Identity/approval authority, runtime skill implementations,
+physical-safety subsystems, and ROS adaptation remain separate future layers.
 
 ## Invariants
 
@@ -77,6 +79,10 @@ ROS adaptation remain separate future layers.
   hazard classification, conservative plan aggregation, approval/prerequisite
   retention, and proposal/policy binding. Eligibility means only downstream
   consideration; it cannot grant approval, certify physical safety, or execute.
+- The Skill Manager owns explicit immutable skill/backend/resource contracts,
+  bounded parameter compatibility, deterministic registry selection, and
+  proposal/Safety/skill/registry traceability. It cannot grant approval,
+  schedule resources, call a backend, use ROS, or execute an invocation.
 - The ROS 2 embodiment bridge isolates higher-level contracts from simulation and
   physical hardware details.
 - Learning updates remain candidates until evaluation and controlled promotion;
