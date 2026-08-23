@@ -37,6 +37,17 @@ from .decision import (
     RuntimeEligibility,
     RuntimeReason,
 )
+from .transport import (
+    RuntimeDispatcher,
+    RuntimeDispatchResult,
+    RuntimeFailureCode,
+    RuntimeResultStatus,
+    RuntimeTransport,
+    RuntimeTransportAvailability,
+    TransportAcceptance,
+    TransportReceipt,
+    UnavailableRosServiceTransport,
+)
 
 __all__ = [
     "MAX_RUNTIME_IDENTIFIER_LENGTH",
@@ -60,6 +71,15 @@ __all__ = [
     "RuntimeDecision",
     "RuntimeEligibility",
     "RuntimeReason",
+    "RuntimeDispatcher",
+    "RuntimeDispatchResult",
+    "RuntimeFailureCode",
+    "RuntimeResultStatus",
+    "RuntimeTransport",
+    "RuntimeTransportAvailability",
+    "TransportAcceptance",
+    "TransportReceipt",
+    "UnavailableRosServiceTransport",
     "RuntimeRequest",
     "RuntimeTransportError",
     "RuntimeTransportRejectedError",
