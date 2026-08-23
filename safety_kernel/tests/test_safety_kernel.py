@@ -282,6 +282,30 @@ class SafetyPolicyBehaviorTest(unittest.TestCase):
         self.assertIn(SafetyReason.UNVERIFIED_ASSUMPTION, decision.reason_codes)
         self.assertEqual("input-current", decision.unresolved_prerequisites[0].prerequisite_id)
 
+    def test_maximum_assumptions_and_physical_prerequisite_remain_representable(self) -> None:
+        assumptions = tuple(
+            Assumption(
+                f"assumption-{index:03d}",
+                "This maximum-size assumption remains unverified.",
+            )
+            for index in range(128)
+        )
+        decision = kernel(
+            rule("test.move", HazardClass.PHYSICAL_MOVEMENT)
+        ).evaluate(
+            proposal(
+                (
+                    plan_step(
+                        capability_id="test.move",
+                        expected_result=ExpectedResultCategory.PROPOSED_PHYSICAL_EFFECT,
+                    ),
+                ),
+                assumptions=assumptions,
+            )
+        )
+        self.assertEqual(SafetyDisposition.DEFERRED, decision.disposition)
+        self.assertEqual(129, len(decision.unresolved_prerequisites))
+
     def test_mixed_risk_plan_aggregates_to_most_restrictive_step(self) -> None:
         steps = (
             plan_step("inspect", capability_id="test.inspect"),
@@ -537,6 +561,38 @@ class StalenessProtectionTest(unittest.TestCase):
         with self.assertRaises(StaleSafetyDecisionError):
             result.assert_current()
 
+    def test_pre_evaluation_tampering_breaks_executive_fingerprint_integrity(self) -> None:
+        executive = proposal((plan_step(parameters={"value": "before"}),))
+        object.__setattr__(
+            executive.proposed_plan.steps[0],
+            "_parameters",
+            {"value": "after"},
+        )
+        with self.assertRaises(InvalidSafetyProposalError):
+            self.safety.evaluate(executive)
+
+        context_fingerprint_tamper = proposal((plan_step(),))
+        object.__setattr__(
+            context_fingerprint_tamper,
+            "relevant_context_fingerprint",
+            Fingerprint(FingerprintKind.RELEVANT_CONTEXT, "9" * 64),
+        )
+        with self.assertRaises(InvalidSafetyProposalError):
+            self.safety.evaluate(context_fingerprint_tamper)
+
+    def test_executive_explanation_tampering_is_stale(self) -> None:
+        executive = proposal((plan_step(),))
+        decision = self.safety.evaluate(executive)
+        object.__setattr__(
+            executive,
+            "explanation",
+            "This explanation was changed after safety evaluation.",
+        )
+        self.assertEqual(
+            SafetyRevalidationStatus.STALE,
+            self.safety.revalidate(decision, executive).status,
+        )
+
     def test_dependency_change_is_stale_even_when_graph_remains_valid(self) -> None:
         steps = (
             plan_step("a"),
@@ -681,6 +737,24 @@ class PlanInvariantAdversarialTest(unittest.TestCase):
         self.assertEqual(64, len(first.step_decisions))
         self.assertEqual(first, second)
 
+    def test_large_missing_policy_metadata_produces_a_blocked_decision(self) -> None:
+        precondition_ids = tuple(
+            f"required-{index:03d}" for index in range(128)
+        )
+        safety = kernel(
+            rule(
+                "test.inspect",
+                HazardClass.INFORMATIONAL_READ_ONLY,
+                required_precondition_ids=precondition_ids,
+            )
+        )
+        executive = proposal(
+            tuple(plan_step(f"step-{index:02d}") for index in range(64))
+        )
+        decision = safety.evaluate(executive)
+        self.assertEqual(SafetyDisposition.BLOCKED, decision.disposition)
+        self.assertEqual(64 * 128, len(decision.unresolved_prerequisites))
+
     def test_impossible_global_relationships_are_rejected(self) -> None:
         executive = proposal((plan_step(),))
         object.__setattr__(
@@ -698,6 +772,31 @@ class PlanInvariantAdversarialTest(unittest.TestCase):
         object.__setattr__(approval_mismatch, "required_approvals", ())
         with self.assertRaises(InvalidSafetyProposalError):
             self.safety.evaluate(approval_mismatch)
+
+    def test_conflicting_required_and_optional_context_roles_are_rejected(self) -> None:
+        requirement = ContextRequirement(ContextDomain.SPATIAL, "robot_pose")
+        reference_arguments = {
+            "requirement": requirement,
+            "state": ContextState.RESOLVED,
+            "value_digests": ("4" * 64,),
+            "memory_ids": (
+                UUID("00000000-0000-0000-0000-000000000001"),
+            ),
+            "conflict_ids": (),
+        }
+        required = ContextReference(required=True, **reference_arguments)
+        optional = ContextReference(required=False, **reference_arguments)
+        executive = proposal(
+            (plan_step(required_context=(requirement,)),),
+            context_references=(required,),
+        )
+        object.__setattr__(
+            executive,
+            "context_references",
+            (required, optional),
+        )
+        with self.assertRaises(InvalidSafetyProposalError):
+            self.safety.evaluate(executive)
 
     def test_malformed_capability_is_rejected_not_classified(self) -> None:
         executive = proposal((plan_step(),))
@@ -780,6 +879,22 @@ class StructuredDataAdversarialTest(unittest.TestCase):
             with self.subTest(capability_id=capability_id):
                 with self.assertRaises(InvalidSafetyPolicyError):
                     rule(capability_id, HazardClass.INFORMATIONAL_READ_ONLY)
+
+    def test_maximum_executive_capability_identifier_remains_supported(self) -> None:
+        capability_id = "x" * 256
+        decision = kernel(
+            rule(capability_id, HazardClass.INFORMATIONAL_READ_ONLY)
+        ).evaluate(
+            proposal((plan_step(capability_id=capability_id),))
+        )
+        self.assertEqual(
+            SafetyDisposition.ELIGIBLE_FOR_DOWNSTREAM,
+            decision.disposition,
+        )
+        self.assertIn(
+            f"capability.{capability_id}",
+            decision.step_decisions[0].triggering_policy_rules,
+        )
 
     def test_unclassified_policy_rule_is_rejected(self) -> None:
         with self.assertRaises(InvalidSafetyPolicyError):

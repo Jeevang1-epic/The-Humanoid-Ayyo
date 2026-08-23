@@ -21,8 +21,13 @@ SAFETY_SCHEMA_VERSION = 1
 SAFETY_POLICY_VERSION = "ayyo.safety.policy.v1"
 MAX_SAFETY_ITEMS = 128
 MAX_SAFETY_CAPABILITIES = 256
+MAX_SAFETY_STEPS = 64
+MAX_SAFETY_DECISION_ITEMS = 512
+MAX_SAFETY_AGGREGATE_ITEMS = 20_000
 MAX_SAFETY_TEXT_LENGTH = 16_384
 MAX_SAFETY_IDENTIFIER_LENGTH = 256
+MAX_FINGERPRINT_JSON_NODES = 250_000
+MAX_FINGERPRINT_JSON_CHARACTERS = 32_000_000
 
 
 class SafetyFingerprintKind(StrEnum):
@@ -167,9 +172,10 @@ def _validate_identifier(
     *,
     field_name: str,
     error_type: type[Exception],
+    max_length: int = MAX_SAFETY_IDENTIFIER_LENGTH,
 ) -> str:
     text = _validate_text(value, field_name=field_name, error_type=error_type)
-    if len(text) > MAX_SAFETY_IDENTIFIER_LENGTH:
+    if len(text) > max_length:
         raise error_type(f"{field_name} exceeds the identifier length limit")
     if not text[0].isalnum() or any(
         not (character.isalnum() or character in {"-", "_", "."})
@@ -217,11 +223,15 @@ class SafetyFingerprint:
 def fingerprint_document(
     kind: SafetyFingerprintKind,
     document: JSONValue,
+    *,
+    error_type: type[Exception] = SafetyDecisionInvariantError,
 ) -> SafetyFingerprint:
     canonical = canonicalize_json(
         document,
         field_name=f"{kind.value} fingerprint document",
-        error_type=SafetyDecisionInvariantError,
+        error_type=error_type,
+        max_nodes=MAX_FINGERPRINT_JSON_NODES,
+        max_characters=MAX_FINGERPRINT_JSON_CHARACTERS,
     )
     return SafetyFingerprint(
         kind=kind,
@@ -234,6 +244,7 @@ def _identifier_tuple(
     *,
     field_name: str,
     error_type: type[Exception],
+    max_identifier_length: int = MAX_SAFETY_IDENTIFIER_LENGTH,
 ) -> tuple[str, ...]:
     if not isinstance(values, tuple) or not all(
         isinstance(value, str) for value in values
@@ -246,6 +257,7 @@ def _identifier_tuple(
             value,
             field_name=field_name,
             error_type=error_type,
+            max_length=max_identifier_length,
         )
     ordered = tuple(sorted(set(values)))
     if len(ordered) != len(values):
@@ -473,7 +485,7 @@ def _ordered_objects(
         raise SafetyDecisionInvariantError(
             f"{field_name} must contain only {item_type.__name__} objects"
         )
-    if len(values) > MAX_SAFETY_ITEMS:
+    if len(values) > MAX_SAFETY_DECISION_ITEMS:
         raise SafetyDecisionInvariantError(f"{field_name} exceeds the item limit")
     ordered = tuple(sorted(values, key=key))
     keys = tuple(key(value) for value in ordered)
@@ -533,6 +545,9 @@ class SafetyStepDecision:
             triggering_policy_rules,
             field_name="triggering policy rules",
             error_type=SafetyDecisionInvariantError,
+            max_identifier_length=(
+                MAX_SAFETY_IDENTIFIER_LENGTH + len("capability.")
+            ),
         )
         if not policy_rules:
             raise SafetyDecisionInvariantError(
@@ -743,7 +758,7 @@ class SafetyDecision:
             raise SafetyDecisionInvariantError(
                 "a safety decision requires typed step decisions"
             )
-        if len(step_decisions) > MAX_SAFETY_ITEMS:
+        if len(step_decisions) > MAX_SAFETY_STEPS:
             raise SafetyDecisionInvariantError(
                 "step decisions exceed the item limit"
             )
@@ -784,6 +799,14 @@ class SafetyDecision:
                 key=_prerequisite_key,
             )
         )
+        if len(approvals) > MAX_SAFETY_AGGREGATE_ITEMS:
+            raise SafetyDecisionInvariantError(
+                "decision approval requirements exceed the aggregate limit"
+            )
+        if len(prerequisites) > MAX_SAFETY_AGGREGATE_ITEMS:
+            raise SafetyDecisionInvariantError(
+                "decision prerequisites exceed the aggregate limit"
+            )
         document: dict[str, JSONValue] = {
             "disposition": disposition.value,
             "owner_subject": owner_subject,

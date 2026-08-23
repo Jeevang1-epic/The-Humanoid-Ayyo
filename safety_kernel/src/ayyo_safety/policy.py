@@ -192,6 +192,7 @@ class SafetyPolicy:
         fingerprint = fingerprint_document(
             SafetyFingerprintKind.POLICY,
             document,
+            error_type=InvalidSafetyPolicyError,
         )
         object.__setattr__(self, "version", SAFETY_POLICY_VERSION)
         object.__setattr__(self, "capability_rules", ordered_capabilities)

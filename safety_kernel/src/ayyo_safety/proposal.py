@@ -520,7 +520,11 @@ def _topological_steps(
     return tuple(ordered)
 
 
-def snapshot_proposal(proposal: ExecutiveDecision) -> SafetyProposalSnapshot:
+def snapshot_proposal(
+    proposal: ExecutiveDecision,
+    *,
+    require_source_integrity: bool = True,
+) -> SafetyProposalSnapshot:
     """Copy and independently validate one public Executive proposal."""
 
     try:
@@ -579,6 +583,13 @@ def snapshot_proposal(proposal: ExecutiveDecision) -> SafetyProposalSnapshot:
             key=lambda item: item.key,
             field_name="context references",
         )
+        context_identities = tuple(
+            reference.requirement.key for reference in context_references
+        )
+        if len(context_identities) != len(set(context_identities)):
+            raise InvalidSafetyProposalError(
+                "a context identity cannot have conflicting required roles"
+            )
         missing_context = tuple(
             _snapshot_context_requirement(item)
             for item in _typed_tuple(
@@ -754,6 +765,35 @@ def snapshot_proposal(proposal: ExecutiveDecision) -> SafetyProposalSnapshot:
                 "context snapshot version is invalid"
             )
         context_snapshot_version = f"sha256:{snapshot_digest}"
+        rebuilt = ExecutiveDecision(
+            request_id=proposal.request_id,
+            owner_subject=proposal.owner_subject,
+            decision_type=proposal.decision_type,
+            reason_codes=proposal.reason_codes,
+            explanation=proposal.explanation,
+            context_snapshot_version=proposal.context_snapshot_version,
+            request_fingerprint=proposal.request_fingerprint,
+            capability_contract_fingerprint=(
+                proposal.capability_contract_fingerprint
+            ),
+            context_references=proposal.context_references,
+            assumptions=proposal.assumptions,
+            required_capabilities=proposal.required_capabilities,
+            required_approvals=proposal.required_approvals,
+            constraints=proposal.constraints,
+            proposed_plan=proposal.proposed_plan,
+        )
+        if (
+            require_source_integrity
+            and (
+                rebuilt.decision_fingerprint != decision_fingerprint
+                or rebuilt.relevant_context_fingerprint
+                != proposal.relevant_context_fingerprint
+            )
+        ):
+            raise InvalidSafetyProposalError(
+                "proposal content does not match its Executive fingerprint"
+            )
         document: dict[str, JSONValue] = {
             "assumptions": [item.document() for item in assumptions],
             "capability_contract_fingerprint": str(
@@ -765,16 +805,24 @@ def snapshot_proposal(proposal: ExecutiveDecision) -> SafetyProposalSnapshot:
             "context_snapshot_version": context_snapshot_version,
             "decision_type": proposal.decision_type.value,
             "owner_subject": owner_subject,
+            "relevant_context_fingerprint": str(
+                proposal.relevant_context_fingerprint
+            ),
             "request_fingerprint": str(proposal.request_fingerprint),
             "schema": "ayyo.safety.proposal.v1",
+            "source_decision_explanation": proposal.explanation,
             "source_decision_fingerprint": str(decision_fingerprint),
             "source_decision_id": source_decision_id,
+            "source_decision_reasons": [
+                reason.value for reason in proposal.reason_codes
+            ],
             "source_request_id": source_request_id,
             "steps": [step.document() for step in steps],
         }
         proposal_fingerprint = fingerprint_document(
             SafetyFingerprintKind.PROPOSAL,
             document,
+            error_type=InvalidSafetyProposalError,
         )
         return SafetyProposalSnapshot(
             source_decision_id=source_decision_id,

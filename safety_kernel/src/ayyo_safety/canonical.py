@@ -30,6 +30,9 @@ def validate_json(
     *,
     field_name: str,
     error_type: type[Exception] = SafetyValidationError,
+    max_depth: int = MAX_JSON_DEPTH,
+    max_nodes: int = MAX_JSON_NODES,
+    max_characters: int = MAX_JSON_CHARACTERS,
 ) -> None:
     stack: list[tuple[object, int, bool]] = [(value, 0, False)]
     active_containers: set[int] = set()
@@ -42,13 +45,13 @@ def validate_json(
             active_containers.remove(id(current))
             continue
         node_count += 1
-        if node_count > MAX_JSON_NODES:
-            raise error_type(f"{field_name} exceeds the {MAX_JSON_NODES}-node limit")
-        if depth > MAX_JSON_DEPTH:
-            raise error_type(f"{field_name} exceeds the {MAX_JSON_DEPTH}-level limit")
+        if node_count > max_nodes:
+            raise error_type(f"{field_name} exceeds the {max_nodes}-node limit")
+        if depth > max_depth:
+            raise error_type(f"{field_name} exceeds the {max_depth}-level limit")
         if isinstance(current, str):
             character_count += len(current)
-            if character_count > MAX_JSON_CHARACTERS:
+            if character_count > max_characters:
                 raise error_type(f"{field_name} exceeds the character limit")
             try:
                 current.encode("utf-8")
@@ -68,9 +71,9 @@ def validate_json(
                 raise error_type(f"{field_name} cannot contain non-finite numbers")
             continue
         if isinstance(current, list):
-            if len(current) > MAX_JSON_NODES - node_count:
+            if len(current) > max_nodes - node_count:
                 raise error_type(
-                    f"{field_name} exceeds the {MAX_JSON_NODES}-node limit"
+                    f"{field_name} exceeds the {max_nodes}-node limit"
                 )
             identity = id(current)
             if identity in active_containers:
@@ -80,9 +83,9 @@ def validate_json(
             stack.extend((item, depth + 1, False) for item in reversed(current))
             continue
         if isinstance(current, dict):
-            if len(current) > MAX_JSON_NODES - node_count:
+            if len(current) > max_nodes - node_count:
                 raise error_type(
-                    f"{field_name} exceeds the {MAX_JSON_NODES}-node limit"
+                    f"{field_name} exceeds the {max_nodes}-node limit"
                 )
             identity = id(current)
             if identity in active_containers:
@@ -91,7 +94,7 @@ def validate_json(
                 raise error_type(f"{field_name} object keys must be strings")
             for key in current:
                 character_count += len(key)
-                if character_count > MAX_JSON_CHARACTERS:
+                if character_count > max_characters:
                     raise error_type(f"{field_name} exceeds the character limit")
                 try:
                     key.encode("utf-8")
@@ -114,8 +117,18 @@ def canonicalize_json(
     *,
     field_name: str = "value",
     error_type: type[Exception] = SafetyValidationError,
+    max_depth: int = MAX_JSON_DEPTH,
+    max_nodes: int = MAX_JSON_NODES,
+    max_characters: int = MAX_JSON_CHARACTERS,
 ) -> str:
-    validate_json(value, field_name=field_name, error_type=error_type)
+    validate_json(
+        value,
+        field_name=field_name,
+        error_type=error_type,
+        max_depth=max_depth,
+        max_nodes=max_nodes,
+        max_characters=max_characters,
+    )
     fragments: list[str] = []
     stack: list[object] = [value]
     while stack:

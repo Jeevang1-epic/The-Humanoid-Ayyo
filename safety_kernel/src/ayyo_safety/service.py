@@ -117,7 +117,7 @@ class SafetyKernel:
             raise SafetyDecisionInvariantError(
                 "revalidation requires a SafetyDecision"
             )
-        current = snapshot_proposal(proposal)
+        current = snapshot_proposal(proposal, require_source_integrity=False)
         reasons: set[SafetyRevalidationReason] = set()
         if decision.proposal_fingerprint != current.fingerprint:
             reasons.add(SafetyRevalidationReason.PROPOSAL_CHANGED)

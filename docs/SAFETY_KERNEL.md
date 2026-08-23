@@ -108,7 +108,9 @@ independently verifies:
 - exact agreement between plan context dependencies and required context
   references;
 - resolved required context for an executable proposal;
+- no conflicting required/optional roles for one context identity;
 - decision type, reason, approval, fingerprint, and ID shape;
+- content agreement with a rebuilt public Executive decision fingerprint;
 - typed preconditions, context requirements, approvals, constraints, expected
   results, and failure policies; and
 - bounded JSON-compatible step and constraint parameters.
@@ -173,18 +175,25 @@ uses a package-owned, bounded, iterative canonical JSON implementation because
 Executive Cognition does not export its canonicalization utility. No private
 Executive module is imported.
 
-Canonical data handling rejects cycles, unsupported objects, non-string object
-keys, non-finite numbers, invalid Unicode, oversized integers, structures deeper
-than 256 levels, more than 10,000 JSON nodes, or more than 4,000,000 aggregate
-characters. Strings, booleans, integers, and floats remain type-distinct;
-Unicode normalization is not silently changed.
+Ingress canonical data handling rejects cycles, unsupported objects, non-string
+object keys, non-finite numbers, invalid Unicode, oversized integers, structures
+deeper than 256 levels, more than 10,000 JSON nodes, or more than 4,000,000
+aggregate characters. Strings, booleans, integers, and floats remain
+type-distinct; Unicode normalization is not silently changed. Internally
+generated policy and decision fingerprint documents use separate bounds of
+250,000 nodes and 32,000,000 characters so that maximum valid Executive plans
+and explicit blocker evidence remain representable without relaxing ingress
+limits.
 
 The Safety-owned proposal fingerprint binds the actual reviewed content,
 including source IDs and fingerprints, context snapshot version and references,
-assumptions, full plan structure, capability IDs, canonical parameters,
-dependencies, preconditions, context requirements, approval requirements,
-constraints, expected results, and failure policies. It does not rely on object
-identity, process hashing, time, or randomness.
+source explanation and reasons, assumptions, full plan structure, capability
+IDs, canonical parameters, dependencies, preconditions, context requirements,
+approval requirements, constraints, expected results, and failure policies. It
+does not rely on object identity, process hashing, time, or randomness. Initial
+evaluation also rebuilds the decision through the public Executive constructor
+and rejects content that no longer matches the declared Executive decision or
+relevant-context fingerprints.
 
 `SafetyKernel.revalidate(prior_decision, current_proposal)` rebuilds the proposal
 snapshot and compares both proposal and current policy fingerprints. A
@@ -249,10 +258,11 @@ is packaged.
 ## Deliberate limitations and future integration
 
 V1 has no authenticated identity, permission store, trusted approval evidence,
-policy-signature mechanism, audit persistence, live capability discovery,
-perception, robot-state input, environment-state input, collision model,
-motion/contact safety evaluator, emergency-stop hardware, Skill Manager,
-execution, ROS bridge, simulation behavior, or physical actuation.
+policy/decision signature or attestation mechanism, audit persistence, live
+capability discovery, perception, robot-state input, environment-state input,
+collision model, motion/contact safety evaluator, emergency-stop hardware,
+Skill Manager, execution, ROS bridge, simulation behavior, or physical
+actuation.
 
 Consequently, physical movement and contact cannot become eligible in v1, and
 an approval requirement cannot become satisfied inside this package. Emergency
