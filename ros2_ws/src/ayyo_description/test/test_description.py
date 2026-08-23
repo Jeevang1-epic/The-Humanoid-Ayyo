@@ -143,7 +143,7 @@ def test_ros2_control_contract_is_dormant_and_complete(proxy_robot: ET.Element) 
     contract_joints = {
         element.get('name')
         for element in source.iter()
-        if element.tag.endswith('controlled_joint') and element.get('name')
+        if element.tag.endswith('ayyo_ros2_control_joint') and element.get('name')
     }
     movable_joints = {
         joint.get('name')
@@ -159,6 +159,32 @@ def test_ros2_control_contract_is_dormant_and_complete(proxy_robot: ET.Element) 
     assert 'upper=' not in control_source
     assert 'max_velocity' not in control_source
     assert 'max_effort' not in control_source
+
+
+def test_control_mode_uses_harmonic_hardware_and_one_command_joint() -> None:
+    robot = parse_robot(
+        expand_xacro(
+            PACKAGE_ROOT / 'urdf' / 'ayyo.urdf.xacro',
+            'simulation_mode:=true',
+            'simulation_control:=true',
+            'simulation_controller_config:=/tmp/ayyo-control-test.yaml',
+        )
+    )
+    assert robot.findtext('./gazebo/static') == 'false'
+    plugin = robot.find("./gazebo/plugin[@filename='gz_ros2_control-system']")
+    assert plugin is not None
+    assert plugin.get('name') == 'gz_ros2_control::GazeboSimROS2ControlPlugin'
+    assert plugin.findtext('parameters') == '/tmp/ayyo-control-test.yaml'
+    control = robot.find("./ros2_control[@name='AyyoSystem']")
+    assert control is not None
+    assert control.findtext('./hardware/plugin') == 'gz_ros2_control/GazeboSimSystem'
+    controlled = {
+        joint.get('name')
+        for joint in control.findall('joint')
+        if joint.find("command_interface[@name='position']") is not None
+    }
+    assert controlled == {'neck_yaw_joint'}
+    assert len(control.findall('joint')) == 18
 
 
 def test_left_and_right_contracts_are_name_symmetric(proxy_robot: ET.Element) -> None:

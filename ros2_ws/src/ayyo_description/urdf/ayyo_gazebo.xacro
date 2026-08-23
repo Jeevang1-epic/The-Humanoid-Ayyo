@@ -1,13 +1,18 @@
 <?xml version="1.0"?>
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro">
-  <xacro:macro name="ayyo_gazebo" params="static_model">
-    <!--
-      Foundation v1 deliberately spawns a static, non-actuating development
-      model. No Gazebo system plugin, controller, or hardware interface is
-      loaded by the authoritative description.
-    -->
+  <xacro:macro name="ayyo_gazebo"
+               params="static_model control_enabled controller_config">
     <gazebo>
-      <static>${str(static_model).lower()}</static>
+      <xacro:if value="${control_enabled}">
+        <static>false</static>
+        <plugin filename="gz_ros2_control-system"
+                name="gz_ros2_control::GazeboSimROS2ControlPlugin">
+          <parameters>${controller_config}</parameters>
+        </plugin>
+      </xacro:if>
+      <xacro:unless value="${control_enabled}">
+        <static>${str(static_model).lower()}</static>
+      </xacro:unless>
     </gazebo>
   </xacro:macro>
 </robot>

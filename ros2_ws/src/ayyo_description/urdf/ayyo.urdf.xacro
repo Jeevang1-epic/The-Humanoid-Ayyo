@@ -3,6 +3,8 @@
   <xacro:arg name="use_meshes" default="false"/>
   <xacro:arg name="simulation_mode" default="false"/>
   <xacro:arg name="simulation_static" default="true"/>
+  <xacro:arg name="simulation_control" default="false"/>
+  <xacro:arg name="simulation_controller_config" default=""/>
 
   <xacro:include filename="ayyo_materials.xacro"/>
   <xacro:include filename="ayyo_geometry.xacro"/>
@@ -13,6 +15,13 @@
   <xacro:ayyo_materials/>
   <xacro:ayyo_body use_meshes="$(arg use_meshes)"/>
   <xacro:if value="$(arg simulation_mode)">
-    <xacro:ayyo_gazebo static_model="$(arg simulation_static)"/>
+    <xacro:ayyo_gazebo
+      static_model="$(arg simulation_static)"
+      control_enabled="$(arg simulation_control)"
+      controller_config="$(arg simulation_controller_config)"/>
+    <xacro:if value="$(arg simulation_control)">
+      <xacro:ayyo_ros2_control_system
+        hardware_plugin="gz_ros2_control/GazeboSimSystem"/>
+    </xacro:if>
   </xacro:if>
 </robot>

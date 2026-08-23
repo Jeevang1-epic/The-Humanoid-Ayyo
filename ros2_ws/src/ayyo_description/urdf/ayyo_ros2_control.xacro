@@ -1,16 +1,14 @@
 <?xml version="1.0"?>
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro">
-  <!--
-    This macro is a dormant interface contract. Foundation v1 never invokes
-    it and supplies no hardware plugin. A later reviewed integration may call
-    it only after choosing a concrete simulation or hardware system below the
-    Runtime Bridge and physical-safety boundaries.
-  -->
-  <xacro:macro name="ayyo_controlled_joint" params="name">
+  <xacro:macro name="ayyo_ros2_control_joint" params="name command_position">
     <joint name="${name}">
-      <!-- Position limits remain single-owned by the corresponding URDF joint. -->
-      <command_interface name="position"/>
-      <state_interface name="position"/>
+      <xacro:if value="${command_position}">
+        <!-- Limits remain single-owned by the corresponding URDF joint. -->
+        <command_interface name="position"/>
+      </xacro:if>
+      <state_interface name="position">
+        <param name="initial_value">0.0</param>
+      </state_interface>
       <state_interface name="velocity"/>
       <state_interface name="effort"/>
     </joint>
@@ -22,26 +20,29 @@
         <plugin>${hardware_plugin}</plugin>
       </hardware>
 
-      <xacro:ayyo_controlled_joint name="neck_yaw_joint"/>
-      <xacro:ayyo_controlled_joint name="head_pitch_joint"/>
+      <!-- V1 intentionally exposes one and only one command interface. -->
+      <xacro:ayyo_ros2_control_joint
+        name="neck_yaw_joint" command_position="true"/>
+      <xacro:ayyo_ros2_control_joint
+        name="head_pitch_joint" command_position="false"/>
 
-      <xacro:ayyo_controlled_joint name="left_shoulder_yaw_joint"/>
-      <xacro:ayyo_controlled_joint name="left_shoulder_pitch_joint"/>
-      <xacro:ayyo_controlled_joint name="left_elbow_flex_joint"/>
-      <xacro:ayyo_controlled_joint name="left_wrist_yaw_joint"/>
-      <xacro:ayyo_controlled_joint name="right_shoulder_yaw_joint"/>
-      <xacro:ayyo_controlled_joint name="right_shoulder_pitch_joint"/>
-      <xacro:ayyo_controlled_joint name="right_elbow_flex_joint"/>
-      <xacro:ayyo_controlled_joint name="right_wrist_yaw_joint"/>
+      <xacro:ayyo_ros2_control_joint name="left_shoulder_yaw_joint" command_position="false"/>
+      <xacro:ayyo_ros2_control_joint name="left_shoulder_pitch_joint" command_position="false"/>
+      <xacro:ayyo_ros2_control_joint name="left_elbow_flex_joint" command_position="false"/>
+      <xacro:ayyo_ros2_control_joint name="left_wrist_yaw_joint" command_position="false"/>
+      <xacro:ayyo_ros2_control_joint name="right_shoulder_yaw_joint" command_position="false"/>
+      <xacro:ayyo_ros2_control_joint name="right_shoulder_pitch_joint" command_position="false"/>
+      <xacro:ayyo_ros2_control_joint name="right_elbow_flex_joint" command_position="false"/>
+      <xacro:ayyo_ros2_control_joint name="right_wrist_yaw_joint" command_position="false"/>
 
-      <xacro:ayyo_controlled_joint name="left_hip_yaw_joint"/>
-      <xacro:ayyo_controlled_joint name="left_hip_pitch_joint"/>
-      <xacro:ayyo_controlled_joint name="left_knee_flex_joint"/>
-      <xacro:ayyo_controlled_joint name="left_ankle_pitch_joint"/>
-      <xacro:ayyo_controlled_joint name="right_hip_yaw_joint"/>
-      <xacro:ayyo_controlled_joint name="right_hip_pitch_joint"/>
-      <xacro:ayyo_controlled_joint name="right_knee_flex_joint"/>
-      <xacro:ayyo_controlled_joint name="right_ankle_pitch_joint"/>
+      <xacro:ayyo_ros2_control_joint name="left_hip_yaw_joint" command_position="false"/>
+      <xacro:ayyo_ros2_control_joint name="left_hip_pitch_joint" command_position="false"/>
+      <xacro:ayyo_ros2_control_joint name="left_knee_flex_joint" command_position="false"/>
+      <xacro:ayyo_ros2_control_joint name="left_ankle_pitch_joint" command_position="false"/>
+      <xacro:ayyo_ros2_control_joint name="right_hip_yaw_joint" command_position="false"/>
+      <xacro:ayyo_ros2_control_joint name="right_hip_pitch_joint" command_position="false"/>
+      <xacro:ayyo_ros2_control_joint name="right_knee_flex_joint" command_position="false"/>
+      <xacro:ayyo_ros2_control_joint name="right_ankle_pitch_joint" command_position="false"/>
     </ros2_control>
   </xacro:macro>
 </robot>

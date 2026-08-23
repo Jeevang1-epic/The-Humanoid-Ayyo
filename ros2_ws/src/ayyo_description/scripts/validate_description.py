@@ -297,6 +297,44 @@ def validate_package(package_root: Path) -> tuple[int, int, int, int]:
         raise DescriptionValidationError('foundation description must not load plugins')
     if simulation_robot.find('ros2_control') is not None:
         raise DescriptionValidationError('foundation description must not activate ros2_control')
+
+    controlled_robot = parse_robot(
+        expand_xacro(
+            xacro_path,
+            'simulation_mode:=true',
+            'simulation_control:=true',
+            'simulation_controller_config:=/tmp/ayyo-control-validation.yaml',
+        )
+    )
+    validate_tree(controlled_robot)
+    if controlled_robot.findtext('./gazebo/static') != 'false':
+        raise DescriptionValidationError('controlled simulation must be dynamic')
+    plugin = controlled_robot.find("./gazebo/plugin[@filename='gz_ros2_control-system']")
+    if plugin is None or plugin.get('name') != (
+        'gz_ros2_control::GazeboSimROS2ControlPlugin'
+    ):
+        raise DescriptionValidationError('controlled simulation plugin is incomplete')
+    control = controlled_robot.find("./ros2_control[@name='AyyoSystem']")
+    if control is None or control.findtext('./hardware/plugin') != (
+        'gz_ros2_control/GazeboSimSystem'
+    ):
+        raise DescriptionValidationError('controlled simulation hardware is incomplete')
+    control_joints = control.findall('joint')
+    state_joint_names = {joint.get('name') for joint in control_joints}
+    movable_joint_names = {
+        joint.get('name')
+        for joint in controlled_robot.findall('joint')
+        if joint.get('type') == 'revolute'
+    }
+    if state_joint_names != movable_joint_names:
+        raise DescriptionValidationError('ros2_control state interfaces are incomplete')
+    command_joint_names = {
+        joint.get('name')
+        for joint in control_joints
+        if joint.find("command_interface[@name='position']") is not None
+    }
+    if command_joint_names != {'neck_yaw_joint'}:
+        raise DescriptionValidationError('ros2_control command allowlist is not exact')
     return link_count, joint_count, movable_count, mesh_count
 
 
