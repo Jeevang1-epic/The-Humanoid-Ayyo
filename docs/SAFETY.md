@@ -1,7 +1,10 @@
 # Safety Contract
 
 This document defines architectural boundaries for Ayyo. It is not a safety
-certification or a claim that a safety runtime has been implemented.
+certification. The deterministic proposal-review portion is implemented by
+[Immutable Safety Kernel v1](SAFETY_KERNEL.md); identity, authenticated
+approval, skill execution, motion/contact safety, hardware limits, and physical
+emergency-stop systems are not implemented.
 
 ## Non-negotiable boundaries
 
@@ -19,6 +22,17 @@ certification or a claim that a safety runtime has been implemented.
 - A stale Executive proposal must not be silently refreshed or reused; its
   request, owner, relevant capability contract, and required context must be
   revalidated at the next authority boundary.
+- A Safety Kernel decision is bound to the complete reviewed proposal and
+  immutable policy fingerprints. Changed well-formed input is stale; malformed
+  input fails visibly.
+- `ELIGIBLE_FOR_DOWNSTREAM` means only eligible for further consideration. It
+  is not execution authority, authenticated approval, or physical-safety
+  certification.
+- Approval metadata and convenient proposal booleans never grant approval.
+- Unknown capabilities, conflicting declarations, missing required safety
+  metadata, and emergency/safety-critical operations are blocked by the v1
+  policy. Physical movement and contact are deferred because their dedicated
+  safety subsystems do not yet exist.
 - Dangerous or uncertain actions fail closed.
 - Speed, force, and workspace limits are enforced below cognition.
 - High-risk actions require explicit authorization.
