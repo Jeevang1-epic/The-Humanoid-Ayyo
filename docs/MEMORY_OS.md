@@ -70,7 +70,8 @@ unresolved conflicts. Records retain confidence and provenance in every result.
 
 ## Intentionally not implemented
 
-- Personal Cognitive Twin behavior
+- Personal Context Twin projection (implemented in the separate
+  `personal_context/` package)
 - Probabilistic truth selection, provenance aggregation, or destructive consolidation
 - Semantic or vector search, embeddings, and model integrations
 - ROS 2 messages, services, actions, or a memory bridge

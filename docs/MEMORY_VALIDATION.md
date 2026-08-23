@@ -148,7 +148,8 @@ writes can both be stored; they remain intact evidence records, but policy versi
 - Provenance aggregation or destructive duplicate consolidation
 - Automatic application of review decisions
 - Models, network services, cloud storage, or external databases
-- Personal Cognitive Twin or owner-model behavior
+- Personal Context Twin projection or owner-model behavior (the deterministic
+  projection is implemented in the separate `personal_context/` package)
 - ROS 2 memory bridge or other ROS 2 integration
 - Perception or executive cognition
 - Safety runtime or skills

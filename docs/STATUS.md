@@ -28,12 +28,16 @@
   JSON normalization
 - Typed duplicate, contradiction, correction, rejection, and review decisions
 - Explicit evaluation/application separation using only the public Memory OS API
+- Standalone Personal Context Twin v1 using only public, read-only Memory OS
+  operations
+- Exact owner isolation with deterministic resolved, conflicted, and unknown
+  context states
+- Immutable evidence-backed snapshots and canonical SHA-256 change versions
 
 ## Planned, but not implemented
 
 - Ayyo robot model
 - Perception
-- Personal Cognitive Twin (PCT)
 - Provenance aggregation and advanced consolidation policy
 - ROS 2 memory bridge
 - Cognition
@@ -46,6 +50,7 @@
 - Learning pipeline
 - Physical hardware
 
-The repository contains the engineering foundation, Memory OS core, and first
-deterministic memory validation policy. It does not provide owner modeling,
-cognition, perception, semantic understanding, or simulated robot behavior.
+The repository contains the engineering foundation, Memory OS core,
+deterministic memory validation policy, and a bounded owner-context read model.
+It does not provide inferred personality, cognition, perception, semantic
+understanding, safety runtime, or simulated robot behavior.

@@ -7,7 +7,7 @@ can mature behind stable boundaries before physical hardware is introduced.
 
 ## Current status
 
-Ayyo is at the deterministic Memory Validation Policy stage.
+Ayyo has reached the deterministic Personal Context Twin v1 stage.
 
 Implemented:
 
@@ -18,12 +18,13 @@ Implemented:
 - A standalone, provenance-aware Memory OS core with SQLite persistence
 - A standalone deterministic validation and consolidation policy for candidate
   memory evidence
+- A standalone, read-only Personal Context Twin that projects deterministic,
+  owner-isolated, evidence-backed snapshots from Memory OS
 
 Planned, but not implemented:
 
 - Ayyo robot model and simulation integration
 - Perception
-- Personal Cognitive Twin
 - Cognition and safety runtime
 - Robot skills, manipulation, and navigation
 - Teach Mode and learning pipeline
@@ -36,7 +37,8 @@ executive cognition, model access, planning, immutable safety enforcement, skill
 management, and replaceable ROS 2 embodiment. Safety-critical controls remain
 independent of cognition and learned policies. See
 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md),
-[docs/MEMORY_VALIDATION.md](docs/MEMORY_VALIDATION.md), and
+[docs/MEMORY_VALIDATION.md](docs/MEMORY_VALIDATION.md),
+[docs/PERSONAL_CONTEXT_TWIN.md](docs/PERSONAL_CONTEXT_TWIN.md), and
 [docs/SAFETY.md](docs/SAFETY.md).
 
 ## Supported environment
@@ -80,17 +82,25 @@ PYTHONPATH=memory/src:memory_validation/src \
 python3 -m unittest discover -s memory_validation/tests -v
 ```
 
+Run Personal Context Twin tests:
+
+```bash
+PYTHONPATH=memory/src:personal_context/src \
+python3 -m unittest discover -s personal_context/tests -v
+```
+
 ## Repository layout
 
 ```text
 docs/          Architecture, roadmap, safety, and status
 memory/        Standalone Memory OS core and its tests
 memory_validation/  Deterministic evidence policy layer and its tests
+personal_context/  Deterministic owner-context projection and its tests
 ros2_ws/src/   ROS 2 interfaces, description, and bringup packages
 scripts/       Local environment, build, and test commands
 tests/         Repository-level tests when justified
 ```
 
-The roadmap defines the intended progression. Memory persistence and deterministic
-candidate validation are implemented; the Personal Cognitive Twin and all
+The roadmap defines the intended progression. Memory persistence, deterministic
+candidate validation, and Personal Context Twin v1 are implemented; executive
 cognition and robot runtime systems remain planned.

@@ -6,7 +6,7 @@ foundation.
 
 1. **Foundation** — Repository standards, architecture contracts, ROS 2 package
    foundations, and local validation.
-2. **Memory OS + Personal Cognitive Twin** — Provenance-aware memory boundaries,
+2. **Memory OS + Personal Context Twin** — Provenance-aware memory boundaries,
    owner modeling, and contradiction handling.
 3. **Executive Cognition** — Structured reasoning interfaces, uncertainty
    handling, and bounded action proposals.

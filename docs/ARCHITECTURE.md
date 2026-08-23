@@ -11,7 +11,7 @@ Human / Environment
 → Working Memory
 → Memory Validation / Consolidation
 → Memory OS
-→ Personal Cognitive Twin
+→ Personal Context Twin
 → Executive Cognition
 → Model Gateway
 → Task Planner
@@ -30,8 +30,10 @@ These are architectural boundaries, not claims of implemented functionality.
 The standalone [Memory OS core](MEMORY_OS.md) implements the persistence and
 domain boundary for provenance-aware owner memory. The deterministic
 [Memory Validation policy](MEMORY_VALIDATION.md) now evaluates candidate evidence
-before explicitly approved mutations reach Memory OS. The Personal Cognitive
-Twin, cognition, and ROS adaptation remain separate future layers.
+before explicitly approved mutations reach Memory OS. The read-only
+[Personal Context Twin](PERSONAL_CONTEXT_TWIN.md) projects deterministic,
+owner-isolated state from Memory OS. Executive cognition and ROS adaptation
+remain separate future layers.
 
 ## Invariants
 
@@ -39,7 +41,8 @@ Twin, cognition, and ROS adaptation remain separate future layers.
 - Owner-specific autobiographical memory starts empty.
 - Perception is evidence, not authority.
 - Memory stores provenance and uncertainty.
-- The Personal Cognitive Twin models the owner but is not the owner.
+- The Personal Context Twin models owner context but is not the owner and is not
+  an authority.
 - Foundation models never directly command raw motors.
 - Cognition produces bounded structured actions.
 - Safety remains independent from learned behavior.
@@ -57,6 +60,10 @@ Twin, cognition, and ROS adaptation remain separate future layers.
   review without selecting probabilistic truth.
 - The Memory OS preserves evidence, revisions, retractions, and unresolved
   conflicts without depending on ROS 2 or future cognitive components.
+- The Personal Context Twin owns deterministic read projection, explicit
+  resolved/conflicted/unknown state, owner isolation, evidence references, and
+  snapshot versioning. It does not own persistence, truth selection,
+  permissions, cognition, or safety.
 - Executive cognition and the model gateway can propose only structured actions;
   the task planner and safety kernel constrain what can proceed.
 - The immutable safety kernel is independent of cognition and learned policy.

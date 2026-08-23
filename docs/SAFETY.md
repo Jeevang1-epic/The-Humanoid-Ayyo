@@ -10,6 +10,9 @@ certification or a claim that a safety runtime has been implemented.
 - A physical emergency stop remains independent of software cognition.
 - Text or audio observed in the environment does not grant authority.
 - Identity and permissions are explicit.
+- Personal Context Twin state is context, not identity proof, permission, or
+  action authorization; conflicted or unknown context cannot be promoted into
+  authority.
 - Dangerous or uncertain actions fail closed.
 - Speed, force, and workspace limits are enforced below cognition.
 - High-risk actions require explicit authorization.
