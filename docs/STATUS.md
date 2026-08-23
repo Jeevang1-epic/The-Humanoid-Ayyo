@@ -33,6 +33,12 @@
 - Exact owner isolation with deterministic resolved, conflicted, and unknown
   context states
 - Immutable evidence-backed snapshots and canonical SHA-256 change versions
+- Standalone Executive Cognition v1 with immutable structured requests,
+  capability contracts, explicit proposal outcomes, and declarative plans
+- Deterministic request, relevant-capability, relevant-context, and decision
+  fingerprints with explicit stale-decision revalidation
+- Fail-closed handling of unknown/unavailable capabilities and
+  unknown/conflicted required owner context
 
 ## Planned, but not implemented
 
@@ -40,7 +46,8 @@
 - Perception
 - Provenance aggregation and advanced consolidation policy
 - ROS 2 memory bridge
-- Cognition
+- Natural-language/model cognition integration
+- Capability implementation discovery and Skill Manager integration
 - Safety runtime
 - Robot skills
 - Simulation integration
@@ -51,6 +58,7 @@
 - Physical hardware
 
 The repository contains the engineering foundation, Memory OS core,
-deterministic memory validation policy, and a bounded owner-context read model.
-It does not provide inferred personality, cognition, perception, semantic
-understanding, safety runtime, or simulated robot behavior.
+deterministic memory validation policy, a bounded owner-context read model, and
+a deterministic proposal-only Executive layer. It does not provide inferred
+personality, natural-language understanding, model reasoning, perception,
+authorization, physical safety, execution, or simulated robot behavior.

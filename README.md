@@ -7,7 +7,7 @@ can mature behind stable boundaries before physical hardware is introduced.
 
 ## Current status
 
-Ayyo has reached the deterministic Personal Context Twin v1 stage.
+Ayyo has reached the deterministic Executive Cognition v1 proposal stage.
 
 Implemented:
 
@@ -20,12 +20,15 @@ Implemented:
   memory evidence
 - A standalone, read-only Personal Context Twin that projects deterministic,
   owner-isolated, evidence-backed snapshots from Memory OS
+- A standalone Executive Cognition layer that consumes PCT snapshots and emits
+  deterministic declarative proposals, explicit blockers, and stale-decision
+  evidence without execution or safety authority
 
 Planned, but not implemented:
 
 - Ayyo robot model and simulation integration
 - Perception
-- Cognition and safety runtime
+- Natural-language/model integration and an immutable safety runtime
 - Robot skills, manipulation, and navigation
 - Teach Mode and learning pipeline
 - Physical hardware
@@ -38,7 +41,8 @@ management, and replaceable ROS 2 embodiment. Safety-critical controls remain
 independent of cognition and learned policies. See
 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md),
 [docs/MEMORY_VALIDATION.md](docs/MEMORY_VALIDATION.md),
-[docs/PERSONAL_CONTEXT_TWIN.md](docs/PERSONAL_CONTEXT_TWIN.md), and
+[docs/PERSONAL_CONTEXT_TWIN.md](docs/PERSONAL_CONTEXT_TWIN.md),
+[docs/EXECUTIVE_COGNITION.md](docs/EXECUTIVE_COGNITION.md), and
 [docs/SAFETY.md](docs/SAFETY.md).
 
 ## Supported environment
@@ -89,6 +93,13 @@ PYTHONPATH=memory/src:personal_context/src \
 python3 -m unittest discover -s personal_context/tests -v
 ```
 
+Run Executive Cognition tests:
+
+```bash
+PYTHONPATH=memory/src:personal_context/src:executive/src \
+python3 -m unittest discover -s executive/tests -v
+```
+
 ## Repository layout
 
 ```text
@@ -96,11 +107,12 @@ docs/          Architecture, roadmap, safety, and status
 memory/        Standalone Memory OS core and its tests
 memory_validation/  Deterministic evidence policy layer and its tests
 personal_context/  Deterministic owner-context projection and its tests
+executive/     Deterministic Executive proposal planning and its tests
 ros2_ws/src/   ROS 2 interfaces, description, and bringup packages
 scripts/       Local environment, build, and test commands
 tests/         Repository-level tests when justified
 ```
 
 The roadmap defines the intended progression. Memory persistence, deterministic
-candidate validation, and Personal Context Twin v1 are implemented; executive
-cognition and robot runtime systems remain planned.
+candidate validation, Personal Context Twin v1, and Executive Cognition v1 are
+implemented; authorization, safety, and robot runtime systems remain planned.

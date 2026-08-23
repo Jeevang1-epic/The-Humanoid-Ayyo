@@ -25,3 +25,6 @@ foundation.
     research platform.
 11. **Full Humanoid Research** — Long-term whole-body embodiment research after
     earlier safety and validation gates are mature.
+
+Stages 1 through 3 now have bounded v1 implementations. Stage 4 is next;
+Executive proposals do not count as authorization or Safety Kernel approval.
