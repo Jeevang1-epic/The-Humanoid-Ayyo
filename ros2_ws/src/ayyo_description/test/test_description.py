@@ -1,3 +1,5 @@
+# Copyright 2026 Ayyo Project Authors
+
 from __future__ import annotations
 
 import ast
@@ -192,6 +194,16 @@ def test_package_resources_are_declared_for_installation() -> None:
     cmake = (PACKAGE_ROOT / 'CMakeLists.txt').read_text(encoding='utf-8')
     assert 'DIRECTORY launch meshes rviz urdf' in cmake
     assert 'scripts/validate_description.py' in cmake
+
+
+def test_owned_python_sources_retain_project_copyright() -> None:
+    for relative_path in (
+        'launch/view_robot.launch.py',
+        'scripts/validate_description.py',
+        'test/test_description.py',
+    ):
+        source = (PACKAGE_ROOT / relative_path).read_text(encoding='utf-8')
+        assert 'Copyright 2026 Ayyo Project Authors' in source
 
 
 def test_validation_api_reports_expected_counts() -> None:

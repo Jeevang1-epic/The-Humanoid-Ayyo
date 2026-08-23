@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# Copyright 2026 Ayyo Project Authors
+
 """Deterministically expand and validate the Ayyo robot description."""
 
 from __future__ import annotations

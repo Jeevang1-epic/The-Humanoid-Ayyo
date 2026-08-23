@@ -1,3 +1,5 @@
+# Copyright 2026 Ayyo Project Authors
+
 """Spawn the authoritative Ayyo description in Gazebo Harmonic."""
 
 from launch import LaunchDescription

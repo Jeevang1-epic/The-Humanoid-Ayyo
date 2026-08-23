@@ -1,3 +1,5 @@
+# Copyright 2026 Ayyo Project Authors
+
 """Display the authoritative Ayyo description in RViz without simulation."""
 
 from launch import LaunchDescription
