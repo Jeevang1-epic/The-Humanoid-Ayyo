@@ -264,6 +264,28 @@ def test_headless_smoke_script_checks_complete_lifecycle() -> None:
     assert 'rviz2' not in script
 
 
+def test_controlled_smoke_uses_only_typed_motion_path() -> None:
+    path = REPOSITORY_ROOT / 'scripts' / 'smoke_simulation_control.sh'
+    script = path.read_text(encoding='utf-8')
+    for expected in (
+        'enable_control:=true',
+        'enable_development_control:=true',
+        'ros2 control list_controllers',
+        'ros2 control list_hardware_interfaces',
+        'Publisher count: 1',
+        'development_command.py --position 0.1',
+        'development_command.py --position 1.3',
+        'has_state_feedback',
+        'above_maximum',
+        'kill -INT',
+        'exception was never retrieved',
+    ):
+        assert expected in script
+    assert 'ros2 topic pub' not in script
+    assert '/ayyo_neck_position_controller/commands' not in script
+    assert path.stat().st_mode & 0o111
+
+
 def test_simulation_source_has_no_runtime_dispatch_surface() -> None:
     source_text = production_source_text()
     for forbidden in ('RuntimeBridge', 'RuntimeDispatcher', 'rclpy.action'):
