@@ -36,7 +36,7 @@ Skill Manager v1 declarative binding
     ↓
 ROS Runtime Bridge v1 compatibility boundary
     ↓
-Future identity / approval authority, typed ROS adapters, and physical controls
+Simulation Control v1 typed adapter / future physical controls
 ```
 
 The kernel consumes only the public `ayyo_executive` contract. It does not read
@@ -50,7 +50,9 @@ The implemented Skill Manager maps an unchanged eligible proposal step to an
 immutable declarative skill contract, but it does not attest or invoke the
 backend. The implemented Runtime Bridge adds endpoint compatibility and
 dispatch-time stale checks without granting approval or providing a concrete
-ROS client. Lower runtime and physical-control layers must enforce
+ROS client. Simulation Control v1 now implements a lower typed, URDF-bounded
+development adapter, but production physical movement remains non-dispatchable
+because this kernel returns `DEFERRED`. Lower runtime and physical-control layers must enforce
 authorization, motion, collision, force, workspace, and emergency-stop
 protections.
 
@@ -268,7 +270,8 @@ policy/decision signature or attestation mechanism, audit persistence, live
 capability discovery, perception, robot-state input, environment-state input,
 collision model, motion/contact safety evaluator, emergency-stop hardware,
 direct Skill Manager dependency, execution, ROS bridge, simulation behavior, or
-physical actuation. The separate implemented Skill Manager consumes this
+physical actuation. The separate implemented Skill Manager and simulation
+control packages consume downstream public evidence without changing this
 package's public decisions without changing Safety Kernel responsibility.
 
 Consequently, physical movement and contact cannot become eligible in v1, and
@@ -278,3 +281,5 @@ identity, approval, ROS, and physical-control integrations must consume the
 unchanged proposal and decision bindings, revalidate at their own authority
 boundary, and may only add restrictions. They must not reinterpret
 `ELIGIBLE_FOR_DOWNSTREAM` as permission or a physical-safety guarantee.
+The default-off simulation development service is not Safety evidence and
+cannot convert this package's `DEFERRED` movement decision into eligibility.

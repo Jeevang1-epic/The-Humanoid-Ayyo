@@ -9,18 +9,20 @@
 - MoveIt 2 installed
 - Nav2 installed
 - ros2_control installed
+- gz_ros2_control installed
 - ros_gz installed
 - ROS publisher/subscriber smoke test passed
 - Generic Gazebo GUI environment smoke test passed
 - Generic RViz GUI environment smoke test passed
-- Ayyo-specific RViz/Gazebo graphical review not executed in this milestone
+- Ayyo-specific controlled Gazebo graphical review not executed in this milestone
 
 ## Implemented
 
 - Architecture, roadmap, and safety contracts
 - ROS 2 workspace with `ament_cmake` foundations for `ayyo_interfaces` and
-  `ayyo_bringup`, plus installable `ayyo_runtime_bridge`, authoritative
-  `ayyo_description`, and dedicated `ayyo_simulation` packages
+  `ayyo_bringup`, plus installable `ayyo_runtime_bridge` and
+  `ayyo_simulation_control`, authoritative `ayyo_description`, and dedicated
+  `ayyo_simulation` packages
 - Local environment verification, build, and test scripts
 - Standalone Memory OS core with typed records and mandatory provenance
 - SQLite persistence with schema versioning, foreign keys, WAL journaling,
@@ -94,14 +96,30 @@
 - RViz-only robot-state launch with tracked configuration and selectable CLI or
   GUI development joint-state source
 - Dedicated `ayyo_simulation` package with an SDF 1.10 Gazebo Harmonic world,
-  static non-actuating spawn from the authoritative Xacro, and no duplicate
-  robot model
+  static non-actuating default spawn from the authoritative Xacro, opt-in
+  controlled dynamic spawn, and no duplicate robot model
 - Explicit one-way Gazebo `/clock` to ROS `/clock` bridge with no commands,
   sensors, services, actions, or wildcard bridging
-- Dormant ros2_control joint-interface macro with no plugin, transmission,
-  controller manager, controller configuration, or actuation
-- Reproducible headless installed-package, node, TF, bridge, spawn, and bounded
-  shutdown smoke validation
+- Opt-in Jazzy/Harmonic `gz_ros2_control` system with position/velocity/effort
+  state for all 18 movable joints and exactly one claimed position command
+  interface for `neck_yaw_joint`
+- Controller Manager configuration with enforced URDF limits, authoritative
+  `joint_state_broadcaster`, one standard forward position controller, and
+  ordered spawn/activation lifecycle
+- Standalone simulation-control models with exact allowlist, URDF-derived
+  limits, simulation-time validity, dispatch-time authority/time revalidation,
+  deterministic identities, explicit lifecycle failures, and strict
+  feedback-backed completion
+- Typed development-only `SetDevelopmentJointPosition` adapter behind two
+  default-off launch flags, with fixed reviewed ROS names and no arbitrary
+  topic/service/action/shell dispatch
+- Runtime simulation-control translator pinned to one future exact service and
+  complete Runtime Bridge identity evidence; physical movement remains
+  non-dispatchable because Safety v1 returns `DEFERRED`
+- Reproducible non-control and controlled headless smoke validations covering
+  installed packages, nodes, TF/clock, entity spawn, controllers, hardware
+  interfaces, sole joint-state publisher, valid motion, invalid rejection, and
+  bounded clean shutdown
 
 ## Planned, but not implemented
 
@@ -118,10 +136,10 @@
 - Authenticated identity, permissions, and approval verification
 - Motion/contact safety evaluation and physical emergency-stop integration
 - Runtime robot skill implementations
-- Concrete statically typed ROS service transport adapters and backend handlers
+- Production-authorized statically typed ROS services and backend handlers
 - Runtime timeout enforcement, resource scheduling, and lock arbitration
-- Dynamic Gazebo simulation, gz_ros2_control, transmissions, joint-state
-  broadcaster, controllers, friction/contact tuning, and dynamics validation
+- Additional controlled joints, trajectory/whole-body control, friction/contact
+  tuning, and validated dynamics
 - Manipulation integration
 - Navigation integration
 - Teach Mode
@@ -132,10 +150,11 @@ The repository contains the engineering foundation, Memory OS core,
 deterministic memory validation policy, a bounded owner-context read model, a
 deterministic proposal-only Executive layer, an immutable fail-closed Safety
 proposal-review boundary, an inert declarative Skill Manager boundary, and a
-controlled ROS Runtime Bridge compatibility boundary. It does not provide
-inferred personality, natural-language understanding, model
-reasoning, perception, authenticated authorization, live backend attestation,
-physical-safety certification, a concrete ROS service client, task execution,
-physical execution, or simulated robot behavior.
-The simulation foundation can render and statically spawn development geometry,
-but it still provides no simulated task behavior or actuation.
+controlled ROS Runtime Bridge compatibility boundary. The downstream
+Simulation Control Foundation can actuate one bounded simulated neck joint only
+through explicit development injection and can prove the result from
+controller-derived feedback. It does not provide inferred personality,
+natural-language understanding, model reasoning, perception, authenticated
+authorization, live backend attestation, physical-safety certification,
+production runtime motion, task execution, walking, manipulation, or physical
+execution.

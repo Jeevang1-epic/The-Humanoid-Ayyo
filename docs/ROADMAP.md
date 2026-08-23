@@ -36,12 +36,19 @@ eligibility, and an unavailable-by-default transport boundary. Stage 5 now has
 Robot Description & Simulation Foundation v1: a canonical mesh-ready
 frame/joint model, deterministic validation, separate RViz and Gazebo Harmonic
 launch paths, a static development spawn, and a clock-only ros_gz boundary.
-Final Ayyo assets, graphical design validation, dynamic simulation,
-controllers, authenticated identity, permissions, approval verification, live
-backend attestation, a concrete typed ROS service client, audit persistence,
+Stage 5 now also has Simulation Control & Actuation Foundation v1: opt-in
+Jazzy/Harmonic `gz_ros2_control`, one URDF-bounded neck position interface,
+controller-derived state, deterministic typed control contracts, and a
+separately flagged development command service. This is infrastructure proof,
+not integrated production execution. Physical-movement Safety remains
+`DEFERRED`, and no production Runtime Bridge motion endpoint is implemented.
+
+Final Ayyo assets, graphical controlled-design validation, additional joints,
+trajectory/whole-body controllers, validated dynamics/contact behavior,
+authenticated identity, permissions, approval verification, live backend
+attestation, production typed ROS services, audit persistence,
 timeout/resource enforcement, runtime skill implementations, and
 physical-safety integration remain future work. Executive proposals, Safety
 eligibility, Skill Manager runtime-handoff eligibility, Runtime Bridge
-eligibility, transport acceptance, and a static simulation spawn do not count
-as authorization, task completion, execution, or physical-safety
-certification.
+eligibility, transport acceptance, development injection, and simulated motion
+do not count as production authorization or physical-safety certification.

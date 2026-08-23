@@ -177,18 +177,20 @@ still static and non-actuating in this foundation launch.
 
 Do not infer dynamics quality from a static spawn.
 
-## 12. Gate dynamics and future control separately
+## 12. Gate final-mesh dynamics and control separately
 
-Only after visual/collision review should a later milestone validate mass,
-centre of mass, inertia, friction, contact behavior, joint damping, limits,
-controller update rate, transmissions, and the selected `gz_ros2_control`
-system.
+Simulation Control v1 activates one proxy-model neck joint behind explicit
+flags, but it does not validate final-mesh dynamics. Only after visual/collision
+review may a later milestone validate mass, centre of mass, inertia, friction,
+contact behavior, joint damping, limits, controller update rate, transmissions,
+and the existing `gz_ros2_control` system against final design data.
 
-That integration must invoke the dormant ros2_control macro with one reviewed
-simulation plugin, add explicit controller configuration, start with a
-joint-state broadcaster, and keep command controllers disabled until their
-typed Runtime Bridge adapter and dedicated motion/contact safety boundary are
-reviewed. Simulation success never authorizes physical hardware.
+The current system has one reviewed simulation plugin, authoritative
+joint-state broadcaster, and typed development adapter. Additional command
+interfaces remain disabled. Final-mesh control review must preserve exact
+allowlisting, URDF limit ownership, feedback proof, and the production
+Executive → Safety → Skill → Runtime boundary. Simulation success never
+authorizes physical hardware.
 
 ## Import acceptance record
 

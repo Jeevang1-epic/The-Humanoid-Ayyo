@@ -28,7 +28,7 @@ Skill Manager v1
     ↓ inert, fingerprinted invocation contract only
 ROS Runtime Bridge v1
     ↓
-Future controllers / simulation / hardware
+Simulation Control v1 typed adapter / future hardware
 ```
 
 Skill Manager depends only on the public `ayyo_safety` contract and the minimum
@@ -208,3 +208,10 @@ retains resources and timeouts but does not yet enforce scheduling or timeout
 behavior. Any later concrete ROS adapter must remain constrained by lower
 physical-safety systems and must not reinterpret this declarative contract as
 permission to actuate. See [ROS Runtime Bridge v1](ROS_RUNTIME_BRIDGE.md).
+
+Simulation Control v1 can translate only a complete current runtime identity
+chain for one exact future motion endpoint, but Safety v1 keeps physical
+movement `DEFERRED`, so that production path does not dispatch. Its separate
+development-test service does not create a Skill binding and must never be
+treated as runtime handoff eligibility. See
+[Simulation Control v1](SIMULATION_CONTROL.md).

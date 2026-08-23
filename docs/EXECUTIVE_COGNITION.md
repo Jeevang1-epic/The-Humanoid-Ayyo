@@ -249,3 +249,9 @@ may translate authenticated user intent into the structured request, attest
 live backend availability, and attach trusted authorization outside Executive,
 Safety, and Skill Manager. Those layers must not weaken the fail-closed behavior
 described here.
+
+Simulation Control & Actuation Foundation v1 now exists downstream of the
+Runtime Bridge, but it does not change Executive responsibility. The only live
+motion surface is an explicitly identified development-test injection service;
+there is no Executive-to-controller route, and Safety v1 defers the production
+physical-movement classification. See [SIMULATION_CONTROL.md](SIMULATION_CONTROL.md).

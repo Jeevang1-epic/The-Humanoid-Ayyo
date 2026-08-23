@@ -16,6 +16,7 @@ Human / Environment
 → Immutable Safety Kernel
 → Skill Manager
 → ROS Runtime Bridge
+→ Typed Simulation / Hardware Adapter
 → Motion / Control
 → Robot Body
 → Outcome
@@ -40,15 +41,19 @@ contracts and binds unchanged Safety-reviewed proposal steps without executing
 them. The controlled [ROS Runtime Bridge](ROS_RUNTIME_BRIDGE.md) validates those
 binding results against an explicit ROS service endpoint allowlist and models
 dispatch eligibility and transport acceptance without providing a concrete ROS
-client or execution capability. Identity/approval authority, runtime skill
-implementations, physical-safety subsystems, and physical control remain
-separate future layers.
+client. The downstream [Simulation Control Foundation](SIMULATION_CONTROL.md)
+now provides a typed, URDF-bounded controller adapter and one explicitly
+enabled development injection path. Production movement remains closed because
+Safety v1 defers physical movement and no production runtime motion service is
+implemented. Identity/approval authority, runtime skill implementations,
+physical-safety subsystems, and physical control remain separate future layers.
 
 The [Robot Description & Simulation Foundation](ROBOT_DESCRIPTION_SIMULATION.md)
 now provides an independent authoritative Xacro/TF model, RViz display path,
-and static Gazebo Harmonic development spawn. It is downstream embodiment
-infrastructure, not an execution adapter: it imports no cognitive or
-authorization layer and exposes no movement command surface. The
+static default Gazebo Harmonic spawn, and an opt-in one-joint ros2_control
+configuration. It imports no cognitive or authorization layer. Movement is
+available only through the separate typed development adapter when both
+control flags are explicit. The
 [final mesh workflow](AYYO_MESH_IMPORT.md) defines how reviewed Ayyo assets will
 replace proxy geometry without duplicating or bypassing frame semantics.
 
@@ -100,10 +105,15 @@ replace proxy geometry without duplicating or bypassing frame semantics.
   results. It cannot grant approval, weaken upstream restrictions, discover or
   dynamically load endpoints, schedule resources, claim task completion, or
   control simulation or hardware.
-- Future ROS adapters and physical controls remain isolated from higher-level
-  contracts and constrained by the Runtime Bridge plus lower safety systems.
+- The simulation-control adapter owns exact joint allowlisting, authoritative
+  URDF-limit validation, controller/hardware lifecycle evidence, dispatch-time
+  time/authority revalidation, and feedback-backed results. Its development
+  service is not production runtime authority.
+- Future physical controls remain isolated from higher-level contracts and
+  constrained by the Runtime Bridge plus dedicated lower safety systems.
 - Robot description single-owns kinematic frame semantics. RViz and Gazebo
   consume that same source; simulation does not maintain a duplicate Ayyo
-  model, import cognition, or create an authorization bypass.
+  model, import cognition, or create an authorization bypass. Control mode has
+  one command interface, while non-control mode remains static and plugin-free.
 - Learning updates remain candidates until evaluation and controlled promotion;
   consolidation does not bypass safety or permissions.

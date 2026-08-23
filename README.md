@@ -7,14 +7,14 @@ can mature behind stable boundaries before physical hardware is introduced.
 
 ## Current status
 
-Ayyo has reached the Robot Description & Simulation Foundation v1 review stage.
+Ayyo has reached the Simulation Control & Actuation Foundation v1 review stage.
 
 Implemented:
 
 - Repository structure, engineering conventions, and architecture documentation
-- A ROS 2 workspace with interface/bringup foundations, an installable Runtime
-  Bridge package, an authoritative robot-description package, and a dedicated
-  Gazebo Harmonic simulation package
+- A ROS 2 workspace with interface/bringup foundations, installable Runtime
+  Bridge and simulation-control packages, an authoritative robot-description
+  package, and a dedicated Gazebo Harmonic simulation package
 - Local environment verification, build, and test scripts
 - A verified local ROS 2, Gazebo, and RViz development setup
 - A standalone, provenance-aware Memory OS core with SQLite persistence
@@ -43,19 +43,27 @@ Implemented:
 - Separate RViz-only and Gazebo Harmonic launch paths using the same
   authoritative Xacro, plus a static non-actuating simulation spawn and one
   explicit Gazebo-to-ROS clock bridge
-- A dormant ros2_control interface macro with no hardware plugin, controller,
-  or actuation path, plus a reproducible headless node/TF/clock/spawn/shutdown
-  smoke test
+- An opt-in Jazzy/Harmonic `gz_ros2_control` path with `AyyoSystem`, an
+  authoritative `joint_state_broadcaster`, and one position command interface
+  for the URDF-bounded `neck_yaw_joint`; non-control simulation remains static
+- A standalone deterministic simulation-control core with canonical command,
+  failure, result, Runtime Bridge evidence, URDF-limit, lifecycle, stale-time,
+  and feedback contracts
+- A separately flagged typed development ROS service that proves bounded motion
+  from controller-derived state without arbitrary endpoint dispatch, plus
+  non-control and controlled headless lifecycle smoke tests
 
 Planned, but not implemented:
 
 - Final Ayyo CAD-derived visual/collision meshes and reviewed physical data
 - Graphical Ayyo mesh/frame/collision validation
-- Dynamic simulation, gz_ros2_control, transmissions, and controllers
+- Additional commandable joints, trajectory/whole-body control, and validated
+  dynamics/contact behavior
 - Perception
 - Natural-language/model integration and authenticated identity/approval
 - Runtime skill implementations, manipulation, and navigation
-- Concrete typed ROS service adapters, runtime scheduling, and timeout enforcement
+- Production-authorized typed ROS services, runtime scheduling, and resource
+  enforcement; Safety v1 still defers all physical movement
 - Teach Mode and learning pipeline
 - Physical hardware
 
@@ -73,6 +81,7 @@ independent of cognition and learned policies. See
 [docs/SKILL_MANAGER.md](docs/SKILL_MANAGER.md),
 [docs/ROS_RUNTIME_BRIDGE.md](docs/ROS_RUNTIME_BRIDGE.md),
 [docs/ROBOT_DESCRIPTION_SIMULATION.md](docs/ROBOT_DESCRIPTION_SIMULATION.md),
+[docs/SIMULATION_CONTROL.md](docs/SIMULATION_CONTROL.md),
 [docs/AYYO_MESH_IMPORT.md](docs/AYYO_MESH_IMPORT.md), and
 [docs/SAFETY.md](docs/SAFETY.md).
 
@@ -114,6 +123,12 @@ Run the opt-in headless simulation lifecycle after building:
 
 ```bash
 ./scripts/smoke_simulation.sh
+```
+
+Run the explicitly controlled one-joint headless lifecycle:
+
+```bash
+./scripts/smoke_simulation_control.sh
 ```
 
 Run Memory OS tests:
@@ -164,6 +179,13 @@ PYTHONPATH=memory/src:personal_context/src:executive/src:safety_kernel/src:skill
 python3 -m unittest discover -s runtime_bridge/tests -v
 ```
 
+Run Simulation Control tests:
+
+```bash
+PYTHONPATH=memory/src:personal_context/src:executive/src:safety_kernel/src:skill_manager/src:runtime_bridge/src:simulation_control/src \
+python3 -m unittest discover -s simulation_control/tests -v
+```
+
 ## Repository layout
 
 ```text
@@ -175,6 +197,7 @@ executive/     Deterministic Executive proposal planning and its tests
 safety_kernel/  Immutable deterministic proposal safety review and its tests
 skill_manager/  Immutable declarative skill contracts and Safety binding
 runtime_bridge/  Deterministic Skill-to-ROS compatibility and transport boundary
+simulation_control/  Bounded deterministic simulation-control policy and feedback
 ros2_ws/src/   ROS 2 interfaces, description, simulation, Runtime Bridge, and bringup
 scripts/       Local environment, build, and test commands
 tests/         Repository-level tests when justified
@@ -183,7 +206,10 @@ tests/         Repository-level tests when justified
 The roadmap defines the intended progression. Memory persistence, deterministic
 candidate validation, Personal Context Twin v1, Executive Cognition v1,
 Immutable Safety Kernel v1, Skill Manager v1, controlled ROS Runtime Bridge v1,
-and Robot Description & Simulation Foundation v1 are implemented. Final Ayyo
-assets, authenticated identity/approval, concrete typed ROS clients, runtime
-skill implementations, dynamic controllers, physical-safety subsystems, and
-robot execution remain planned.
+Robot Description & Simulation Foundation v1, and the one-joint Simulation
+Control & Actuation Foundation v1 are implemented. Production motion remains
+closed because Safety v1 defers physical movement; only explicit development
+injection can exercise the simulated neck joint. Final Ayyo assets,
+authenticated identity/approval, production runtime services, additional
+controllers, physical-safety subsystems, and physical robot execution remain
+planned.

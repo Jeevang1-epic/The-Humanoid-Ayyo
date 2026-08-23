@@ -5,7 +5,7 @@
 ROS Runtime Bridge v1 is implemented as the standalone Python 3.12
 `ayyo-runtime-bridge` package and is installed into the ROS 2 Jazzy workspace by
 the `ayyo_runtime_bridge` package. It is the controlled compatibility boundary
-between inert Skill Manager output and a future typed ROS service adapter.
+between inert Skill Manager output and downstream typed ROS adapters.
 
 The bridge performs five bounded operations:
 
@@ -15,8 +15,11 @@ validate → bind → translate → decide dispatch eligibility → model the re
 
 It does not plan, classify safety, select a skill, authenticate approval,
 schedule resources, discover ROS endpoints, dynamically load interfaces, or
-control a robot. No concrete ROS service client, skill backend, controller,
-simulation behavior, or physical actuation exists in v1.
+control a robot. Simulation Control v1 now exists downstream, but its production
+translator remains non-dispatchable because Safety v1 defers physical movement.
+Its live ROS service is explicitly development-only and does not consume a
+Runtime request. The Runtime Bridge itself still has no concrete ROS client,
+skill backend, controller, simulation behavior, or physical actuation.
 
 ## Architecture and authority
 
@@ -29,9 +32,9 @@ Skill Manager
     ↓ binding result and inert invocation
 ROS Runtime Bridge v1
     ↓ eligible declarative service request or explicit non-eligible result
-Future statically implemented ROS service adapter
+Simulation Control typed boundary / future production ROS service adapter
     ↓
-Future controllers / simulation / hardware safety layers
+ros2_control simulation / future hardware safety layers
 ```
 
 Safety remains authoritative for safety disposition. Skill Manager remains
@@ -90,9 +93,10 @@ publisher, action goal, or arbitrary ROS handle. Service endpoints do not carry
 QoS or lifecycle fields because v1 has no behavior for which those declarations
 would be meaningful.
 
-No `msg`, `srv`, or `action` definition was added to `ayyo_interfaces`. A custom
-interface will be justified only with a concrete owner and statically
-implemented ROS behavior.
+Simulation Control v1 adds `SetDevelopmentJointPosition.srv` for its concrete,
+statically implemented test owner. That interface is not a Runtime Bridge
+endpoint and cannot carry a `RuntimeRequest`. No production Runtime Bridge
+`msg`, `srv`, or `action` is implemented.
 
 ## Runtime allowlist
 
@@ -249,14 +253,17 @@ or physical-control API.
 ## Deliberate limitations and next step
 
 V1 does not authenticate approvals or identities; attest backend or ROS graph
-state; implement a concrete `rclpy` client; generate or dynamically load ROS
-types; implement topic/action transports; enforce timeouts; schedule resources;
-persist audit records; retry failures; interpret service responses; certify
-motion/contact safety; or control simulation or hardware.
+state; implement a concrete production `rclpy` client; generate or dynamically
+load ROS types; implement topic/action transports; enforce timeouts; schedule
+resources; persist audit records; retry failures; interpret service responses;
+certify motion/contact safety; or itself control simulation or hardware.
 
-The next integration step is one reviewed, statically typed, non-actuating ROS
-service implementation with a concrete owner and interface. Its adapter must be
-registered to one exact endpoint fingerprint, honor timeout/resource behavior,
-return correlated transport evidence, and remain below all current authority
-checks. Physical movement remains blocked on dedicated motion, collision,
-force, workspace, authorization, and emergency-stop layers.
+The downstream Simulation Control package proves exact endpoint translation,
+URDF limits, controller lifecycle, and state feedback for one separately
+authorized development command. Its future production identity is pinned to
+`/ayyo/simulation_control/apply_runtime_joint_position`, but no such service is
+implemented because physical movement is `DEFERRED`. A production integration
+must add authenticated authorization, a current runtime scheduler/transport,
+dedicated motion/collision/force/workspace safety, and emergency-stop layers
+before implementing and registering that exact typed endpoint. See
+[SIMULATION_CONTROL.md](SIMULATION_CONTROL.md).

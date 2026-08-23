@@ -4,7 +4,9 @@ This document defines architectural boundaries for Ayyo. It is not a safety
 certification. The deterministic proposal-review portion is implemented by
 [Immutable Safety Kernel v1](SAFETY_KERNEL.md); identity, authenticated
 approval, runtime skill execution, motion/contact safety, hardware limits, and
-physical emergency-stop systems are not implemented. The declarative Skill
+physical emergency-stop systems are not implemented. Simulation Control v1
+enforces provisional URDF limits for one development joint, but those are not
+reviewed hardware limits or physical-safety certification. The declarative Skill
 Manager binding described in [SKILL_MANAGER.md](SKILL_MANAGER.md) is implemented
 but grants no authority.
 
@@ -41,6 +43,10 @@ but grants no authority.
 - Runtime dispatch must revalidate the final request and a current Skill Manager
   binding before transport. Missing, stale, unavailable, or mismatched runtime
   state fails closed without a mock fallback.
+- The typed simulation-control adapter may only add restrictions. Its separate
+  default-off development injection service is test tooling, not Executive,
+  Safety, Skill, Runtime, identity, approval, or production authority. Physical
+  movement remains `DEFERRED` through the production Runtime path.
 - Skill approval requirements must be retained from Safety and matched to the
   selected step. Approval evidence from another step and proposal parameters
   such as `approved: true` cannot satisfy them.
@@ -50,7 +56,9 @@ but grants no authority.
   policy. Physical movement and contact are deferred because their dedicated
   safety subsystems do not yet exist.
 - Dangerous or uncertain actions fail closed.
-- Speed, force, and workspace limits are enforced below cognition.
+- Speed, force, and workspace limits must be enforced below cognition. The
+  current simulation proof has only URDF position/velocity enforcement and no
+  force, workspace, collision, balance, or emergency-stop safety layer.
 - High-risk actions require explicit authorization.
 - Critical actions are auditable.
 - Network or cloud failure cannot disable physical safety.
