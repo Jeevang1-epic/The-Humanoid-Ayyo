@@ -1,0 +1,17 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+  <xacro:macro name="ayyo_materials">
+    <material name="ayyo_charcoal">
+      <color rgba="0.09 0.10 0.12 1.0"/>
+    </material>
+    <material name="ayyo_shell">
+      <color rgba="0.80 0.83 0.86 1.0"/>
+    </material>
+    <material name="ayyo_joint">
+      <color rgba="0.22 0.25 0.29 1.0"/>
+    </material>
+    <material name="ayyo_sensor">
+      <color rgba="0.12 0.35 0.52 1.0"/>
+    </material>
+  </xacro:macro>
+</robot>

@@ -1,0 +1,11 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="ayyo">
+  <xacro:arg name="use_meshes" default="false"/>
+
+  <xacro:include filename="ayyo_materials.xacro"/>
+  <xacro:include filename="ayyo_geometry.xacro"/>
+  <xacro:include filename="ayyo_body.xacro"/>
+
+  <xacro:ayyo_materials/>
+  <xacro:ayyo_body use_meshes="$(arg use_meshes)"/>
+</robot>

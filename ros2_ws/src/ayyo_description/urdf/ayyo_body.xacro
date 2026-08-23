@@ -1,0 +1,172 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+  <xacro:macro name="ayyo_body" params="use_meshes">
+    <!-- Canonical REP-103 body frame: x forward, y left, z up. -->
+    <xacro:ayyo_frame_link name="base_link"/>
+
+    <xacro:ayyo_box_link name="pelvis_link" sx="0.28" sy="0.20" sz="0.16"
+      ox="0" oy="0" oz="0" mass="4.0" material="ayyo_shell"
+      mesh_name="pelvis" use_meshes="${use_meshes}"/>
+    <xacro:ayyo_fixed_joint name="base_to_pelvis_joint"
+      parent="base_link" child="pelvis_link" xyz="0 0 0" rpy="0 0 0"/>
+
+    <xacro:ayyo_box_link name="torso_link" sx="0.27" sy="0.18" sz="0.18"
+      ox="0" oy="0" oz="0.09" mass="3.0" material="ayyo_charcoal"
+      mesh_name="torso" use_meshes="${use_meshes}"/>
+    <xacro:ayyo_fixed_joint name="pelvis_to_torso_joint"
+      parent="pelvis_link" child="torso_link" xyz="0 0 0.08" rpy="0 0 0"/>
+
+    <xacro:ayyo_box_link name="chest_link" sx="0.34" sy="0.20" sz="0.20"
+      ox="0" oy="0" oz="0.10" mass="3.5" material="ayyo_shell"
+      mesh_name="chest" use_meshes="${use_meshes}"/>
+    <xacro:ayyo_fixed_joint name="torso_to_chest_joint"
+      parent="torso_link" child="chest_link" xyz="0 0 0.18" rpy="0 0 0"/>
+
+    <xacro:ayyo_box_link name="neck_link" sx="0.08" sy="0.08" sz="0.10"
+      ox="0" oy="0" oz="0.05" mass="0.4" material="ayyo_joint"
+      mesh_name="neck" use_meshes="${use_meshes}"/>
+    <xacro:ayyo_revolute_joint name="neck_yaw_joint"
+      parent="chest_link" child="neck_link" xyz="0 0 0.20" rpy="0 0 0"
+      axis="0 0 1" lower="-1.2" upper="1.2" effort="8.0" velocity="1.5"/>
+
+    <xacro:ayyo_box_link name="head_link" sx="0.20" sy="0.18" sz="0.22"
+      ox="0" oy="0" oz="0.11" mass="1.5" material="ayyo_shell"
+      mesh_name="head" use_meshes="${use_meshes}"/>
+    <xacro:ayyo_revolute_joint name="head_pitch_joint"
+      parent="neck_link" child="head_link" xyz="0 0 0.10" rpy="0 0 0"
+      axis="0 1 0" lower="-0.6" upper="0.6" effort="8.0" velocity="1.2"/>
+
+    <xacro:ayyo_frame_link name="head_camera_frame"/>
+    <xacro:ayyo_fixed_joint name="head_camera_mount_joint"
+      parent="head_link" child="head_camera_frame" xyz="0.105 0 0.13" rpy="0 0 0"/>
+
+    <xacro:ayyo_arm side="left" side_sign="1" use_meshes="${use_meshes}"/>
+    <xacro:ayyo_arm side="right" side_sign="-1" use_meshes="${use_meshes}"/>
+    <xacro:ayyo_leg side="left" side_sign="1" use_meshes="${use_meshes}"/>
+    <xacro:ayyo_leg side="right" side_sign="-1" use_meshes="${use_meshes}"/>
+  </xacro:macro>
+
+  <xacro:macro name="ayyo_arm" params="side side_sign use_meshes">
+    <xacro:ayyo_box_link name="${side}_shoulder_mount_link"
+      sx="0.08" sy="0.08" sz="0.08" ox="0" oy="0" oz="0"
+      mass="0.25" material="ayyo_joint" mesh_name="${side}_shoulder_mount"
+      use_meshes="${use_meshes}"/>
+    <xacro:ayyo_fixed_joint name="${side}_shoulder_mount_joint"
+      parent="chest_link" child="${side}_shoulder_mount_link"
+      xyz="0 ${side_sign * 0.14} 0.13" rpy="0 0 0"/>
+
+    <xacro:ayyo_box_link name="${side}_shoulder_yaw_link"
+      sx="0.08" sy="0.08" sz="0.08" ox="0" oy="0" oz="0"
+      mass="0.25" material="ayyo_joint" mesh_name="${side}_shoulder_yaw"
+      use_meshes="${use_meshes}"/>
+    <xacro:ayyo_revolute_joint name="${side}_shoulder_yaw_joint"
+      parent="${side}_shoulder_mount_link" child="${side}_shoulder_yaw_link"
+      xyz="0 ${side_sign * 0.05} 0" rpy="0 0 0" axis="0 0 1"
+      lower="-1.2" upper="1.2" effort="20.0" velocity="1.2"/>
+
+    <xacro:ayyo_box_link name="${side}_upper_arm_link"
+      sx="0.09" sy="0.09" sz="0.28" ox="0" oy="0" oz="-0.14"
+      mass="1.2" material="ayyo_shell" mesh_name="${side}_upper_arm"
+      use_meshes="${use_meshes}"/>
+    <xacro:ayyo_revolute_joint name="${side}_shoulder_pitch_joint"
+      parent="${side}_shoulder_yaw_link" child="${side}_upper_arm_link"
+      xyz="0 0 0" rpy="0 0 0" axis="0 1 0"
+      lower="-1.8" upper="1.8" effort="20.0" velocity="1.2"/>
+
+    <xacro:ayyo_box_link name="${side}_elbow_link"
+      sx="0.08" sy="0.08" sz="0.08" ox="0" oy="0" oz="0"
+      mass="0.25" material="ayyo_joint" mesh_name="${side}_elbow"
+      use_meshes="${use_meshes}"/>
+    <xacro:ayyo_fixed_joint name="${side}_upper_arm_to_elbow_joint"
+      parent="${side}_upper_arm_link" child="${side}_elbow_link"
+      xyz="0 0 -0.28" rpy="0 0 0"/>
+
+    <xacro:ayyo_box_link name="${side}_forearm_link"
+      sx="0.075" sy="0.075" sz="0.24" ox="0" oy="0" oz="-0.12"
+      mass="0.8" material="ayyo_charcoal" mesh_name="${side}_forearm"
+      use_meshes="${use_meshes}"/>
+    <xacro:ayyo_revolute_joint name="${side}_elbow_flex_joint"
+      parent="${side}_elbow_link" child="${side}_forearm_link"
+      xyz="0 0 0" rpy="0 0 0" axis="0 1 0"
+      lower="0.0" upper="2.2" effort="15.0" velocity="1.5"/>
+
+    <xacro:ayyo_box_link name="${side}_wrist_link"
+      sx="0.07" sy="0.07" sz="0.08" ox="0" oy="0" oz="-0.04"
+      mass="0.2" material="ayyo_joint" mesh_name="${side}_wrist"
+      use_meshes="${use_meshes}"/>
+    <xacro:ayyo_revolute_joint name="${side}_wrist_yaw_joint"
+      parent="${side}_forearm_link" child="${side}_wrist_link"
+      xyz="0 0 -0.24" rpy="0 0 0" axis="0 0 1"
+      lower="-1.5" upper="1.5" effort="5.0" velocity="1.5"/>
+
+    <xacro:ayyo_box_link name="${side}_hand_link"
+      sx="0.08" sy="0.04" sz="0.16" ox="0.02" oy="0" oz="-0.08"
+      mass="0.35" material="ayyo_shell" mesh_name="${side}_hand"
+      use_meshes="${use_meshes}"/>
+    <xacro:ayyo_fixed_joint name="${side}_wrist_to_hand_joint"
+      parent="${side}_wrist_link" child="${side}_hand_link"
+      xyz="0 0 -0.08" rpy="0 0 0"/>
+  </xacro:macro>
+
+  <xacro:macro name="ayyo_leg" params="side side_sign use_meshes">
+    <xacro:ayyo_box_link name="${side}_hip_mount_link"
+      sx="0.09" sy="0.09" sz="0.08" ox="0" oy="0" oz="0"
+      mass="0.35" material="ayyo_joint" mesh_name="${side}_hip_mount"
+      use_meshes="${use_meshes}"/>
+    <xacro:ayyo_fixed_joint name="${side}_hip_mount_joint"
+      parent="pelvis_link" child="${side}_hip_mount_link"
+      xyz="0 ${side_sign * 0.085} -0.10" rpy="0 0 0"/>
+
+    <xacro:ayyo_box_link name="${side}_hip_yaw_link"
+      sx="0.09" sy="0.09" sz="0.08" ox="0" oy="0" oz="0"
+      mass="0.35" material="ayyo_joint" mesh_name="${side}_hip_yaw"
+      use_meshes="${use_meshes}"/>
+    <xacro:ayyo_revolute_joint name="${side}_hip_yaw_joint"
+      parent="${side}_hip_mount_link" child="${side}_hip_yaw_link"
+      xyz="0 0 -0.04" rpy="0 0 0" axis="0 0 1"
+      lower="-0.6" upper="0.6" effort="40.0" velocity="1.0"/>
+
+    <xacro:ayyo_box_link name="${side}_thigh_link"
+      sx="0.11" sy="0.11" sz="0.34" ox="0" oy="0" oz="-0.17"
+      mass="2.2" material="ayyo_shell" mesh_name="${side}_thigh"
+      use_meshes="${use_meshes}"/>
+    <xacro:ayyo_revolute_joint name="${side}_hip_pitch_joint"
+      parent="${side}_hip_yaw_link" child="${side}_thigh_link"
+      xyz="0 0 0" rpy="0 0 0" axis="0 1 0"
+      lower="-1.0" upper="1.2" effort="45.0" velocity="1.0"/>
+
+    <xacro:ayyo_box_link name="${side}_knee_link"
+      sx="0.10" sy="0.10" sz="0.09" ox="0" oy="0" oz="0"
+      mass="0.45" material="ayyo_joint" mesh_name="${side}_knee"
+      use_meshes="${use_meshes}"/>
+    <xacro:ayyo_fixed_joint name="${side}_thigh_to_knee_joint"
+      parent="${side}_thigh_link" child="${side}_knee_link"
+      xyz="0 0 -0.34" rpy="0 0 0"/>
+
+    <xacro:ayyo_box_link name="${side}_shin_link"
+      sx="0.10" sy="0.10" sz="0.34" ox="0" oy="0" oz="-0.17"
+      mass="1.7" material="ayyo_charcoal" mesh_name="${side}_shin"
+      use_meshes="${use_meshes}"/>
+    <xacro:ayyo_revolute_joint name="${side}_knee_flex_joint"
+      parent="${side}_knee_link" child="${side}_shin_link"
+      xyz="0 0 0" rpy="0 0 0" axis="0 1 0"
+      lower="0.0" upper="2.0" effort="45.0" velocity="1.0"/>
+
+    <xacro:ayyo_box_link name="${side}_ankle_link"
+      sx="0.10" sy="0.10" sz="0.08" ox="0" oy="0" oz="-0.04"
+      mass="0.4" material="ayyo_joint" mesh_name="${side}_ankle"
+      use_meshes="${use_meshes}"/>
+    <xacro:ayyo_revolute_joint name="${side}_ankle_pitch_joint"
+      parent="${side}_shin_link" child="${side}_ankle_link"
+      xyz="0 0 -0.34" rpy="0 0 0" axis="0 1 0"
+      lower="-0.6" upper="0.6" effort="35.0" velocity="1.0"/>
+
+    <xacro:ayyo_box_link name="${side}_foot_link"
+      sx="0.28" sy="0.13" sz="0.07" ox="0.07" oy="0" oz="-0.055"
+      mass="0.8" material="ayyo_shell" mesh_name="${side}_foot"
+      use_meshes="${use_meshes}"/>
+    <xacro:ayyo_fixed_joint name="${side}_ankle_to_foot_joint"
+      parent="${side}_ankle_link" child="${side}_foot_link"
+      xyz="0 0 -0.04" rpy="0 0 0"/>
+  </xacro:macro>
+</robot>

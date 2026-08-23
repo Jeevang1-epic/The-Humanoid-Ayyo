@@ -1,0 +1,74 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+  <!--
+    Proxy primitives exist only for frame, TF, launch, and simulator plumbing
+    validation. Mesh mode deliberately points at reviewed future assets and is
+    not usable until those files are supplied.
+  -->
+  <xacro:macro name="ayyo_box_link"
+               params="name sx sy sz ox oy oz mass material mesh_name use_meshes">
+    <link name="${name}">
+      <inertial>
+        <origin xyz="${ox} ${oy} ${oz}" rpy="0 0 0"/>
+        <mass value="${mass}"/>
+        <inertia
+          ixx="${mass * (sy * sy + sz * sz) / 12.0}"
+          ixy="0.0"
+          ixz="0.0"
+          iyy="${mass * (sx * sx + sz * sz) / 12.0}"
+          iyz="0.0"
+          izz="${mass * (sx * sx + sy * sy) / 12.0}"/>
+      </inertial>
+      <visual>
+        <origin xyz="${ox} ${oy} ${oz}" rpy="0 0 0"/>
+        <geometry>
+          <xacro:if value="${use_meshes}">
+            <mesh filename="package://ayyo_description/meshes/visual/${mesh_name}.dae"
+                  scale="1 1 1"/>
+          </xacro:if>
+          <xacro:unless value="${use_meshes}">
+            <box size="${sx} ${sy} ${sz}"/>
+          </xacro:unless>
+        </geometry>
+        <material name="${material}"/>
+      </visual>
+      <collision>
+        <origin xyz="${ox} ${oy} ${oz}" rpy="0 0 0"/>
+        <geometry>
+          <xacro:if value="${use_meshes}">
+            <mesh filename="package://ayyo_description/meshes/collision/${mesh_name}.stl"
+                  scale="1 1 1"/>
+          </xacro:if>
+          <xacro:unless value="${use_meshes}">
+            <box size="${sx} ${sy} ${sz}"/>
+          </xacro:unless>
+        </geometry>
+      </collision>
+    </link>
+  </xacro:macro>
+
+  <xacro:macro name="ayyo_frame_link" params="name">
+    <link name="${name}"/>
+  </xacro:macro>
+
+  <xacro:macro name="ayyo_fixed_joint" params="name parent child xyz rpy">
+    <joint name="${name}" type="fixed">
+      <parent link="${parent}"/>
+      <child link="${child}"/>
+      <origin xyz="${xyz}" rpy="${rpy}"/>
+    </joint>
+  </xacro:macro>
+
+  <xacro:macro name="ayyo_revolute_joint"
+               params="name parent child xyz rpy axis lower upper effort velocity">
+    <joint name="${name}" type="revolute">
+      <parent link="${parent}"/>
+      <child link="${child}"/>
+      <origin xyz="${xyz}" rpy="${rpy}"/>
+      <axis xyz="${axis}"/>
+      <limit lower="${lower}" upper="${upper}"
+             effort="${effort}" velocity="${velocity}"/>
+      <dynamics damping="0.5" friction="0.1"/>
+    </joint>
+  </xacro:macro>
+</robot>
