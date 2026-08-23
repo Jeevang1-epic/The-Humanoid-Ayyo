@@ -30,7 +30,9 @@
             <box size="${sx} ${sy} ${sz}"/>
           </xacro:unless>
         </geometry>
-        <material name="${material}"/>
+        <xacro:unless value="${use_meshes}">
+          <material name="${material}"/>
+        </xacro:unless>
       </visual>
       <collision>
         <origin xyz="${ox} ${oy} ${oz}" rpy="0 0 0"/>

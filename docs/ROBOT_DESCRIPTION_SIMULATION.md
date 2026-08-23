@@ -163,8 +163,9 @@ package://ayyo_description/meshes/collision/<part>.stl
 That mode is reserved for reviewed final assets. It currently points to absent
 files by design and must not be used for a passing graphical validation. The
 manifest truthfully records `final_assets_not_present`; normalized runtime
-scale is `1 1 1`. See [AYYO_MESH_IMPORT.md](AYYO_MESH_IMPORT.md) for the import
-gate.
+scale is `1 1 1`. Proxy mode uses named Xacro colors; mesh mode deliberately
+omits that override so reviewed embedded DAE materials remain authoritative.
+See [AYYO_MESH_IMPORT.md](AYYO_MESH_IMPORT.md) for the import gate.
 
 ## Public launch interfaces
 

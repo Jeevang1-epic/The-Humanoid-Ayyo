@@ -223,6 +223,10 @@ def validate_mesh_contract(package_root: Path, mesh_robot: ET.Element) -> int:
         raise DescriptionValidationError('mesh contract must truthfully report missing assets')
     if contract.get('runtime_scale') != [1, 1, 1]:
         raise DescriptionValidationError('mesh runtime scale must remain one after normalization')
+    if contract.get('visual_material_behavior') != 'embedded_dae_materials':
+        raise DescriptionValidationError(
+            'final visual meshes must retain reviewed embedded DAE materials'
+        )
     parts = contract.get('parts')
     if not isinstance(parts, list) or len(parts) != len(set(parts)):
         raise DescriptionValidationError('mesh part names must be a unique list')

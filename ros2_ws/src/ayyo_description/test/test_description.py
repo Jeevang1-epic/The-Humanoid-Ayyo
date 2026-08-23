@@ -113,6 +113,7 @@ def test_proxy_mode_has_primitives_not_meshes(proxy_robot: ET.Element) -> None:
     assert proxy_robot.find('.//mesh') is None
     assert len(proxy_robot.findall('.//visual/geometry/box')) == 33
     assert len(proxy_robot.findall('.//collision/geometry/box')) == 33
+    assert len(proxy_robot.findall('.//visual/material')) == 33
 
 
 def test_mesh_mode_exactly_matches_manifest() -> None:
@@ -122,6 +123,7 @@ def test_mesh_mode_exactly_matches_manifest() -> None:
     assert validate_mesh_contract(PACKAGE_ROOT, robot) == 33
     assert robot.find('.//visual/geometry/box') is None
     assert robot.find('.//collision/geometry/box') is None
+    assert robot.find('.//visual/material') is None
 
 
 def test_simulation_mode_is_static_and_plugin_free() -> None:

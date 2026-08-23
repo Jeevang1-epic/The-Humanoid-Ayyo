@@ -9,7 +9,9 @@
   "mesh_origin": "the owning link frame at the designed joint datum",
   "runtime_scale": [1, 1, 1],
   "visual_format": "dae",
+  "visual_material_behavior": "embedded_dae_materials",
   "collision_format": "stl",
+  "collision_expectation": "watertight simplified per-link geometry without visual detail",
   "parts": [
     "pelvis",
     "torso",
