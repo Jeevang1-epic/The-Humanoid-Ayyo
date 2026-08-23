@@ -9,8 +9,8 @@ Human / Environment
 → Perception Trust Boundary
 → World Model
 → Working Memory
-→ Memory OS
 → Memory Validation / Consolidation
+→ Memory OS
 → Personal Cognitive Twin
 → Executive Cognition
 → Model Gateway
@@ -27,10 +27,11 @@ Human / Environment
 
 These are architectural boundaries, not claims of implemented functionality.
 
-The standalone [Memory OS core](MEMORY_OS.md) now implements the persistence and
-domain boundary for provenance-aware owner memory. Memory validation,
-consolidation, the Personal Cognitive Twin, cognition, and ROS adaptation remain
-separate future layers.
+The standalone [Memory OS core](MEMORY_OS.md) implements the persistence and
+domain boundary for provenance-aware owner memory. The deterministic
+[Memory Validation policy](MEMORY_VALIDATION.md) now evaluates candidate evidence
+before explicitly approved mutations reach Memory OS. The Personal Cognitive
+Twin, cognition, and ROS adaptation remain separate future layers.
 
 ## Invariants
 
@@ -51,8 +52,9 @@ separate future layers.
 
 - Perception processing produces evidence that crosses an explicit trust boundary
   before it can affect world or memory state.
-- Memory validation owns provenance, uncertainty, contradiction handling, and
-  consolidation boundaries.
+- Memory validation owns deterministic admission, conservative identity
+  normalization, duplicate decisions, correction authority, and contradiction
+  review without selecting probabilistic truth.
 - The Memory OS preserves evidence, revisions, retractions, and unresolved
   conflicts without depending on ROS 2 or future cognitive components.
 - Executive cognition and the model gateway can propose only structured actions;

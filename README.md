@@ -7,7 +7,7 @@ can mature behind stable boundaries before physical hardware is introduced.
 
 ## Current status
 
-Ayyo is at the Memory OS Core stage.
+Ayyo is at the deterministic Memory Validation Policy stage.
 
 Implemented:
 
@@ -16,6 +16,8 @@ Implemented:
 - Local environment verification, build, and test scripts
 - A verified local ROS 2, Gazebo, and RViz development setup
 - A standalone, provenance-aware Memory OS core with SQLite persistence
+- A standalone deterministic validation and consolidation policy for candidate
+  memory evidence
 
 Planned, but not implemented:
 
@@ -33,7 +35,9 @@ The planned system separates perception, world and memory state, owner modeling,
 executive cognition, model access, planning, immutable safety enforcement, skill
 management, and replaceable ROS 2 embodiment. Safety-critical controls remain
 independent of cognition and learned policies. See
-[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) and [docs/SAFETY.md](docs/SAFETY.md).
+[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md),
+[docs/MEMORY_VALIDATION.md](docs/MEMORY_VALIDATION.md), and
+[docs/SAFETY.md](docs/SAFETY.md).
 
 ## Supported environment
 
@@ -69,16 +73,24 @@ Run Memory OS tests:
 PYTHONPATH=memory/src python3 -m unittest discover -s memory/tests -v
 ```
 
+Run Memory Validation tests:
+
+```bash
+PYTHONPATH=memory/src:memory_validation/src \
+python3 -m unittest discover -s memory_validation/tests -v
+```
+
 ## Repository layout
 
 ```text
 docs/          Architecture, roadmap, safety, and status
 memory/        Standalone Memory OS core and its tests
+memory_validation/  Deterministic evidence policy layer and its tests
 ros2_ws/src/   ROS 2 interfaces, description, and bringup packages
 scripts/       Local environment, build, and test commands
 tests/         Repository-level tests when justified
 ```
 
-The roadmap defines the intended progression. Memory persistence is implemented;
-the Personal Cognitive Twin and all cognition and robot runtime systems remain
-planned.
+The roadmap defines the intended progression. Memory persistence and deterministic
+candidate validation are implemented; the Personal Cognitive Twin and all
+cognition and robot runtime systems remain planned.

@@ -24,13 +24,17 @@
 - SQLite persistence with schema versioning, foreign keys, WAL journaling,
   transactional corrections, retractions, and conflict records
 - Deterministic memory queries and revision/conflict inspection
+- Standalone deterministic candidate validation with conservative identity and
+  JSON normalization
+- Typed duplicate, contradiction, correction, rejection, and review decisions
+- Explicit evaluation/application separation using only the public Memory OS API
 
 ## Planned, but not implemented
 
 - Ayyo robot model
 - Perception
 - Personal Cognitive Twin (PCT)
-- Memory validation and consolidation policy
+- Provenance aggregation and advanced consolidation policy
 - ROS 2 memory bridge
 - Cognition
 - Safety runtime
@@ -42,5 +46,6 @@
 - Learning pipeline
 - Physical hardware
 
-The repository contains the engineering foundation and Memory OS core. It does
-not provide owner modeling, cognition, perception, or simulated robot behavior.
+The repository contains the engineering foundation, Memory OS core, and first
+deterministic memory validation policy. It does not provide owner modeling,
+cognition, perception, semantic understanding, or simulated robot behavior.

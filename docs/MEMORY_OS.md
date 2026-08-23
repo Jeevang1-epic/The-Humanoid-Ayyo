@@ -47,8 +47,9 @@ stored as separate records with an explicit conflict relationship. Neither recor
 is silently chosen. Corrections resolve applicable historical conflicts; any
 remaining contradictory active evidence is exposed as an unresolved conflict.
 For this version, category, subject, and predicate are exact storage-layer identity
-fields. Semantic or entity normalization belongs to the future Memory Validation /
-Consolidation layer.
+fields. The separate deterministic Memory Validation policy performs conservative
+Unicode and whitespace normalization before new writes. Semantic entity resolution
+remains unimplemented.
 
 ## Persistence and retrieval
 
@@ -70,7 +71,7 @@ unresolved conflicts. Records retain confidence and provenance in every result.
 ## Intentionally not implemented
 
 - Personal Cognitive Twin behavior
-- Memory validation, consolidation, or probabilistic truth selection
+- Probabilistic truth selection, provenance aggregation, or destructive consolidation
 - Semantic or vector search, embeddings, and model integrations
 - ROS 2 messages, services, actions, or a memory bridge
 - Perception, cognition, permissions, safety runtime, or robot behavior
