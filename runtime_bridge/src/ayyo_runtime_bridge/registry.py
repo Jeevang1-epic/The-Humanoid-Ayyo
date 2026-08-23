@@ -11,7 +11,6 @@ from ayyo_skill_manager import (
     SkillAvailability,
     SkillDefinition,
     SkillFingerprint,
-    SkillFingerprintKind,
     SkillManagerError,
 )
 
