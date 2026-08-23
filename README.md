@@ -7,12 +7,13 @@ can mature behind stable boundaries before physical hardware is introduced.
 
 ## Current status
 
-Ayyo has reached the deterministic Skill Manager v1 review stage.
+Ayyo has reached the controlled ROS Runtime Bridge v1 review stage.
 
 Implemented:
 
 - Repository structure, engineering conventions, and architecture documentation
-- A ROS 2 workspace with three minimal package foundations
+- A ROS 2 workspace with three minimal package foundations and an installable
+  Runtime Bridge package
 - Local environment verification, build, and test scripts
 - A verified local ROS 2, Gazebo, and RViz development setup
 - A standalone, provenance-aware Memory OS core with SQLite persistence
@@ -31,6 +32,10 @@ Implemented:
   backend declarations, validates bounded parameter contracts, and binds
   unchanged Safety-reviewed proposal steps to inert, fingerprinted invocation
   contracts without executing skills or calling ROS
+- A standalone ROS Runtime Bridge that reconstructs Skill Manager binding data,
+  validates an exact service-only endpoint allowlist, emits deterministic
+  dispatch-eligibility decisions, and models an unavailable-by-default
+  transport boundary without a concrete ROS client or robot execution
 
 Planned, but not implemented:
 
@@ -38,6 +43,7 @@ Planned, but not implemented:
 - Perception
 - Natural-language/model integration and authenticated identity/approval
 - Runtime skill implementations, manipulation, and navigation
+- Concrete typed ROS service adapters, runtime scheduling, and timeout enforcement
 - Teach Mode and learning pipeline
 - Physical hardware
 
@@ -52,7 +58,8 @@ independent of cognition and learned policies. See
 [docs/PERSONAL_CONTEXT_TWIN.md](docs/PERSONAL_CONTEXT_TWIN.md),
 [docs/EXECUTIVE_COGNITION.md](docs/EXECUTIVE_COGNITION.md),
 [docs/SAFETY_KERNEL.md](docs/SAFETY_KERNEL.md),
-[docs/SKILL_MANAGER.md](docs/SKILL_MANAGER.md), and
+[docs/SKILL_MANAGER.md](docs/SKILL_MANAGER.md),
+[docs/ROS_RUNTIME_BRIDGE.md](docs/ROS_RUNTIME_BRIDGE.md), and
 [docs/SAFETY.md](docs/SAFETY.md).
 
 ## Supported environment
@@ -124,6 +131,13 @@ PYTHONPATH=memory/src:personal_context/src:executive/src:safety_kernel/src:skill
 python3 -m unittest discover -s skill_manager/tests -v
 ```
 
+Run ROS Runtime Bridge tests:
+
+```bash
+PYTHONPATH=memory/src:personal_context/src:executive/src:safety_kernel/src:skill_manager/src:runtime_bridge/src \
+python3 -m unittest discover -s runtime_bridge/tests -v
+```
+
 ## Repository layout
 
 ```text
@@ -134,6 +148,7 @@ personal_context/  Deterministic owner-context projection and its tests
 executive/     Deterministic Executive proposal planning and its tests
 safety_kernel/  Immutable deterministic proposal safety review and its tests
 skill_manager/  Immutable declarative skill contracts and Safety binding
+runtime_bridge/  Deterministic Skill-to-ROS compatibility and transport boundary
 ros2_ws/src/   ROS 2 interfaces, description, and bringup packages
 scripts/       Local environment, build, and test commands
 tests/         Repository-level tests when justified
@@ -141,6 +156,7 @@ tests/         Repository-level tests when justified
 
 The roadmap defines the intended progression. Memory persistence, deterministic
 candidate validation, Personal Context Twin v1, Executive Cognition v1,
-Immutable Safety Kernel v1, and Skill Manager v1 are implemented. Authenticated
-identity/approval, runtime skill implementations, physical-safety subsystems,
-and robot execution remain planned.
+Immutable Safety Kernel v1, Skill Manager v1, and controlled ROS Runtime Bridge
+v1 are implemented. Authenticated identity/approval, concrete typed ROS clients,
+runtime skill implementations, physical-safety subsystems, and robot execution
+remain planned.

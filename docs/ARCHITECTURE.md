@@ -15,7 +15,7 @@ Human / Environment
 → Executive Cognition
 → Immutable Safety Kernel
 → Skill Manager
-→ ROS 2 Embodiment Bridge
+→ ROS Runtime Bridge
 → Motion / Control
 → Robot Body
 → Outcome
@@ -37,8 +37,12 @@ declarative plans. The [Immutable Safety Kernel](SAFETY_KERNEL.md) independently
 validates those proposals and emits deterministic fail-closed review decisions.
 The declarative [Skill Manager](SKILL_MANAGER.md) now registers immutable skill
 contracts and binds unchanged Safety-reviewed proposal steps without executing
-them. Identity/approval authority, runtime skill implementations,
-physical-safety subsystems, and ROS adaptation remain separate future layers.
+them. The controlled [ROS Runtime Bridge](ROS_RUNTIME_BRIDGE.md) validates those
+binding results against an explicit ROS service endpoint allowlist and models
+dispatch eligibility and transport acceptance without providing a concrete ROS
+client or execution capability. Identity/approval authority, runtime skill
+implementations, physical-safety subsystems, and physical control remain
+separate future layers.
 
 ## Invariants
 
@@ -83,7 +87,12 @@ physical-safety subsystems, and ROS adaptation remain separate future layers.
   bounded parameter compatibility, deterministic registry selection, and
   proposal/Safety/skill/registry traceability. It cannot grant approval,
   schedule resources, call a backend, use ROS, or execute an invocation.
-- The ROS 2 embodiment bridge isolates higher-level contracts from simulation and
-  physical hardware details.
+- The ROS Runtime Bridge owns deterministic validation, exact Skill-to-service
+  endpoint compatibility, stale-request detection, and transport-boundary
+  results. It cannot grant approval, weaken upstream restrictions, discover or
+  dynamically load endpoints, schedule resources, claim task completion, or
+  control simulation or hardware.
+- Future ROS adapters and physical controls remain isolated from higher-level
+  contracts and constrained by the Runtime Bridge plus lower safety systems.
 - Learning updates remain candidates until evaluation and controlled promotion;
   consolidation does not bypass safety or permissions.

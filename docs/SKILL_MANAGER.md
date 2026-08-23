@@ -4,7 +4,7 @@
 
 Skill Manager v1 is implemented as the standalone Python 3.12
 `ayyo-skill-manager` package. It is the final declarative contract boundary
-between the Immutable Safety Kernel and a future ROS/runtime bridge.
+between the Immutable Safety Kernel and the ROS Runtime Bridge.
 
 The package answers which explicitly registered skills exist, which capability
 IDs they implement, what bounded inputs and outputs they declare, which future
@@ -26,7 +26,7 @@ Immutable Safety Kernel
     ↓ immutable decision
 Skill Manager v1
     ↓ inert, fingerprinted invocation contract only
-Future ROS Runtime Bridge
+ROS Runtime Bridge v1
     ↓
 Future controllers / simulation / hardware
 ```
@@ -202,8 +202,9 @@ Skill Manager v1 does not:
   or
 - persist registry, selection, binding, or invocation data.
 
-A future runtime bridge must consume an unchanged eligible invocation, recheck
-all relevant authority and state at its own boundary, implement resource and
-timeout enforcement, and remain constrained by lower physical-safety systems.
-It may add restrictions but must not reinterpret this declarative contract as
-permission to actuate.
+The implemented Runtime Bridge consumes the complete binding result, rebuilds
+eligible invocation identities, and checks an exact endpoint allowlist. It
+retains resources and timeouts but does not yet enforce scheduling or timeout
+behavior. Any later concrete ROS adapter must remain constrained by lower
+physical-safety systems and must not reinterpret this declarative contract as
+permission to actuate. See [ROS Runtime Bridge v1](ROS_RUNTIME_BRIDGE.md).

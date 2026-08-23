@@ -34,9 +34,9 @@ Immutable Safety Kernel v1
     ↓ immutable decision only
 Skill Manager v1 declarative binding
     ↓
-Future identity / approval authority and runtime bridge
+ROS Runtime Bridge v1 compatibility boundary
     ↓
-Future ROS 2 bridge and physical controls
+Future identity / approval authority, typed ROS adapters, and physical controls
 ```
 
 The kernel consumes only the public `ayyo_executive` contract. It does not read
@@ -48,8 +48,11 @@ Safety Kernel independently checks the plan structure and applies immutable
 hazard policy. A future trusted approval authority must authenticate approvals.
 The implemented Skill Manager maps an unchanged eligible proposal step to an
 immutable declarative skill contract, but it does not attest or invoke the
-backend. Lower runtime and physical-control layers must enforce authorization,
-motion, collision, force, workspace, and emergency-stop protections.
+backend. The implemented Runtime Bridge adds endpoint compatibility and
+dispatch-time stale checks without granting approval or providing a concrete
+ROS client. Lower runtime and physical-control layers must enforce
+authorization, motion, collision, force, workspace, and emergency-stop
+protections.
 
 ## Non-goals
 

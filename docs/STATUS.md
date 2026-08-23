@@ -17,8 +17,9 @@
 ## Implemented
 
 - Architecture, roadmap, and safety contracts
-- ROS 2 workspace with minimal `ament_cmake` foundations for `ayyo_interfaces`,
-  `ayyo_description`, and `ayyo_bringup`
+- ROS 2 workspace with `ament_cmake` foundations for `ayyo_interfaces`,
+  `ayyo_description`, and `ayyo_bringup`, plus the installable
+  `ayyo_runtime_bridge` package
 - Local environment verification, build, and test scripts
 - Standalone Memory OS core with typed records and mandatory provenance
 - SQLite persistence with schema versioning, foreign keys, WAL journaling,
@@ -67,6 +68,18 @@
   fingerprint traceability
 - Explicit binding outcomes for runtime-handoff eligibility, external approval
   requirement, and typed ineligibility; no skill or backend execution
+- Standalone ROS Runtime Bridge v1 depending only on the public Skill Manager
+  contract, with package-owned bounded canonical JSON and immutable fingerprints
+- Service-only declarative ROS endpoint contracts and an exact immutable
+  Skill/version/capability/backend/endpoint allowlist
+- Runtime requests retaining the complete Executive, Safety, policy, Skill,
+  registry, parameter, context, approval, resource, and endpoint identity chain
+- Deterministic runtime eligibility that preserves approval, deferral, blocking,
+  staleness, rejection, and unavailability without a transport side effect
+- Dispatch-time request and current-binding reconstruction, typed result/failure
+  semantics, correlated receipts, and no silent mock fallback
+- Narrow transport protocol with an unavailable-by-default ROS service sentinel;
+  the deterministic in-memory implementation exists only in tests
 
 ## Planned, but not implemented
 
@@ -79,6 +92,8 @@
 - Authenticated identity, permissions, and approval verification
 - Motion/contact safety evaluation and physical emergency-stop integration
 - Runtime robot skill implementations
+- Concrete statically typed ROS service transport adapters and backend handlers
+- Runtime timeout enforcement, resource scheduling, and lock arbitration
 - Simulation integration
 - Manipulation integration
 - Navigation integration
@@ -89,7 +104,9 @@
 The repository contains the engineering foundation, Memory OS core,
 deterministic memory validation policy, a bounded owner-context read model, a
 deterministic proposal-only Executive layer, an immutable fail-closed Safety
-proposal-review boundary, and an inert declarative Skill Manager boundary. It
-does not provide inferred personality, natural-language understanding, model
+proposal-review boundary, an inert declarative Skill Manager boundary, and a
+controlled ROS Runtime Bridge compatibility boundary. It does not provide
+inferred personality, natural-language understanding, model
 reasoning, perception, authenticated authorization, live backend attestation,
-physical-safety certification, execution, or simulated robot behavior.
+physical-safety certification, a concrete ROS service client, task execution,
+physical execution, or simulated robot behavior.

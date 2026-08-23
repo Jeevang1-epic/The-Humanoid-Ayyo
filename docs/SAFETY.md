@@ -34,6 +34,13 @@ but grants no authority.
   unchanged Safety-reviewed step matches an immutable declarative skill
   contract. It does not authenticate approval, prove backend availability,
   schedule resources, or authorize execution.
+- A Runtime Bridge `ELIGIBLE` decision means only that the unchanged Skill
+  Manager result matches one exact declarative ROS service endpoint binding.
+  `ACCEPTED_BY_TRANSPORT` means only adapter acceptance; neither state grants
+  approval, establishes task completion, or certifies physical safety.
+- Runtime dispatch must revalidate the final request and a current Skill Manager
+  binding before transport. Missing, stale, unavailable, or mismatched runtime
+  state fails closed without a mock fallback.
 - Skill approval requirements must be retained from Safety and matched to the
   selected step. Approval evidence from another step and proposal parameters
   such as `approved: true` cannot satisfy them.

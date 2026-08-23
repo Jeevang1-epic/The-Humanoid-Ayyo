@@ -25,9 +25,9 @@ Immutable Safety Kernel v1
         ↓ review decisions only
 Skill Manager v1 through the Safety decision
         ↓
-Future identity / approval authority and runtime bridge
+ROS Runtime Bridge v1 compatibility boundary
         ↓
-Future task / skill execution and ROS bridge
+Future identity / approval authority and task / skill execution
 ```
 
 Executive Cognition owns structured-request validation, explicit context

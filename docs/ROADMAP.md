@@ -30,8 +30,13 @@ foundation.
 Stages 1 through 3 now have bounded v1 implementations. The immutable
 proposal-review portion of stage 4 is implemented as Safety Kernel v1, and the
 declarative Safety-to-runtime contract boundary is implemented as Skill Manager
-v1. Authenticated identity, permissions, approval verification, live backend
-attestation, audit persistence, resource scheduling, runtime skill
-implementations, and physical-safety integration remain future work. Executive
-proposals, Safety eligibility, and Skill Manager runtime-handoff eligibility do
-not count as authorization, execution, or physical-safety certification.
+v1. A preparatory controlled runtime boundary ahead of stage 5 is implemented
+as ROS Runtime Bridge v1 with a service-only endpoint allowlist, pure
+eligibility, and an unavailable-by-default transport boundary. Authenticated identity,
+permissions, approval verification, live backend attestation, a concrete typed
+ROS service client, audit persistence, timeout/resource enforcement, runtime
+skill implementations, simulation behavior, and physical-safety integration
+remain future work. Executive proposals, Safety eligibility, Skill Manager
+runtime-handoff eligibility, Runtime Bridge eligibility, and transport
+acceptance do not count as authorization, task completion, execution, or
+physical-safety certification.
