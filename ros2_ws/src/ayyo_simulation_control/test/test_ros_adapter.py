@@ -87,6 +87,21 @@ def test_ros_adapter_uses_only_reviewed_static_ros_names() -> None:
     assert 'eval(' not in source
     assert 'exec(' not in source
     assert 'except Exception' not in source
+    assert 'create_timer' not in source
+    assert 'def _refresh_lifecycle(self)' in source
+    assert 'ListControllers' in source
+    assert 'ListHardwareComponents' in source
+
+
+def test_ros_adapter_drains_callbacks_before_context_shutdown() -> None:
+    source = script_source('simulation_control_node.py')
+    assert 'class DrainingMultiThreadedExecutor' in source
+    assert 'self._executor.shutdown(wait=True)' in source
+    assert 'future.result()' in source
+    assert 'SignalHandlerOptions.NO' in source
+    assert source.index('node.close()') < source.index('executor.shutdown()')
+    assert source.index('executor.shutdown()') < source.index('node.destroy_node()')
+    assert source.index('node.destroy_node()') < source.index('rclpy.shutdown()')
 
 
 def test_development_client_cannot_select_ros_endpoints() -> None:
