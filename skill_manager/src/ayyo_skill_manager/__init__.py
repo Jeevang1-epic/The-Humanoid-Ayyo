@@ -38,6 +38,7 @@ from .schema import (
     ValueType,
 )
 from .registry import MAX_REGISTRY_SKILLS, SkillRegistry
+from .parameters import validate_parameters
 
 __all__ = [
     "MAX_SCHEMA_ARRAY_ITEMS",
@@ -73,4 +74,5 @@ __all__ = [
     "StaleSkillBindingError",
     "ValueSchema",
     "ValueType",
+    "validate_parameters",
 ]
