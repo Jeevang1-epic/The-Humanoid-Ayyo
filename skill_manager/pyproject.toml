@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ayyo-skill-manager"
+version = "0.1.0"
+description = "Deterministic declarative skill contracts for Ayyo"
+requires-python = ">=3.12"
+license = {text = "Proprietary"}
+maintainers = [
+  {name = "P. Jeevan Kumar", email = "jeevan116p@gmail.com"},
+]
+dependencies = [
+  "ayyo-executive==0.1.0",
+  "ayyo-safety==0.1.0",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
