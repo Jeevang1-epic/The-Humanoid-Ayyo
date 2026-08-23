@@ -13,8 +13,6 @@ Human / Environment
 → Memory OS
 → Personal Context Twin
 → Executive Cognition
-→ Model Gateway
-→ Task Planner
 → Immutable Safety Kernel
 → Skill Manager
 → ROS 2 Embodiment Bridge
@@ -32,8 +30,11 @@ domain boundary for provenance-aware owner memory. The deterministic
 [Memory Validation policy](MEMORY_VALIDATION.md) now evaluates candidate evidence
 before explicitly approved mutations reach Memory OS. The read-only
 [Personal Context Twin](PERSONAL_CONTEXT_TWIN.md) projects deterministic,
-owner-isolated state from Memory OS. Executive cognition and ROS adaptation
-remain separate future layers.
+owner-isolated state from Memory OS. The proposal-only
+[Executive Cognition layer](EXECUTIVE_COGNITION.md) consumes PCT through its
+public API, validates explicit capability contracts, and produces deterministic
+declarative plans. The immutable Safety Kernel, Skill Manager, and ROS
+adaptation remain separate future layers.
 
 ## Invariants
 
@@ -64,8 +65,12 @@ remain separate future layers.
   resolved/conflicted/unknown state, owner isolation, evidence references, and
   snapshot versioning. It does not own persistence, truth selection,
   permissions, cognition, or safety.
-- Executive cognition and the model gateway can propose only structured actions;
-  the task planner and safety kernel constrain what can proceed.
+- Executive Cognition owns structured request validation, context dependency
+  checks, deterministic declarative planning, explicit proposal blockers, and
+  stale-decision evidence. It cannot grant approval, claim safety, execute a
+  plan, or mutate PCT or Memory OS.
+- Any future model gateway may translate input into a structured request but
+  cannot bypass Executive invariants or supply authority.
 - The immutable safety kernel is independent of cognition and learned policy.
 - The ROS 2 embodiment bridge isolates higher-level contracts from simulation and
   physical hardware details.
