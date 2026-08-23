@@ -1,0 +1,45 @@
+controller_manager:
+  ros__parameters:
+    update_rate: 100
+    use_sim_time: true
+    enforce_command_limits: true
+
+    joint_state_broadcaster:
+      type: joint_state_broadcaster/JointStateBroadcaster
+
+    ayyo_neck_position_controller:
+      type: forward_command_controller/ForwardCommandController
+
+joint_state_broadcaster:
+  ros__parameters:
+    use_sim_time: true
+    joints:
+      - neck_yaw_joint
+      - head_pitch_joint
+      - left_shoulder_yaw_joint
+      - left_shoulder_pitch_joint
+      - left_elbow_flex_joint
+      - left_wrist_yaw_joint
+      - right_shoulder_yaw_joint
+      - right_shoulder_pitch_joint
+      - right_elbow_flex_joint
+      - right_wrist_yaw_joint
+      - left_hip_yaw_joint
+      - left_hip_pitch_joint
+      - left_knee_flex_joint
+      - left_ankle_pitch_joint
+      - right_hip_yaw_joint
+      - right_hip_pitch_joint
+      - right_knee_flex_joint
+      - right_ankle_pitch_joint
+    interfaces:
+      - position
+      - velocity
+      - effort
+
+ayyo_neck_position_controller:
+  ros__parameters:
+    use_sim_time: true
+    joints:
+      - neck_yaw_joint
+    interface_name: position

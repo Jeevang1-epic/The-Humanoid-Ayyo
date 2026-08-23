@@ -113,6 +113,7 @@ def test_launch_uses_bounded_simulation_nodes() -> None:
         and call.func.id == 'Node'
     ]
     assert {constant_keyword(call, 'package') for call in node_calls} == {
+        'controller_manager',
         'joint_state_publisher',
         'robot_state_publisher',
         'ros_gz_bridge',
@@ -122,7 +123,7 @@ def test_launch_uses_bounded_simulation_nodes() -> None:
         encoding='utf-8'
     )
     assert 'rviz2' not in source
-    assert 'controller_manager' not in source
+    assert "condition=UnlessCondition(enable_control)" in source
 
 
 def test_launch_spawns_authoritative_description_as_static() -> None:
@@ -132,6 +133,8 @@ def test_launch_spawns_authoritative_description_as_static() -> None:
     assert "FindPackageShare('ayyo_description')" in source
     assert "'ayyo.urdf.xacro'" in source
     assert "' simulation_mode:=true simulation_static:=true'" in source
+    assert "' simulation_control:='" in source
+    assert "' simulation_controller_config:='" in source
     assert "'topic': 'robot_description'" in source
     assert "'allow_renaming': False" in source
 
@@ -154,8 +157,46 @@ def test_launch_defaults_to_headless_proxy_ground_contact() -> None:
         if isinstance(default, ast.Constant):
             defaults[call.args[0].value] = default.value
     assert defaults['headless'] == 'true'
+    assert defaults['enable_control'] == 'false'
     assert defaults['use_meshes'] == 'false'
     assert defaults['spawn_z'] == '0.95'
+
+
+def test_controller_configuration_is_exactly_one_position_joint() -> None:
+    config = yaml.safe_load(
+        (PACKAGE_ROOT / 'config' / 'controllers.yaml').read_text(encoding='utf-8')
+    )
+    manager = config['controller_manager']['ros__parameters']
+    assert manager['update_rate'] == 100
+    assert manager['use_sim_time'] is True
+    assert manager['enforce_command_limits'] is True
+    assert manager['joint_state_broadcaster']['type'] == (
+        'joint_state_broadcaster/JointStateBroadcaster'
+    )
+    assert manager['ayyo_neck_position_controller']['type'] == (
+        'forward_command_controller/ForwardCommandController'
+    )
+    controller = config['ayyo_neck_position_controller']['ros__parameters']
+    assert controller == {
+        'use_sim_time': True,
+        'joints': ['neck_yaw_joint'],
+        'interface_name': 'position',
+    }
+    broadcaster = config['joint_state_broadcaster']['ros__parameters']
+    assert len(broadcaster['joints']) == 18
+    assert len(set(broadcaster['joints'])) == 18
+    assert broadcaster['interfaces'] == ['position', 'velocity', 'effort']
+
+
+def test_control_lifecycle_is_spawn_then_state_then_position() -> None:
+    source = (PACKAGE_ROOT / 'launch' / 'simulation.launch.py').read_text(
+        encoding='utf-8'
+    )
+    assert 'target_action=spawn_ayyo' in source
+    assert 'on_exit=[joint_state_broadcaster_spawner]' in source
+    assert 'target_action=joint_state_broadcaster_spawner' in source
+    assert 'on_exit=[position_controller_spawner]' in source
+    assert source.count("condition=IfCondition(enable_control)") == 2
 
 
 def test_simulation_package_has_no_authorization_layer_dependency() -> None:
@@ -175,6 +216,12 @@ def test_simulation_package_has_no_authorization_layer_dependency() -> None:
         'ayyo_skill_manager',
     }
     assert 'ayyo_description' in dependencies
+    assert {
+        'controller_manager',
+        'forward_command_controller',
+        'gz_ros2_control',
+        'joint_state_broadcaster',
+    } <= dependencies
 
 
 def test_simulation_installs_only_owned_resources() -> None:

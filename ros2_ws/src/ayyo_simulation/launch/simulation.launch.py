@@ -6,9 +6,11 @@ from launch import LaunchDescription
 from launch.actions import (
     DeclareLaunchArgument,
     IncludeLaunchDescription,
+    RegisterEventHandler,
     TimerAction,
 )
 from launch.conditions import IfCondition, UnlessCondition
+from launch.event_handlers import OnProcessExit
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import (
     Command,
@@ -24,6 +26,7 @@ from launch_ros.substitutions import FindPackageShare
 def generate_launch_description() -> LaunchDescription:
     """Build the non-actuating Gazebo development launch graph."""
     headless = LaunchConfiguration('headless')
+    enable_control = LaunchConfiguration('enable_control')
     use_meshes = LaunchConfiguration('use_meshes')
     spawn_x = LaunchConfiguration('spawn_x')
     spawn_y = LaunchConfiguration('spawn_y')
@@ -35,6 +38,9 @@ def generate_launch_description() -> LaunchDescription:
     )
     bridge_config = PathJoinSubstitution(
         [FindPackageShare('ayyo_simulation'), 'config', 'ros_gz_bridge.yaml']
+    )
+    controller_config = PathJoinSubstitution(
+        [FindPackageShare('ayyo_simulation'), 'config', 'controllers.yaml']
     )
     xacro_file = PathJoinSubstitution(
         [FindPackageShare('ayyo_description'), 'urdf', 'ayyo.urdf.xacro']
@@ -48,6 +54,10 @@ def generate_launch_description() -> LaunchDescription:
                 ' use_meshes:=',
                 use_meshes,
                 ' simulation_mode:=true simulation_static:=true',
+                ' simulation_control:=',
+                enable_control,
+                ' simulation_controller_config:=',
+                controller_config,
             ]
         ),
         value_type=str,
@@ -94,6 +104,38 @@ def generate_launch_description() -> LaunchDescription:
             }
         ],
     )
+    joint_state_broadcaster_spawner = Node(
+        package='controller_manager',
+        executable='spawner',
+        name='spawn_joint_state_broadcaster',
+        output='screen',
+        arguments=[
+            'joint_state_broadcaster',
+            '--controller-manager',
+            '/controller_manager',
+            '--controller-manager-timeout',
+            '30',
+            '--switch-timeout',
+            '30',
+        ],
+        condition=IfCondition(enable_control),
+    )
+    position_controller_spawner = Node(
+        package='controller_manager',
+        executable='spawner',
+        name='spawn_ayyo_neck_position_controller',
+        output='screen',
+        arguments=[
+            'ayyo_neck_position_controller',
+            '--controller-manager',
+            '/controller_manager',
+            '--controller-manager-timeout',
+            '30',
+            '--switch-timeout',
+            '30',
+        ],
+        condition=IfCondition(enable_control),
+    )
 
     return LaunchDescription(
         [
@@ -106,6 +148,13 @@ def generate_launch_description() -> LaunchDescription:
                 'use_meshes',
                 default_value='false',
                 description='Use reviewed final meshes instead of development proxies.',
+            ),
+            DeclareLaunchArgument(
+                'enable_control',
+                default_value='false',
+                description=(
+                    'Activate the one-joint gz_ros2_control development foundation.'
+                ),
             ),
             DeclareLaunchArgument('spawn_x', default_value='0.0'),
             DeclareLaunchArgument('spawn_y', default_value='0.0'),
@@ -130,6 +179,7 @@ def generate_launch_description() -> LaunchDescription:
                 name='ayyo_sim_joint_state_publisher',
                 output='screen',
                 parameters=[description_parameters],
+                condition=UnlessCondition(enable_control),
             ),
             Node(
                 package='ros_gz_bridge',
@@ -139,5 +189,17 @@ def generate_launch_description() -> LaunchDescription:
                 parameters=[{'config_file': bridge_config}],
             ),
             TimerAction(period=2.0, actions=[spawn_ayyo]),
+            RegisterEventHandler(
+                OnProcessExit(
+                    target_action=spawn_ayyo,
+                    on_exit=[joint_state_broadcaster_spawner],
+                )
+            ),
+            RegisterEventHandler(
+                OnProcessExit(
+                    target_action=joint_state_broadcaster_spawner,
+                    on_exit=[position_controller_spawner],
+                )
+            ),
         ]
     )
