@@ -13,6 +13,7 @@ from launch.conditions import IfCondition, UnlessCondition
 from launch.event_handlers import OnProcessExit
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import (
+    AndSubstitution,
     Command,
     FindExecutable,
     LaunchConfiguration,
@@ -27,6 +28,7 @@ def generate_launch_description() -> LaunchDescription:
     """Build the non-actuating Gazebo development launch graph."""
     headless = LaunchConfiguration('headless')
     enable_control = LaunchConfiguration('enable_control')
+    enable_development_control = LaunchConfiguration('enable_development_control')
     use_meshes = LaunchConfiguration('use_meshes')
     spawn_x = LaunchConfiguration('spawn_x')
     spawn_y = LaunchConfiguration('spawn_y')
@@ -136,6 +138,19 @@ def generate_launch_description() -> LaunchDescription:
         ],
         condition=IfCondition(enable_control),
     )
+    development_control_node = Node(
+        package='ayyo_simulation_control',
+        executable='simulation_control_node.py',
+        name='ayyo_simulation_control',
+        output='screen',
+        parameters=[
+            description_parameters,
+            {'development_injection_enabled': True},
+        ],
+        condition=IfCondition(
+            AndSubstitution(enable_control, enable_development_control)
+        ),
+    )
 
     return LaunchDescription(
         [
@@ -154,6 +169,13 @@ def generate_launch_description() -> LaunchDescription:
                 default_value='false',
                 description=(
                     'Activate the one-joint gz_ros2_control development foundation.'
+                ),
+            ),
+            DeclareLaunchArgument(
+                'enable_development_control',
+                default_value='false',
+                description=(
+                    'Expose the typed development-only command service; requires control.'
                 ),
             ),
             DeclareLaunchArgument('spawn_x', default_value='0.0'),
@@ -199,6 +221,12 @@ def generate_launch_description() -> LaunchDescription:
                 OnProcessExit(
                     target_action=joint_state_broadcaster_spawner,
                     on_exit=[position_controller_spawner],
+                )
+            ),
+            RegisterEventHandler(
+                OnProcessExit(
+                    target_action=position_controller_spawner,
+                    on_exit=[development_control_node],
                 )
             ),
         ]

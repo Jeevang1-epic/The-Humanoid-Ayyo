@@ -16,6 +16,7 @@ string command_id
 string command_fingerprint
 string result_id
 string result_fingerprint
+bool has_state_feedback
 float64 initial_position
 float64 final_position
 builtin_interfaces/Time observed_at

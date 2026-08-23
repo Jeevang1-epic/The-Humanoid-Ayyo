@@ -118,12 +118,13 @@ def test_launch_uses_bounded_simulation_nodes() -> None:
         'robot_state_publisher',
         'ros_gz_bridge',
         'ros_gz_sim',
+        'ayyo_simulation_control',
     }
     source = (PACKAGE_ROOT / 'launch' / 'simulation.launch.py').read_text(
         encoding='utf-8'
     )
     assert 'rviz2' not in source
-    assert "condition=UnlessCondition(enable_control)" in source
+    assert 'condition=UnlessCondition(enable_control)' in source
 
 
 def test_launch_spawns_authoritative_description_as_static() -> None:
@@ -158,6 +159,7 @@ def test_launch_defaults_to_headless_proxy_ground_contact() -> None:
             defaults[call.args[0].value] = default.value
     assert defaults['headless'] == 'true'
     assert defaults['enable_control'] == 'false'
+    assert defaults['enable_development_control'] == 'false'
     assert defaults['use_meshes'] == 'false'
     assert defaults['spawn_z'] == '0.95'
 
@@ -196,7 +198,10 @@ def test_control_lifecycle_is_spawn_then_state_then_position() -> None:
     assert 'on_exit=[joint_state_broadcaster_spawner]' in source
     assert 'target_action=joint_state_broadcaster_spawner' in source
     assert 'on_exit=[position_controller_spawner]' in source
-    assert source.count("condition=IfCondition(enable_control)") == 2
+    assert 'target_action=position_controller_spawner' in source
+    assert 'on_exit=[development_control_node]' in source
+    assert source.count('condition=IfCondition(enable_control)') == 2
+    assert 'AndSubstitution(enable_control, enable_development_control)' in source
 
 
 def test_simulation_package_has_no_authorization_layer_dependency() -> None:
@@ -216,6 +221,7 @@ def test_simulation_package_has_no_authorization_layer_dependency() -> None:
         'ayyo_skill_manager',
     }
     assert 'ayyo_description' in dependencies
+    assert 'ayyo_simulation_control' in dependencies
     assert {
         'controller_manager',
         'forward_command_controller',
