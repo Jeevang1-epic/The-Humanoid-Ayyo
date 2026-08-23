@@ -37,6 +37,7 @@ from .schema import (
     ValueSchema,
     ValueType,
 )
+from .registry import MAX_REGISTRY_SKILLS, SkillRegistry
 
 __all__ = [
     "MAX_SCHEMA_ARRAY_ITEMS",
@@ -44,6 +45,7 @@ __all__ = [
     "MAX_SCHEMA_NODES",
     "MAX_SCHEMA_PROPERTIES",
     "MAX_SCHEMA_STRING_LENGTH",
+    "MAX_REGISTRY_SKILLS",
     "MAX_SKILL_ITEMS",
     "MAX_SKILL_TIMEOUT_MS",
     "SKILL_SCHEMA_VERSION",
@@ -66,6 +68,7 @@ __all__ = [
     "SkillInvocationInvariantError",
     "SkillLifecycle",
     "SkillManagerError",
+    "SkillRegistry",
     "SkillValidationError",
     "StaleSkillBindingError",
     "ValueSchema",
