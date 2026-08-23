@@ -145,6 +145,8 @@ class SimulationControlModelTests(unittest.TestCase):
             source_id="runtime.bridge",
             runtime_request_id=f"runtime-request-{digest}",
             runtime_request_fingerprint=f"request:sha256:{digest}",
+            runtime_decision_id=f"runtime-decision-{'f' * 64}",
+            runtime_decision_fingerprint=f"decision:sha256:{'f' * 64}",
             invocation_fingerprint=f"invocation:sha256:{'b' * 64}",
             endpoint_binding_fingerprint=f"endpoint_binding:sha256:{'c' * 64}",
             runtime_registry_fingerprint=f"registry:sha256:{'d' * 64}",
@@ -156,6 +158,8 @@ class SimulationControlModelTests(unittest.TestCase):
                 source_id="runtime.bridge",
                 runtime_request_id=f"runtime-request-{digest}",
                 runtime_request_fingerprint=f"request:sha256:{'e' * 64}",
+                runtime_decision_id=f"runtime-decision-{'f' * 64}",
+                runtime_decision_fingerprint=f"decision:sha256:{'f' * 64}",
                 invocation_fingerprint=f"invocation:sha256:{'b' * 64}",
                 endpoint_binding_fingerprint=(
                     f"endpoint_binding:sha256:{'c' * 64}"

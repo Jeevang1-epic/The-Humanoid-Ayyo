@@ -139,6 +139,8 @@ class ControlAuthority:
     source_id: str
     runtime_request_id: str | None = None
     runtime_request_fingerprint: str | None = None
+    runtime_decision_id: str | None = None
+    runtime_decision_fingerprint: str | None = None
     invocation_fingerprint: str | None = None
     endpoint_binding_fingerprint: str | None = None
     runtime_registry_fingerprint: str | None = None
@@ -153,6 +155,8 @@ class ControlAuthority:
         runtime_fields = (
             self.runtime_request_id,
             self.runtime_request_fingerprint,
+            self.runtime_decision_id,
+            self.runtime_decision_fingerprint,
             self.invocation_fingerprint,
             self.endpoint_binding_fingerprint,
             self.runtime_registry_fingerprint,
@@ -187,6 +191,27 @@ class ControlAuthority:
                 ControlFailureCode.MALFORMED_UPSTREAM_IDENTITY,
                 "runtime request ID and fingerprint disagree",
             )
+        assert self.runtime_decision_id is not None
+        decision_match = re.fullmatch(
+            r"runtime-decision-([0-9a-f]{64})",
+            self.runtime_decision_id,
+        )
+        if decision_match is None:
+            raise ControlValidationError(
+                ControlFailureCode.MALFORMED_UPSTREAM_IDENTITY,
+                "runtime decision identity is malformed",
+            )
+        assert self.runtime_decision_fingerprint is not None
+        _fingerprint_text(
+            self.runtime_decision_fingerprint,
+            "decision:sha256:",
+            "runtime decision fingerprint",
+        )
+        if decision_match.group(1) != self.runtime_decision_fingerprint.rsplit(":", 1)[1]:
+            raise ControlValidationError(
+                ControlFailureCode.MALFORMED_UPSTREAM_IDENTITY,
+                "runtime decision ID and fingerprint disagree",
+            )
         assert self.invocation_fingerprint is not None
         assert self.endpoint_binding_fingerprint is not None
         assert self.runtime_registry_fingerprint is not None
@@ -212,6 +237,8 @@ class ControlAuthority:
             "invocation_fingerprint": self.invocation_fingerprint,
             "kind": self.kind.value,
             "runtime_registry_fingerprint": self.runtime_registry_fingerprint,
+            "runtime_decision_fingerprint": self.runtime_decision_fingerprint,
+            "runtime_decision_id": self.runtime_decision_id,
             "runtime_request_fingerprint": self.runtime_request_fingerprint,
             "runtime_request_id": self.runtime_request_id,
             "source_id": self.source_id,
