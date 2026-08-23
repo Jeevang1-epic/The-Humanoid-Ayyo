@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from ayyo_executive import (
+    ApprovalRequirement,
     DecisionReason,
     ExecutiveDecision,
     ExecutiveDecisionType,
@@ -12,7 +13,13 @@ from ayyo_executive import (
     PlanStep,
 )
 from ayyo_personal_context import ContextSnapshotVersion
-from ayyo_safety import CapabilitySafetyRule, HazardClass, SafetyKernel, SafetyPolicy
+from ayyo_safety import (
+    ApprovalClass,
+    CapabilitySafetyRule,
+    HazardClass,
+    SafetyKernel,
+    SafetyPolicy,
+)
 from ayyo_skill_manager import (
     ConcurrencyPolicy,
     FailureSemantics,
@@ -48,6 +55,7 @@ def skill(
     capability_ids: tuple[str, ...] = ("context.inspect",),
     input_schema: ValueSchema | None = None,
     output_schema: ValueSchema | None = None,
+    required_approval_classes: tuple[ApprovalClass, ...] = (),
 ) -> SkillDefinition:
     return SkillDefinition(
         skill_id=skill_id,
@@ -58,6 +66,7 @@ def skill(
         backend_id=backend_id,
         input_schema=input_schema or ValueSchema(ValueType.OBJECT),
         output_schema=output_schema or ValueSchema(ValueType.OBJECT),
+        required_approval_classes=required_approval_classes,
         safety_classification=HazardClass.INFORMATIONAL_READ_ONLY,
         expected_result=ExpectedResultCategory.INFORMATION,
         timeout_ms=1_000,
@@ -97,6 +106,7 @@ def proposal(
     request_id: str = "request-1",
     step_id: str = "step-1",
     capability_id: str = "context.inspect",
+    required_approvals: tuple[ApprovalRequirement, ...] = (),
 ) -> ExecutiveDecision:
     step = PlanStep(
         step_id=step_id,
@@ -105,7 +115,7 @@ def proposal(
         dependencies=(),
         preconditions=(),
         required_context=(),
-        required_approvals=(),
+        required_approvals=required_approvals,
         constraints=(),
         expected_result=ExpectedResultCategory.INFORMATION,
         failure_policy=FailurePolicy.STOP_PLAN,
@@ -113,8 +123,16 @@ def proposal(
     return ExecutiveDecision(
         request_id=request_id,
         owner_subject="owner",
-        decision_type=ExecutiveDecisionType.PROPOSE,
-        reason_codes=(DecisionReason.READY_FOR_SAFETY_REVIEW,),
+        decision_type=(
+            ExecutiveDecisionType.REQUEST_APPROVAL
+            if required_approvals
+            else ExecutiveDecisionType.PROPOSE
+        ),
+        reason_codes=(
+            (DecisionReason.APPROVAL_REQUIRED,)
+            if required_approvals
+            else (DecisionReason.READY_FOR_SAFETY_REVIEW,)
+        ),
         explanation="Bind this inert proposal to a runtime test endpoint.",
         context_snapshot_version=SNAPSHOT_VERSION,
         request_fingerprint=REQUEST_FINGERPRINT,
@@ -122,7 +140,7 @@ def proposal(
         context_references=(),
         assumptions=(),
         required_capabilities=(capability_id,),
-        required_approvals=(),
+        required_approvals=required_approvals,
         constraints=(),
         proposed_plan=Plan((step,)),
     )
