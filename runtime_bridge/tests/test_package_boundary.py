@@ -245,14 +245,17 @@ class RuntimeBridgePackageBoundaryTest(unittest.TestCase):
         self.assertIn("ament_python_install_package", cmake)
         self.assertIn("runtime_bridge/src/ayyo_runtime_bridge", cmake)
 
-    def test_no_speculative_ros_interfaces_were_added(self) -> None:
+    def test_only_owned_development_ros_interface_is_present(self) -> None:
         interface_root = self.repository_root / "ros2_ws" / "src" / "ayyo_interfaces"
         generated = [
-            path
+            path.relative_to(interface_root).as_posix()
             for suffix in ("*.msg", "*.srv", "*.action")
             for path in interface_root.rglob(suffix)
         ]
-        self.assertEqual([], generated)
+        self.assertEqual(["srv/SetDevelopmentJointPosition.srv"], generated)
+        interface = (interface_root / generated[0]).read_text(encoding="utf-8")
+        self.assertIn("explicit development injection", interface)
+        self.assertNotIn("ApplyRuntimeJointPosition", interface)
 
     def test_build_artifacts_are_ignored_and_untracked(self) -> None:
         artifacts = (
