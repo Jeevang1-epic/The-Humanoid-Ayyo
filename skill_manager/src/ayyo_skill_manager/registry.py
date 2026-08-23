@@ -132,3 +132,39 @@ class SkillRegistry:
     def availability(self, skill_id: str) -> SkillAvailability | None:
         skill = self.resolve(skill_id)
         return None if skill is None else skill.availability
+
+    def selection(
+        self,
+        *,
+        skill_id: str,
+        capability_id: str,
+        source_step_id: str,
+    ):
+        from .binding import SkillSelection
+
+        skill = self.resolve(skill_id)
+        if skill is None:
+            raise InvalidSkillRegistryError(f"unknown skill_id: {skill_id}")
+        capability_id = validate_identifier(
+            capability_id,
+            field_name="capability_id",
+            error_type=InvalidSkillRegistryError,
+        )
+        source_step_id = validate_identifier(
+            source_step_id,
+            field_name="source_step_id",
+            error_type=InvalidSkillRegistryError,
+        )
+        if capability_id not in skill.capability_ids:
+            raise InvalidSkillRegistryError(
+                f"skill {skill_id} does not declare capability {capability_id}"
+            )
+        return SkillSelection(
+            skill_id=skill.skill_id,
+            skill_version=skill.version,
+            skill_fingerprint=skill.fingerprint,
+            capability_id=capability_id,
+            source_step_id=source_step_id,
+            registry_version=self.version,
+            registry_fingerprint=self.fingerprint,
+        )

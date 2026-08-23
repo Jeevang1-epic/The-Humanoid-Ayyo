@@ -39,6 +39,15 @@ from .schema import (
 )
 from .registry import MAX_REGISTRY_SKILLS, SkillRegistry
 from .parameters import validate_parameters
+from .binding import (
+    BindingReason,
+    BindingStatus,
+    InvocationStatus,
+    SkillBindingResult,
+    SkillInvocation,
+    SkillManagerService,
+    SkillSelection,
+)
 
 __all__ = [
     "MAX_SCHEMA_ARRAY_ITEMS",
@@ -51,6 +60,8 @@ __all__ = [
     "MAX_SKILL_TIMEOUT_MS",
     "SKILL_SCHEMA_VERSION",
     "ConcurrencyPolicy",
+    "BindingReason",
+    "BindingStatus",
     "FailureSemantics",
     "IdempotencyClass",
     "InvalidSchemaError",
@@ -58,18 +69,23 @@ __all__ = [
     "InvalidSkillDefinitionError",
     "InvalidSkillParametersError",
     "InvalidSkillRegistryError",
+    "InvocationStatus",
     "ResourceAccess",
     "ResourceRequirement",
     "SchemaProperty",
     "SemanticVersion",
     "SkillAvailability",
+    "SkillBindingResult",
     "SkillDefinition",
     "SkillFingerprint",
     "SkillFingerprintKind",
     "SkillInvocationInvariantError",
+    "SkillInvocation",
     "SkillLifecycle",
     "SkillManagerError",
+    "SkillManagerService",
     "SkillRegistry",
+    "SkillSelection",
     "SkillValidationError",
     "StaleSkillBindingError",
     "ValueSchema",
