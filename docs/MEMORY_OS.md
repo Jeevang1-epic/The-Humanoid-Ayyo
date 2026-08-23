@@ -72,8 +72,10 @@ unresolved conflicts. Records retain confidence and provenance in every result.
 
 - Personal Context Twin projection (implemented in the separate
   `personal_context/` package)
+- Executive proposal planning (implemented in the separate `executive/`
+  package through the PCT public API)
 - Probabilistic truth selection, provenance aggregation, or destructive consolidation
 - Semantic or vector search, embeddings, and model integrations
 - ROS 2 messages, services, actions, or a memory bridge
-- Perception, cognition, permissions, safety runtime, or robot behavior
+- Perception, permissions, safety runtime, or robot behavior
 - Hard deletion, retention policy, and privacy-deletion workflows

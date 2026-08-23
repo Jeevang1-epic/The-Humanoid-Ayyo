@@ -151,7 +151,8 @@ writes can both be stored; they remain intact evidence records, but policy versi
 - Personal Context Twin projection or owner-model behavior (the deterministic
   projection is implemented in the separate `personal_context/` package)
 - ROS 2 memory bridge or other ROS 2 integration
-- Perception or executive cognition
+- Perception or execution of Executive Cognition proposals (proposal planning is
+  implemented in the separate `executive/` package)
 - Safety runtime or skills
 - Learning pipeline
 - Simulation robot behavior or physical robot control

@@ -20,7 +20,8 @@ candidate evidence
 → Memory Validation
 → Memory OS
 → Personal Context Twin
-→ future executive cognition
+→ Executive Cognition proposals
+→ future Safety Kernel
 ```
 
 The PCT package imports only the public `ayyo_memory` API. Its runtime does not
