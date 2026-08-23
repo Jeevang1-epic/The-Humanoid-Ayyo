@@ -33,8 +33,10 @@ before explicitly approved mutations reach Memory OS. The read-only
 owner-isolated state from Memory OS. The proposal-only
 [Executive Cognition layer](EXECUTIVE_COGNITION.md) consumes PCT through its
 public API, validates explicit capability contracts, and produces deterministic
-declarative plans. The immutable Safety Kernel, Skill Manager, and ROS
-adaptation remain separate future layers.
+declarative plans. The [Immutable Safety Kernel](SAFETY_KERNEL.md) independently
+validates those proposals and emits deterministic fail-closed review decisions.
+Identity/approval authority, the Skill Manager, physical-safety subsystems, and
+ROS adaptation remain separate future layers.
 
 ## Invariants
 
@@ -71,7 +73,10 @@ adaptation remain separate future layers.
   plan, or mutate PCT or Memory OS.
 - Any future model gateway may translate input into a structured request but
   cannot bypass Executive invariants or supply authority.
-- The immutable safety kernel is independent of cognition and learned policy.
+- The immutable Safety Kernel owns deterministic proposal validation, explicit
+  hazard classification, conservative plan aggregation, approval/prerequisite
+  retention, and proposal/policy binding. Eligibility means only downstream
+  consideration; it cannot grant approval, certify physical safety, or execute.
 - The ROS 2 embodiment bridge isolates higher-level contracts from simulation and
   physical hardware details.
 - Learning updates remain candidates until evaluation and controlled promotion;

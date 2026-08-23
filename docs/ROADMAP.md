@@ -26,5 +26,9 @@ foundation.
 11. **Full Humanoid Research** — Long-term whole-body embodiment research after
     earlier safety and validation gates are mature.
 
-Stages 1 through 3 now have bounded v1 implementations. Stage 4 is next;
-Executive proposals do not count as authorization or Safety Kernel approval.
+Stages 1 through 3 now have bounded v1 implementations. The immutable
+proposal-review portion of stage 4 is implemented as Safety Kernel v1.
+Authenticated identity, permissions, approval verification, audit persistence,
+and physical-safety integration remain future stage 4 work. Executive proposals
+and Safety eligibility do not count as authorization or physical-safety
+certification.

@@ -39,6 +39,17 @@
   fingerprints with explicit stale-decision revalidation
 - Fail-closed handling of unknown/unavailable capabilities and
   unknown/conflicted required owner context
+- Standalone Immutable Safety Kernel v1 using only the public Executive
+  Cognition contract
+- Explicit immutable hazard policy for informational, internal, external
+  digital, physical movement/contact, privileged, emergency, and unclassified
+  capabilities
+- Conservative plan-level dispositions for downstream eligibility, external
+  approval, deferral, and blocking, with no execution or physical-safety claim
+- Independent plan graph/relationship validation, defensive bounded JSON, and
+  deterministic proposal, policy, and decision fingerprints
+- Explicit stale Safety decision revalidation and typed approval/prerequisite
+  evidence that cannot manufacture authorization
 
 ## Planned, but not implemented
 
@@ -48,7 +59,8 @@
 - ROS 2 memory bridge
 - Natural-language/model cognition integration
 - Capability implementation discovery and Skill Manager integration
-- Safety runtime
+- Authenticated identity, permissions, and approval verification
+- Motion/contact safety evaluation and physical emergency-stop integration
 - Robot skills
 - Simulation integration
 - Manipulation integration
@@ -59,6 +71,8 @@
 
 The repository contains the engineering foundation, Memory OS core,
 deterministic memory validation policy, a bounded owner-context read model, and
-a deterministic proposal-only Executive layer. It does not provide inferred
-personality, natural-language understanding, model reasoning, perception,
-authorization, physical safety, execution, or simulated robot behavior.
+a deterministic proposal-only Executive layer, and an immutable fail-closed
+Safety proposal-review boundary. It does not provide inferred personality,
+natural-language understanding, model reasoning, perception, authenticated
+authorization, physical-safety certification, execution, or simulated robot
+behavior.

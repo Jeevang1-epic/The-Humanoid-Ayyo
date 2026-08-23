@@ -21,7 +21,9 @@ Personal Context Twin
         ↓
 Executive Cognition v1
         ↓ proposals only
-Future immutable Safety Kernel and authorization boundary
+Immutable Safety Kernel v1
+        ↓ review decisions only
+Future identity / approval authority and Skill Manager
         ↓
 Future task / skill execution and ROS bridge
 ```
@@ -139,7 +141,7 @@ attach an `approved` value, equate requester and approver, authenticate either
 party, or grant authority. A separately authenticated future subsystem must
 provide authorization.
 
-Plans expose the inputs needed by the future Safety Kernel—operations,
+Plans expose the inputs consumed by the Safety Kernel—operations,
 parameters, context dependencies, constraints, approvals, assumptions,
 preconditions, ordering, expected-result categories, and failure policy. The
 Executive does not perform hazard scoring, collision checking, motor limiting,
@@ -186,8 +188,10 @@ Unrelated capability definitions, unrelated PCT entries, and optional-context
 changes do not invalidate a proposal.
 
 Revalidation proves equality only at the moments the two snapshots were built.
-It does not lock Memory OS or authorize later reuse. A future safety/execution
-transaction must re-check the binding at its own boundary.
+It does not lock Memory OS or authorize later reuse. Safety Kernel v1 binds its
+review to the complete proposal and policy fingerprints; a future authenticated
+approval or execution transaction must re-check the binding at its own
+boundary.
 
 ## Public API
 
@@ -234,8 +238,9 @@ reasoning, model/LLM integration, live capability discovery, identity proof,
 authorization, persistence, network access, perception, learning, physical
 safety, execution, ROS behavior, navigation, manipulation, or motion control.
 
-Future work may translate authenticated user intent into the structured request,
-attest capability availability through a Skill Manager, attach authorization,
-and submit the unchanged proposal plus its source bindings to an immutable
-Safety Kernel. Those layers must not weaken the fail-closed behavior described
-here.
+Safety Kernel v1 now consumes the unchanged Executive proposal and independently
+revalidates its graph and cross-field relationships. Future work may translate
+authenticated user intent into the structured request, attest capability
+availability through a Skill Manager, and attach trusted authorization outside
+both Executive and Safety packages. Those layers must not weaken the fail-closed
+behavior described here.

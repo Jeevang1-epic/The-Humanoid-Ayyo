@@ -7,7 +7,7 @@ can mature behind stable boundaries before physical hardware is introduced.
 
 ## Current status
 
-Ayyo has reached the deterministic Executive Cognition v1 proposal stage.
+Ayyo has reached the deterministic Immutable Safety Kernel v1 review stage.
 
 Implemented:
 
@@ -23,12 +23,16 @@ Implemented:
 - A standalone Executive Cognition layer that consumes PCT snapshots and emits
   deterministic declarative proposals, explicit blockers, and stale-decision
   evidence without execution or safety authority
+- A standalone Immutable Safety Kernel that independently validates Executive
+  proposal graphs, applies explicit fail-closed hazard policy, retains approval
+  and safety prerequisites, and binds immutable decisions to proposal and
+  policy fingerprints without executing actions
 
 Planned, but not implemented:
 
 - Ayyo robot model and simulation integration
 - Perception
-- Natural-language/model integration and an immutable safety runtime
+- Natural-language/model integration and authenticated identity/approval
 - Robot skills, manipulation, and navigation
 - Teach Mode and learning pipeline
 - Physical hardware
@@ -42,7 +46,8 @@ independent of cognition and learned policies. See
 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md),
 [docs/MEMORY_VALIDATION.md](docs/MEMORY_VALIDATION.md),
 [docs/PERSONAL_CONTEXT_TWIN.md](docs/PERSONAL_CONTEXT_TWIN.md),
-[docs/EXECUTIVE_COGNITION.md](docs/EXECUTIVE_COGNITION.md), and
+[docs/EXECUTIVE_COGNITION.md](docs/EXECUTIVE_COGNITION.md),
+[docs/SAFETY_KERNEL.md](docs/SAFETY_KERNEL.md), and
 [docs/SAFETY.md](docs/SAFETY.md).
 
 ## Supported environment
@@ -100,6 +105,13 @@ PYTHONPATH=memory/src:personal_context/src:executive/src \
 python3 -m unittest discover -s executive/tests -v
 ```
 
+Run Immutable Safety Kernel tests:
+
+```bash
+PYTHONPATH=memory/src:memory_validation/src:personal_context/src:executive/src:safety_kernel/src \
+python3 -m unittest discover -s safety_kernel/tests -v
+```
+
 ## Repository layout
 
 ```text
@@ -108,11 +120,13 @@ memory/        Standalone Memory OS core and its tests
 memory_validation/  Deterministic evidence policy layer and its tests
 personal_context/  Deterministic owner-context projection and its tests
 executive/     Deterministic Executive proposal planning and its tests
+safety_kernel/  Immutable deterministic proposal safety review and its tests
 ros2_ws/src/   ROS 2 interfaces, description, and bringup packages
 scripts/       Local environment, build, and test commands
 tests/         Repository-level tests when justified
 ```
 
 The roadmap defines the intended progression. Memory persistence, deterministic
-candidate validation, Personal Context Twin v1, and Executive Cognition v1 are
-implemented; authorization, safety, and robot runtime systems remain planned.
+candidate validation, Personal Context Twin v1, Executive Cognition v1, and
+Immutable Safety Kernel v1 are implemented. Authenticated identity/approval,
+skills, physical-safety subsystems, and robot execution remain planned.

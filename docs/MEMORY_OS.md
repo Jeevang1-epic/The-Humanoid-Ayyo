@@ -74,8 +74,11 @@ unresolved conflicts. Records retain confidence and provenance in every result.
   `personal_context/` package)
 - Executive proposal planning (implemented in the separate `executive/`
   package through the PCT public API)
+- Immutable proposal safety review (implemented in the separate
+  `safety_kernel/` package through the Executive public API)
 - Probabilistic truth selection, provenance aggregation, or destructive consolidation
 - Semantic or vector search, embeddings, and model integrations
 - ROS 2 messages, services, actions, or a memory bridge
-- Perception, permissions, safety runtime, or robot behavior
+- Perception, authenticated permissions/approval, physical safety, or robot
+  behavior
 - Hard deletion, retention policy, and privacy-deletion workflows

@@ -153,6 +153,7 @@ writes can both be stored; they remain intact evidence records, but policy versi
 - ROS 2 memory bridge or other ROS 2 integration
 - Perception or execution of Executive Cognition proposals (proposal planning is
   implemented in the separate `executive/` package)
-- Safety runtime or skills
+- Immutable proposal safety review (implemented in the separate
+  `safety_kernel/` package), physical safety, or skills
 - Learning pipeline
 - Simulation robot behavior or physical robot control
