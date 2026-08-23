@@ -31,6 +31,9 @@ def generate_launch_description() -> LaunchDescription:
     world_file = PathJoinSubstitution(
         [FindPackageShare('ayyo_simulation'), 'worlds', 'ayyo_foundation.sdf']
     )
+    bridge_config = PathJoinSubstitution(
+        [FindPackageShare('ayyo_simulation'), 'config', 'ros_gz_bridge.yaml']
+    )
     xacro_file = PathJoinSubstitution(
         [FindPackageShare('ayyo_description'), 'urdf', 'ayyo.urdf.xacro']
     )
@@ -125,6 +128,13 @@ def generate_launch_description() -> LaunchDescription:
                 name='ayyo_sim_joint_state_publisher',
                 output='screen',
                 parameters=[description_parameters],
+            ),
+            Node(
+                package='ros_gz_bridge',
+                executable='parameter_bridge',
+                name='ayyo_clock_bridge',
+                output='screen',
+                parameters=[{'config_file': bridge_config}],
             ),
             TimerAction(period=2.0, actions=[spawn_ayyo]),
         ]
