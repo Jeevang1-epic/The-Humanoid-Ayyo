@@ -1,3 +1,51 @@
 """Public simulation-control contracts."""
 
-__all__: list[str] = []
+from .errors import (
+    ControlFailureCode,
+    ControlValidationError,
+    RuntimeControlRejectedError,
+    SimulationControlError,
+)
+from .models import (
+    CONTROL_SCHEMA_VERSION,
+    MAX_COMMAND_WINDOW_NS,
+    MAX_CONTROL_TARGETS,
+    ControlAuthority,
+    ControlAuthorityKind,
+    ControlCommandType,
+    ControllerLifecycle,
+    ControllerSnapshot,
+    ControlFailure,
+    ControlFingerprint,
+    ControlFingerprintKind,
+    ControlResultStatus,
+    JointPositionTarget,
+    JointStateSample,
+    SimulationControlCommand,
+    SimulationControlResult,
+    rebuild_command,
+)
+
+__all__ = [
+    "CONTROL_SCHEMA_VERSION",
+    "MAX_COMMAND_WINDOW_NS",
+    "MAX_CONTROL_TARGETS",
+    "ControlAuthority",
+    "ControlAuthorityKind",
+    "ControlCommandType",
+    "ControllerLifecycle",
+    "ControllerSnapshot",
+    "ControlFailure",
+    "ControlFailureCode",
+    "ControlFingerprint",
+    "ControlFingerprintKind",
+    "ControlResultStatus",
+    "ControlValidationError",
+    "JointPositionTarget",
+    "JointStateSample",
+    "RuntimeControlRejectedError",
+    "SimulationControlCommand",
+    "SimulationControlError",
+    "SimulationControlResult",
+    "rebuild_command",
+]
