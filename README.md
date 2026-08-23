@@ -7,13 +7,14 @@ can mature behind stable boundaries before physical hardware is introduced.
 
 ## Current status
 
-Ayyo has reached the controlled ROS Runtime Bridge v1 review stage.
+Ayyo has reached the Robot Description & Simulation Foundation v1 review stage.
 
 Implemented:
 
 - Repository structure, engineering conventions, and architecture documentation
-- A ROS 2 workspace with three minimal package foundations and an installable
-  Runtime Bridge package
+- A ROS 2 workspace with interface/bringup foundations, an installable Runtime
+  Bridge package, an authoritative robot-description package, and a dedicated
+  Gazebo Harmonic simulation package
 - Local environment verification, build, and test scripts
 - A verified local ROS 2, Gazebo, and RViz development setup
 - A standalone, provenance-aware Memory OS core with SQLite persistence
@@ -36,10 +37,21 @@ Implemented:
   validates an exact service-only endpoint allowlist, emits deterministic
   dispatch-eligibility decisions, and models an unavailable-by-default
   transport boundary without a concrete ROS client or robot execution
+- A modular 35-link, 34-joint canonical Ayyo humanoid frame tree with 18
+  provisional movable joints, deterministic Xacro/URDF validation, isolated
+  proxy geometry, and a machine-readable 33-part final-mesh contract
+- Separate RViz-only and Gazebo Harmonic launch paths using the same
+  authoritative Xacro, plus a static non-actuating simulation spawn and one
+  explicit Gazebo-to-ROS clock bridge
+- A dormant ros2_control interface macro with no hardware plugin, controller,
+  or actuation path, plus a reproducible headless node/TF/clock/spawn/shutdown
+  smoke test
 
 Planned, but not implemented:
 
-- Ayyo robot model and simulation integration
+- Final Ayyo CAD-derived visual/collision meshes and reviewed physical data
+- Graphical Ayyo mesh/frame/collision validation
+- Dynamic simulation, gz_ros2_control, transmissions, and controllers
 - Perception
 - Natural-language/model integration and authenticated identity/approval
 - Runtime skill implementations, manipulation, and navigation
@@ -59,7 +71,9 @@ independent of cognition and learned policies. See
 [docs/EXECUTIVE_COGNITION.md](docs/EXECUTIVE_COGNITION.md),
 [docs/SAFETY_KERNEL.md](docs/SAFETY_KERNEL.md),
 [docs/SKILL_MANAGER.md](docs/SKILL_MANAGER.md),
-[docs/ROS_RUNTIME_BRIDGE.md](docs/ROS_RUNTIME_BRIDGE.md), and
+[docs/ROS_RUNTIME_BRIDGE.md](docs/ROS_RUNTIME_BRIDGE.md),
+[docs/ROBOT_DESCRIPTION_SIMULATION.md](docs/ROBOT_DESCRIPTION_SIMULATION.md),
+[docs/AYYO_MESH_IMPORT.md](docs/AYYO_MESH_IMPORT.md), and
 [docs/SAFETY.md](docs/SAFETY.md).
 
 ## Supported environment
@@ -88,6 +102,18 @@ Run package tests:
 
 ```bash
 ./scripts/test_workspace.sh
+```
+
+Validate the authoritative robot description:
+
+```bash
+python3 ros2_ws/src/ayyo_description/scripts/validate_description.py
+```
+
+Run the opt-in headless simulation lifecycle after building:
+
+```bash
+./scripts/smoke_simulation.sh
 ```
 
 Run Memory OS tests:
@@ -149,14 +175,15 @@ executive/     Deterministic Executive proposal planning and its tests
 safety_kernel/  Immutable deterministic proposal safety review and its tests
 skill_manager/  Immutable declarative skill contracts and Safety binding
 runtime_bridge/  Deterministic Skill-to-ROS compatibility and transport boundary
-ros2_ws/src/   ROS 2 interfaces, description, and bringup packages
+ros2_ws/src/   ROS 2 interfaces, description, simulation, Runtime Bridge, and bringup
 scripts/       Local environment, build, and test commands
 tests/         Repository-level tests when justified
 ```
 
 The roadmap defines the intended progression. Memory persistence, deterministic
 candidate validation, Personal Context Twin v1, Executive Cognition v1,
-Immutable Safety Kernel v1, Skill Manager v1, and controlled ROS Runtime Bridge
-v1 are implemented. Authenticated identity/approval, concrete typed ROS clients,
-runtime skill implementations, physical-safety subsystems, and robot execution
-remain planned.
+Immutable Safety Kernel v1, Skill Manager v1, controlled ROS Runtime Bridge v1,
+and Robot Description & Simulation Foundation v1 are implemented. Final Ayyo
+assets, authenticated identity/approval, concrete typed ROS clients, runtime
+skill implementations, dynamic controllers, physical-safety subsystems, and
+robot execution remain planned.

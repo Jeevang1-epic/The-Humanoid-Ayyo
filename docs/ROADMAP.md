@@ -32,11 +32,16 @@ proposal-review portion of stage 4 is implemented as Safety Kernel v1, and the
 declarative Safety-to-runtime contract boundary is implemented as Skill Manager
 v1. A preparatory controlled runtime boundary ahead of stage 5 is implemented
 as ROS Runtime Bridge v1 with a service-only endpoint allowlist, pure
-eligibility, and an unavailable-by-default transport boundary. Authenticated identity,
-permissions, approval verification, live backend attestation, a concrete typed
-ROS service client, audit persistence, timeout/resource enforcement, runtime
-skill implementations, simulation behavior, and physical-safety integration
-remain future work. Executive proposals, Safety eligibility, Skill Manager
-runtime-handoff eligibility, Runtime Bridge eligibility, and transport
-acceptance do not count as authorization, task completion, execution, or
-physical-safety certification.
+eligibility, and an unavailable-by-default transport boundary. Stage 5 now has
+Robot Description & Simulation Foundation v1: a canonical mesh-ready
+frame/joint model, deterministic validation, separate RViz and Gazebo Harmonic
+launch paths, a static development spawn, and a clock-only ros_gz boundary.
+Final Ayyo assets, graphical design validation, dynamic simulation,
+controllers, authenticated identity, permissions, approval verification, live
+backend attestation, a concrete typed ROS service client, audit persistence,
+timeout/resource enforcement, runtime skill implementations, and
+physical-safety integration remain future work. Executive proposals, Safety
+eligibility, Skill Manager runtime-handoff eligibility, Runtime Bridge
+eligibility, transport acceptance, and a static simulation spawn do not count
+as authorization, task completion, execution, or physical-safety
+certification.

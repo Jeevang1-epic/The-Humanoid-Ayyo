@@ -44,6 +44,14 @@ client or execution capability. Identity/approval authority, runtime skill
 implementations, physical-safety subsystems, and physical control remain
 separate future layers.
 
+The [Robot Description & Simulation Foundation](ROBOT_DESCRIPTION_SIMULATION.md)
+now provides an independent authoritative Xacro/TF model, RViz display path,
+and static Gazebo Harmonic development spawn. It is downstream embodiment
+infrastructure, not an execution adapter: it imports no cognitive or
+authorization layer and exposes no movement command surface. The
+[final mesh workflow](AYYO_MESH_IMPORT.md) defines how reviewed Ayyo assets will
+replace proxy geometry without duplicating or bypassing frame semantics.
+
 ## Invariants
 
 - General foundations may be pretrained.
@@ -94,5 +102,8 @@ separate future layers.
   control simulation or hardware.
 - Future ROS adapters and physical controls remain isolated from higher-level
   contracts and constrained by the Runtime Bridge plus lower safety systems.
+- Robot description single-owns kinematic frame semantics. RViz and Gazebo
+  consume that same source; simulation does not maintain a duplicate Ayyo
+  model, import cognition, or create an authorization bypass.
 - Learning updates remain candidates until evaluation and controlled promotion;
   consolidation does not bypass safety or permissions.

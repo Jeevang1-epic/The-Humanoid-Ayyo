@@ -11,15 +11,16 @@
 - ros2_control installed
 - ros_gz installed
 - ROS publisher/subscriber smoke test passed
-- Gazebo GUI smoke test passed
-- RViz GUI smoke test passed
+- Generic Gazebo GUI environment smoke test passed
+- Generic RViz GUI environment smoke test passed
+- Ayyo-specific RViz/Gazebo graphical review not executed in this milestone
 
 ## Implemented
 
 - Architecture, roadmap, and safety contracts
-- ROS 2 workspace with `ament_cmake` foundations for `ayyo_interfaces`,
-  `ayyo_description`, and `ayyo_bringup`, plus the installable
-  `ayyo_runtime_bridge` package
+- ROS 2 workspace with `ament_cmake` foundations for `ayyo_interfaces` and
+  `ayyo_bringup`, plus installable `ayyo_runtime_bridge`, authoritative
+  `ayyo_description`, and dedicated `ayyo_simulation` packages
 - Local environment verification, build, and test scripts
 - Standalone Memory OS core with typed records and mandatory provenance
 - SQLite persistence with schema versioning, foreign keys, WAL journaling,
@@ -80,10 +81,35 @@
   semantics, correlated receipts, and no silent mock fallback
 - Narrow transport protocol with an unavailable-by-default ROS service sentinel;
   the deterministic in-memory implementation exists only in tests
+- Authoritative modular `ayyo_description` Xacro with a canonical `base_link`
+  root, 35 links, 34 joints, 18 provisional movable joints, and an explicit
+  head camera mounting frame without a sensor implementation
+- Development proxy visual/collision primitives isolated from a normalized,
+  machine-readable 33-part contract for absent final visual and collision
+  meshes
+- Deterministic description validation covering expansion, URDF XML/URDFDOM,
+  topology, uniqueness, parentage, cycles, axes, limits, expected frames,
+  symmetry, paths, mesh bindings, inactive control structure, and package
+  resources
+- RViz-only robot-state launch with tracked configuration and selectable CLI or
+  GUI development joint-state source
+- Dedicated `ayyo_simulation` package with an SDF 1.10 Gazebo Harmonic world,
+  static non-actuating spawn from the authoritative Xacro, and no duplicate
+  robot model
+- Explicit one-way Gazebo `/clock` to ROS `/clock` bridge with no commands,
+  sensors, services, actions, or wildcard bridging
+- Dormant ros2_control joint-interface macro with no plugin, transmission,
+  controller manager, controller configuration, or actuation
+- Reproducible headless installed-package, node, TF, bridge, spawn, and bounded
+  shutdown smoke validation
 
 ## Planned, but not implemented
 
-- Ayyo robot model
+- Final Ayyo CAD-derived visual and collision meshes
+- Reviewed final dimensions, joint topology/axes/limits, masses, centres of
+  mass, and inertia tensors
+- Ayyo-specific RViz and Gazebo graphical review of orientation, scale, pivots,
+  symmetry, clipping, collision alignment, and joint direction
 - Perception
 - Provenance aggregation and advanced consolidation policy
 - ROS 2 memory bridge
@@ -94,7 +120,8 @@
 - Runtime robot skill implementations
 - Concrete statically typed ROS service transport adapters and backend handlers
 - Runtime timeout enforcement, resource scheduling, and lock arbitration
-- Simulation integration
+- Dynamic Gazebo simulation, gz_ros2_control, transmissions, joint-state
+  broadcaster, controllers, friction/contact tuning, and dynamics validation
 - Manipulation integration
 - Navigation integration
 - Teach Mode
@@ -110,3 +137,5 @@ inferred personality, natural-language understanding, model
 reasoning, perception, authenticated authorization, live backend attestation,
 physical-safety certification, a concrete ROS service client, task execution,
 physical execution, or simulated robot behavior.
+The simulation foundation can render and statically spawn development geometry,
+but it still provides no simulated task behavior or actuation.
