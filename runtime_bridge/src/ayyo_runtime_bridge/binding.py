@@ -15,12 +15,18 @@ from ayyo_skill_manager import (
 )
 
 from .canonical import JSONValue, copy_json
-from .endpoints import RosServiceEndpoint
-from .errors import InvalidRuntimeBindingError, InvalidRuntimeRegistryError
+from .endpoints import RosServiceEndpoint, rebuild_ros_service_endpoint
+from .errors import (
+    InvalidRosEndpointError,
+    InvalidRuntimeBindingError,
+    InvalidRuntimeRegistryError,
+)
 from .models import RuntimeFingerprint, RuntimeFingerprintKind, fingerprint_document
 from .registry import (
     RuntimeEndpointBinding,
     RuntimeEndpointRegistry,
+    rebuild_semantic_version,
+    rebuild_skill_definition,
 )
 
 
@@ -49,32 +55,9 @@ def _approval_document(approval: object) -> dict[str, JSONValue]:
 
 def _rebuild_skill(skill: SkillDefinition) -> SkillDefinition:
     try:
-        rebuilt = SkillDefinition(
-            skill_id=skill.skill_id,
-            version=skill.version,
-            name=skill.name,
-            description=skill.description,
-            capability_ids=skill.capability_ids,
-            backend_id=skill.backend_id,
-            input_schema=skill.input_schema,
-            output_schema=skill.output_schema,
-            required_context=skill.required_context,
-            required_resources=skill.required_resources,
-            required_approval_classes=skill.required_approval_classes,
-            safety_classification=skill.safety_classification,
-            expected_result=skill.expected_result,
-            timeout_ms=skill.timeout_ms,
-            concurrency_policy=skill.concurrency_policy,
-            idempotency=skill.idempotency,
-            failure_semantics=skill.failure_semantics,
-            availability=skill.availability,
-            lifecycle=skill.lifecycle,
-            metadata=skill.metadata,
-        )
-    except SkillManagerError as error:
+        rebuilt = rebuild_skill_definition(skill)
+    except InvalidRuntimeRegistryError as error:
         raise InvalidRuntimeBindingError("skill definition failed integrity review") from error
-    if rebuilt != skill or rebuilt.fingerprint != skill.fingerprint:
-        raise InvalidRuntimeBindingError("skill definition fingerprint is stale")
     return rebuilt
 
 
@@ -89,10 +72,13 @@ def _rebuild_selection(
             skill_fingerprint=skill.fingerprint,
             capability_id=selection.capability_id,
             source_step_id=selection.source_step_id,
-            registry_version=selection.registry_version,
+            registry_version=rebuild_semantic_version(
+                selection.registry_version,
+                field_name="Skill registry version",
+            ),
             registry_fingerprint=selection.registry_fingerprint,
         )
-    except SkillManagerError as error:
+    except (SkillManagerError, InvalidRuntimeRegistryError) as error:
         raise InvalidRuntimeBindingError("skill selection failed integrity review") from error
     if rebuilt != selection:
         raise InvalidRuntimeBindingError("skill selection fingerprint is stale")
@@ -133,21 +119,12 @@ def rebuild_invocation(invocation: object) -> SkillInvocation:
 
 
 def _rebuild_endpoint(endpoint: RosServiceEndpoint) -> RosServiceEndpoint:
-    rebuilt = RosServiceEndpoint(
-        endpoint_id=endpoint.endpoint_id,
-        backend_id=endpoint.backend_id,
-        package_name=endpoint.package_name,
-        interface_name=endpoint.interface_name,
-        endpoint_name=endpoint.endpoint_name,
-        namespace=endpoint.namespace,
-        request_schema=endpoint.request_schema,
-        response_schema=endpoint.response_schema,
-        timeout_ms=endpoint.timeout_ms,
-        availability=endpoint.availability,
-    )
-    if rebuilt != endpoint:
-        raise InvalidRuntimeBindingError("ROS endpoint fingerprint is stale")
-    return rebuilt
+    try:
+        return rebuild_ros_service_endpoint(endpoint)
+    except InvalidRosEndpointError as error:
+        raise InvalidRuntimeBindingError(
+            "ROS endpoint failed integrity review"
+        ) from error
 
 
 def rebuild_registry(registry: object) -> RuntimeEndpointRegistry:
@@ -215,8 +192,15 @@ class RuntimeRequest:
             raise InvalidRuntimeBindingError(
                 "only an upstream runtime-handoff-eligible invocation can form a request"
             )
-        if not isinstance(runtime_registry_version, SemanticVersion):
-            raise InvalidRuntimeBindingError("runtime registry version is invalid")
+        try:
+            runtime_registry_version = rebuild_semantic_version(
+                runtime_registry_version,
+                field_name="runtime registry version",
+            )
+        except InvalidRuntimeRegistryError as error:
+            raise InvalidRuntimeBindingError(
+                "runtime registry version is invalid"
+            ) from error
         if (
             not isinstance(runtime_registry_fingerprint, RuntimeFingerprint)
             or runtime_registry_fingerprint.kind is not RuntimeFingerprintKind.REGISTRY

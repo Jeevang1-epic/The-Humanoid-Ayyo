@@ -10,6 +10,8 @@ from ayyo_skill_manager import (
     MAX_SCHEMA_DEPTH,
     MAX_SCHEMA_NODES,
     MAX_SKILL_TIMEOUT_MS,
+    SchemaProperty,
+    SkillManagerError,
     ValueSchema,
     ValueType,
 )
@@ -63,6 +65,12 @@ def _validate_schema_graph(schema: object, *, field_name: str) -> ValueSchema:
             raise InvalidRosEndpointError(f"{field_name} cannot contain reference cycles")
         active.add(identity)
         stack.append((current, depth, True))
+        if not isinstance(current.properties, tuple) or not all(
+            type(item) is SchemaProperty for item in current.properties
+        ):
+            raise InvalidRosEndpointError(
+                f"{field_name} contains invalid schema properties"
+            )
         children = [item.schema for item in current.properties]
         if current.item_schema is not None:
             children.append(current.item_schema)
@@ -70,6 +78,45 @@ def _validate_schema_graph(schema: object, *, field_name: str) -> ValueSchema:
             raise InvalidRosEndpointError(f"{field_name} contains an invalid schema node")
         stack.extend((child, depth + 1, False) for child in reversed(children))
     return schema
+
+
+def rebuild_schema_contract(schema: object, *, field_name: str) -> ValueSchema:
+    source = _validate_schema_graph(schema, field_name=field_name)
+
+    def rebuild(current: ValueSchema) -> ValueSchema:
+        try:
+            return ValueSchema(
+                current.value_type,
+                nullable=current.nullable,
+                properties=tuple(
+                    SchemaProperty(
+                        item.name,
+                        rebuild(item.schema),
+                        required=item.required,
+                    )
+                    for item in current.properties
+                ),
+                item_schema=(
+                    None if current.item_schema is None else rebuild(current.item_schema)
+                ),
+                allow_additional_properties=current.allow_additional_properties,
+                allowed_values=current.allowed_values,
+                minimum=current.minimum,
+                maximum=current.maximum,
+                min_length=current.min_length,
+                max_length=current.max_length,
+                min_items=current.min_items,
+                max_items=current.max_items,
+            )
+        except SkillManagerError as error:
+            raise InvalidRosEndpointError(
+                f"{field_name} failed schema integrity reconstruction"
+            ) from error
+
+    rebuilt = rebuild(source)
+    if rebuilt != source:
+        raise InvalidRosEndpointError(f"{field_name} is not canonical")
+    return rebuilt
 
 
 def schema_document(schema: ValueSchema) -> dict[str, JSONValue]:
@@ -181,11 +228,11 @@ class RosServiceEndpoint:
             pattern=_ROS_NAME_TOKEN_PATTERN,
         )
         namespace = _validate_namespace(namespace)
-        request_schema = _validate_schema_graph(
+        request_schema = rebuild_schema_contract(
             request_schema,
             field_name="request_schema",
         )
-        response_schema = _validate_schema_graph(
+        response_schema = rebuild_schema_contract(
             response_schema,
             field_name="response_schema",
         )
@@ -241,3 +288,25 @@ class RosServiceEndpoint:
     def fully_qualified_name(self) -> str:
         prefix = "" if self.namespace == "/" else self.namespace
         return f"{prefix}/{self.endpoint_name}"
+
+
+def rebuild_ros_service_endpoint(endpoint: object) -> RosServiceEndpoint:
+    """Reconstruct all endpoint fields before accepting a caller-owned object."""
+
+    if type(endpoint) is not RosServiceEndpoint:
+        raise InvalidRosEndpointError("endpoint must be a RosServiceEndpoint")
+    rebuilt = RosServiceEndpoint(
+        endpoint_id=endpoint.endpoint_id,
+        backend_id=endpoint.backend_id,
+        package_name=endpoint.package_name,
+        interface_name=endpoint.interface_name,
+        endpoint_name=endpoint.endpoint_name,
+        namespace=endpoint.namespace,
+        request_schema=endpoint.request_schema,
+        response_schema=endpoint.response_schema,
+        timeout_ms=endpoint.timeout_ms,
+        availability=endpoint.availability,
+    )
+    if rebuilt != endpoint:
+        raise InvalidRosEndpointError("ROS endpoint fingerprint is stale")
+    return rebuilt

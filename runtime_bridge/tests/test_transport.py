@@ -153,6 +153,15 @@ class RuntimeTransportTest(unittest.TestCase):
         self.assertEqual(0, transport.availability_calls)
         self.assertEqual(0, transport.dispatch_calls)
 
+    def test_tampered_runtime_request_is_rejected_before_transport(self) -> None:
+        object.__setattr__(self.decision.request, "_request_fields", {"tampered": True})
+        transport = FakeTransport()
+        result = self.dispatcher.dispatch(self.decision, self.binding, transport)
+        self.assertIs(RuntimeResultStatus.REJECTED_BEFORE_DISPATCH, result.status)
+        self.assertIs(RuntimeFailureCode.STALE_DECISION, result.failure_code)
+        self.assertEqual(0, transport.availability_calls)
+        self.assertEqual(0, transport.dispatch_calls)
+
     def test_mismatched_receipt_is_rejected(self) -> None:
         class MismatchedReceiptTransport(FakeTransport):
             def dispatch(self, request):

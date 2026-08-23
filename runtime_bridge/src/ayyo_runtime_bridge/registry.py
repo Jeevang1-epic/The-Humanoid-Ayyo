@@ -12,11 +12,16 @@ from ayyo_skill_manager import (
     SkillDefinition,
     SkillFingerprint,
     SkillFingerprintKind,
+    SkillManagerError,
 )
 
 from .canonical import JSONValue
-from .endpoints import RosServiceEndpoint
-from .errors import InvalidRuntimeRegistryError
+from .endpoints import (
+    RosServiceEndpoint,
+    rebuild_ros_service_endpoint,
+    rebuild_schema_contract,
+)
+from .errors import InvalidRosEndpointError, InvalidRuntimeRegistryError
 from .models import (
     RuntimeFingerprint,
     RuntimeFingerprintKind,
@@ -26,6 +31,70 @@ from .models import (
 
 
 MAX_RUNTIME_BINDINGS = 256
+
+
+def rebuild_semantic_version(
+    version: object,
+    *,
+    field_name: str,
+) -> SemanticVersion:
+    if not isinstance(version, SemanticVersion):
+        raise InvalidRuntimeRegistryError(f"{field_name} must be a SemanticVersion")
+    try:
+        rebuilt = SemanticVersion(str(version))
+    except (SkillManagerError, InvalidRosEndpointError) as error:
+        raise InvalidRuntimeRegistryError(f"{field_name} is invalid") from error
+    if rebuilt != version:
+        raise InvalidRuntimeRegistryError(f"{field_name} is not canonical")
+    return rebuilt
+
+
+def rebuild_skill_definition(skill: object) -> SkillDefinition:
+    """Reconstruct a public Skill contract before accepting it into the allowlist."""
+
+    if type(skill) is not SkillDefinition:
+        raise InvalidRuntimeRegistryError(
+            "runtime binding requires a public SkillDefinition"
+        )
+    try:
+        rebuilt = SkillDefinition(
+            skill_id=skill.skill_id,
+            version=rebuild_semantic_version(
+                skill.version,
+                field_name="skill version",
+            ),
+            name=skill.name,
+            description=skill.description,
+            capability_ids=skill.capability_ids,
+            backend_id=skill.backend_id,
+            input_schema=rebuild_schema_contract(
+                skill.input_schema,
+                field_name="skill input schema",
+            ),
+            output_schema=rebuild_schema_contract(
+                skill.output_schema,
+                field_name="skill output schema",
+            ),
+            required_context=skill.required_context,
+            required_resources=skill.required_resources,
+            required_approval_classes=skill.required_approval_classes,
+            safety_classification=skill.safety_classification,
+            expected_result=skill.expected_result,
+            timeout_ms=skill.timeout_ms,
+            concurrency_policy=skill.concurrency_policy,
+            idempotency=skill.idempotency,
+            failure_semantics=skill.failure_semantics,
+            availability=skill.availability,
+            lifecycle=skill.lifecycle,
+            metadata=skill.metadata,
+        )
+    except SkillManagerError as error:
+        raise InvalidRuntimeRegistryError(
+            "skill definition failed integrity reconstruction"
+        ) from error
+    if rebuilt != skill or rebuilt.fingerprint != skill.fingerprint:
+        raise InvalidRuntimeRegistryError("skill definition fingerprint is stale")
+    return rebuilt
 
 
 @dataclass(frozen=True, slots=True, init=False)
@@ -48,19 +117,18 @@ class RuntimeEndpointBinding:
         capability_id: str,
         endpoint: RosServiceEndpoint,
     ) -> None:
-        if type(skill_definition) is not SkillDefinition:
-            raise InvalidRuntimeRegistryError(
-                "runtime binding requires a public SkillDefinition"
-            )
+        skill_definition = rebuild_skill_definition(skill_definition)
         capability_id = validate_identifier(
             capability_id,
             field_name="runtime binding capability_id",
             error_type=InvalidRuntimeRegistryError,
         )
-        if type(endpoint) is not RosServiceEndpoint:
+        try:
+            endpoint = rebuild_ros_service_endpoint(endpoint)
+        except InvalidRosEndpointError as error:
             raise InvalidRuntimeRegistryError(
-                "runtime binding requires a RosServiceEndpoint"
-            )
+                "runtime binding ROS endpoint failed integrity reconstruction"
+            ) from error
         if skill_definition.availability is not SkillAvailability.AVAILABLE:
             raise InvalidRuntimeRegistryError(
                 "runtime bindings may reference only available skills"
@@ -139,10 +207,10 @@ class RuntimeEndpointRegistry:
         version: SemanticVersion,
         bindings: tuple[RuntimeEndpointBinding, ...] = (),
     ) -> None:
-        if not isinstance(version, SemanticVersion):
-            raise InvalidRuntimeRegistryError(
-                "runtime registry version must be a SemanticVersion"
-            )
+        version = rebuild_semantic_version(
+            version,
+            field_name="runtime registry version",
+        )
         if not isinstance(bindings, tuple) or not all(
             type(binding) is RuntimeEndpointBinding for binding in bindings
         ):
@@ -217,8 +285,10 @@ class RuntimeEndpointRegistry:
             field_name="backend_id",
             error_type=InvalidRuntimeRegistryError,
         )
-        if not isinstance(skill_version, SemanticVersion):
-            raise InvalidRuntimeRegistryError("skill_version must be a SemanticVersion")
+        skill_version = rebuild_semantic_version(
+            skill_version,
+            field_name="skill_version",
+        )
         return self._by_key.get(
             (skill_id, str(skill_version), capability_id, backend_id)
         )

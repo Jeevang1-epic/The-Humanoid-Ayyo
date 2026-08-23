@@ -13,6 +13,7 @@ from .errors import (
     RuntimeTransportError,
     RuntimeTransportRejectedError,
     RuntimeTransportUnavailableError,
+    RuntimeValidationError,
 )
 from .models import (
     RuntimeFingerprint,
@@ -143,6 +144,20 @@ class RuntimeDispatchResult:
         ):
             raise InvalidRuntimeContractError("runtime result failure code is invalid")
         validate_text(self.detail, field_name="runtime result detail")
+        if self.receipt is not None:
+            rebuilt_receipt = TransportReceipt(
+                transport_id=self.receipt.transport_id,
+                request_id=self.receipt.request_id,
+                request_fingerprint=self.receipt.request_fingerprint,
+                acceptance=self.receipt.acceptance,
+                correlation_id=self.receipt.correlation_id,
+                detail=self.receipt.detail,
+            )
+            if rebuilt_receipt != self.receipt:
+                raise InvalidRuntimeContractError(
+                    "transport receipt failed integrity reconstruction"
+                )
+            object.__setattr__(self, "receipt", rebuilt_receipt)
         if self.status is RuntimeResultStatus.ACCEPTED_BY_TRANSPORT:
             if (
                 self.failure_code is not None
@@ -236,6 +251,31 @@ class RuntimeDispatcher:
                 failure_code=RuntimeFailureCode.DECISION_NOT_ELIGIBLE,
                 detail="Runtime eligibility was not established; no transport was called.",
             )
+        assert decision.request is not None
+        try:
+            rebuilt_request = RuntimeRequest(
+                invocation=decision.request.invocation,
+                endpoint_binding=decision.request.endpoint_binding,
+                runtime_registry_version=decision.request.runtime_registry_version,
+                runtime_registry_fingerprint=decision.request.runtime_registry_fingerprint,
+            )
+        except RuntimeValidationError:
+            return _result(
+                status=RuntimeResultStatus.REJECTED_BEFORE_DISPATCH,
+                decision=decision,
+                failure_code=RuntimeFailureCode.STALE_DECISION,
+                detail="The runtime request failed integrity reconstruction.",
+            )
+        if (
+            rebuilt_request != decision.request
+            or rebuilt_request.request_fields != decision.request.request_fields
+        ):
+            return _result(
+                status=RuntimeResultStatus.REJECTED_BEFORE_DISPATCH,
+                decision=decision,
+                failure_code=RuntimeFailureCode.STALE_DECISION,
+                detail="The runtime request changed after eligibility evaluation.",
+            )
         current = self.bridge.evaluate(current_binding)
         if current != decision:
             return _result(
@@ -252,7 +292,6 @@ class RuntimeDispatcher:
             transport.transport_id,
             field_name="transport_id",
         )
-        assert decision.request is not None
         try:
             availability = transport.availability(decision.request)
         except RuntimeTransportUnavailableError as error:

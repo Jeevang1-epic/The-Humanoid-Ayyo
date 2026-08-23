@@ -155,7 +155,10 @@ class RuntimeDecision:
                 runtime_registry_version=request.runtime_registry_version,
                 runtime_registry_fingerprint=request.runtime_registry_fingerprint,
             )
-            if rebuilt_request != request:
+            if (
+                rebuilt_request != request
+                or rebuilt_request.request_fields != request.request_fields
+            ):
                 raise InvalidRuntimeContractError(
                     "runtime request fingerprint is stale"
                 )

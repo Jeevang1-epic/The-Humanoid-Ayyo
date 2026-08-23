@@ -4,17 +4,20 @@ from dataclasses import FrozenInstanceError
 import unittest
 
 from ayyo_executive import ApprovalRequirement
-from ayyo_safety import ApprovalClass
+from ayyo_executive import ExpectedResultCategory
+from ayyo_safety import ApprovalClass, HazardClass
 from ayyo_skill_manager import (
     BindingReason,
     BindingStatus,
     SemanticVersion,
+    SkillAvailability,
     SkillBindingResult,
 )
 
 from ayyo_runtime_bridge import (
     RosEndpointAvailability,
     RuntimeBridge,
+    RuntimeEndpointRegistry,
     RuntimeEligibility,
     RuntimeReason,
 )
@@ -79,6 +82,36 @@ class RuntimeEligibilityTest(unittest.TestCase):
                 self.assertIn(runtime_reason, decision.reasons)
                 self.assertIsNone(decision.request)
 
+        blocked_definition = skill(
+            safety_classification=HazardClass.EMERGENCY_SAFETY_CRITICAL,
+        )
+        blocked_binding = skill_binding(blocked_definition)
+        blocked = RuntimeBridge(
+            RuntimeEndpointRegistry(
+                version=SemanticVersion("1.0.0"),
+                bindings=(),
+            )
+        ).evaluate(blocked_binding)
+        self.assertIs(RuntimeEligibility.BLOCKED, blocked.status)
+
+        deferred_definition = skill(
+            safety_classification=HazardClass.PHYSICAL_MOVEMENT,
+            expected_result=ExpectedResultCategory.PROPOSED_PHYSICAL_EFFECT,
+        )
+        deferred_binding = skill_binding(
+            deferred_definition,
+            source_proposal=proposal(
+                expected_result=ExpectedResultCategory.PROPOSED_PHYSICAL_EFFECT,
+            ),
+        )
+        deferred = RuntimeBridge(
+            RuntimeEndpointRegistry(
+                version=SemanticVersion("1.0.0"),
+                bindings=(),
+            )
+        ).evaluate(deferred_binding)
+        self.assertIs(RuntimeEligibility.DEFERRED, deferred.status)
+
     def test_approval_required_is_preserved_without_a_runtime_request(self) -> None:
         definition = skill(
             required_approval_classes=(ApprovalClass.EXECUTIVE_DECLARED,),
@@ -120,6 +153,15 @@ class RuntimeEligibilityTest(unittest.TestCase):
         self.assertIs(RuntimeEligibility.UNAVAILABLE, unavailable.status)
         self.assertEqual((RuntimeReason.ENDPOINT_UNAVAILABLE,), unavailable.reasons)
         self.assertIsNone(unavailable.request)
+
+        unavailable_skill = skill(availability=SkillAvailability.UNAVAILABLE)
+        unavailable_binding = skill_binding(unavailable_skill)
+        unavailable_from_skill = empty.evaluate(unavailable_binding)
+        self.assertIs(RuntimeEligibility.UNAVAILABLE, unavailable_from_skill.status)
+        self.assertEqual(
+            (RuntimeReason.SKILL_UNAVAILABLE,),
+            unavailable_from_skill.reasons,
+        )
 
     def test_changed_endpoint_or_registry_makes_prior_decision_stale(self) -> None:
         prior = self.bridge.evaluate(self.binding)

@@ -25,6 +25,7 @@ from ayyo_skill_manager import (
     FailureSemantics,
     IdempotencyClass,
     SemanticVersion,
+    ResourceRequirement,
     SkillAvailability,
     SkillDefinition,
     SkillLifecycle,
@@ -56,6 +57,11 @@ def skill(
     input_schema: ValueSchema | None = None,
     output_schema: ValueSchema | None = None,
     required_approval_classes: tuple[ApprovalClass, ...] = (),
+    required_resources: tuple[ResourceRequirement, ...] = (),
+    concurrency_policy: ConcurrencyPolicy = ConcurrencyPolicy.PARALLEL,
+    safety_classification: HazardClass = HazardClass.INFORMATIONAL_READ_ONLY,
+    expected_result: ExpectedResultCategory = ExpectedResultCategory.INFORMATION,
+    availability: SkillAvailability = SkillAvailability.AVAILABLE,
 ) -> SkillDefinition:
     return SkillDefinition(
         skill_id=skill_id,
@@ -67,13 +73,14 @@ def skill(
         input_schema=input_schema or ValueSchema(ValueType.OBJECT),
         output_schema=output_schema or ValueSchema(ValueType.OBJECT),
         required_approval_classes=required_approval_classes,
-        safety_classification=HazardClass.INFORMATIONAL_READ_ONLY,
-        expected_result=ExpectedResultCategory.INFORMATION,
+        required_resources=required_resources,
+        safety_classification=safety_classification,
+        expected_result=expected_result,
         timeout_ms=1_000,
-        concurrency_policy=ConcurrencyPolicy.PARALLEL,
+        concurrency_policy=concurrency_policy,
         idempotency=IdempotencyClass.IDEMPOTENT,
         failure_semantics=FailureSemantics.NON_RETRYABLE,
-        availability=SkillAvailability.AVAILABLE,
+        availability=availability,
         lifecycle=SkillLifecycle.VALIDATED,
     )
 
@@ -107,6 +114,7 @@ def proposal(
     step_id: str = "step-1",
     capability_id: str = "context.inspect",
     required_approvals: tuple[ApprovalRequirement, ...] = (),
+    expected_result: ExpectedResultCategory = ExpectedResultCategory.INFORMATION,
 ) -> ExecutiveDecision:
     step = PlanStep(
         step_id=step_id,
@@ -117,7 +125,7 @@ def proposal(
         required_context=(),
         required_approvals=required_approvals,
         constraints=(),
-        expected_result=ExpectedResultCategory.INFORMATION,
+        expected_result=expected_result,
         failure_policy=FailurePolicy.STOP_PLAN,
     )
     return ExecutiveDecision(
