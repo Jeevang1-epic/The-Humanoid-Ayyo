@@ -203,11 +203,20 @@ def exact_lookup(
             EvidenceFailureKind.FRAME_LOOKUP_UNAVAILABLE,
             'the exact reviewed transform is unavailable',
         ) from error
+    try:
+        result_time_ns = _nanoseconds(
+            result.header.stamp.sec,
+            result.header.stamp.nanosec,
+        )
+    except ValueError as error:
+        raise LocalizationAdapterError(
+            EvidenceFailureKind.INVALID_FRAME_REQUEST,
+            'TF2 result timestamp is malformed',
+        ) from error
     if (
         result.header.frame_id != LOCALIZATION_REFERENCE_FRAME
         or result.child_frame_id != LOCALIZATION_BODY_FRAME
-        or _nanoseconds(result.header.stamp.sec, result.header.stamp.nanosec)
-        != observed_at_ns
+        or result_time_ns != observed_at_ns
     ):
         raise LocalizationAdapterError(
             EvidenceFailureKind.INVALID_FRAME_REQUEST,
@@ -238,10 +247,16 @@ def normalize_localization(
             EvidenceFailureKind.INVALID_FRAME_REQUEST,
             'localization sensor identity is not the reviewed body-pose contract',
         )
-    observed_at_ns = _nanoseconds(
-        message.header.stamp.sec,
-        message.header.stamp.nanosec,
-    )
+    try:
+        observed_at_ns = _nanoseconds(
+            message.header.stamp.sec,
+            message.header.stamp.nanosec,
+        )
+    except ValueError as error:
+        raise LocalizationAdapterError(
+            EvidenceFailureKind.INVALID_FRAME_REQUEST,
+            'localization timestamp is malformed',
+        ) from error
     if (
         transform.header.frame_id != LOCALIZATION_REFERENCE_FRAME
         or transform.child_frame_id != LOCALIZATION_BODY_FRAME
@@ -334,6 +349,23 @@ def normalize_diagnostics(
     for status in message.status:
         name = _bounded_text(status.name, 'diagnostic component name')
         hardware_id = _bounded_text(status.hardware_id, 'diagnostic hardware ID')
+        availability = availability_by_level.get(status.level)
+        if availability is None:
+            raise DiagnosticAdapterError('diagnostic level is outside standard ROS semantics')
+        if len(status.values) > MAX_DIAGNOSTIC_VALUES:
+            raise DiagnosticAdapterError('diagnostic key/value collection exceeds its bound')
+        message_text = _bounded_text(status.message, 'diagnostic message')
+        pairs = tuple(
+            sorted(
+                (
+                    _bounded_text(item.key, 'diagnostic key'),
+                    _bounded_text(item.value, 'diagnostic value'),
+                )
+                for item in status.values
+            )
+        )
+        if len({key for key, _ in pairs}) != len(pairs):
+            raise DiagnosticAdapterError('diagnostic keys must be unique')
         contract = by_name.get(name)
         if contract is None:
             if hardware_id in known_hardware:
@@ -346,25 +378,9 @@ def normalize_diagnostics(
             raise DiagnosticAdapterError(
                 'diagnostic hardware identity does not match its reviewed sensor'
             )
-        availability = availability_by_level.get(status.level)
-        if availability is None:
-            raise DiagnosticAdapterError('diagnostic level is outside standard ROS semantics')
-        if len(status.values) > MAX_DIAGNOSTIC_VALUES:
-            raise DiagnosticAdapterError('diagnostic key/value collection exceeds its bound')
-        pairs = tuple(
-            sorted(
-                (
-                    _bounded_text(item.key, 'diagnostic key'),
-                    _bounded_text(item.value, 'diagnostic value'),
-                )
-                for item in status.values
-            )
-        )
-        if len({key for key, _ in pairs}) != len(pairs):
-            raise DiagnosticAdapterError('diagnostic keys must be unique')
         detail = json.dumps(
             {
-                'message': _bounded_text(status.message, 'diagnostic message'),
+                'message': message_text,
                 'values': [list(item) for item in pairs],
             },
             ensure_ascii=True,
