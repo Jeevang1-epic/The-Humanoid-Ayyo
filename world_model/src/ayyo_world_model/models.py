@@ -1170,7 +1170,7 @@ class ObservedPoseState:
     pose: Pose3D
     observed_at_ns: int
     provenance: ObservationProvenance
-    confidence: float
+    confidence: float | None
     freshness: FreshnessState
     observation_id: str
     sensor: SensorIdentity | None = None
@@ -1188,7 +1188,8 @@ class ObservedPoseState:
             _invalid(WorldModelFailureCode.SNAPSHOT_INVARIANT, "pose time is invalid")
         if type(self.provenance) is not ObservationProvenance:
             _invalid(WorldModelFailureCode.SNAPSHOT_INVARIANT, "pose provenance is invalid")
-        _confidence(self.confidence)
+        if self.confidence is not None:
+            _confidence(self.confidence)
         if not isinstance(self.freshness, FreshnessState):
             _invalid(WorldModelFailureCode.SNAPSHOT_INVARIANT, "pose freshness is invalid")
         if (

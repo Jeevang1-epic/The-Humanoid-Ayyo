@@ -4,6 +4,7 @@ from ayyo_working_memory import WorkingMemory, WorkingMemoryConfig
 from ayyo_world_model import (
     AYYO_ROBOT_ID,
     EnvironmentEntityObservation,
+    ImuObservation,
     JointContract,
     JointObservation,
     ObservationClock,
@@ -12,6 +13,9 @@ from ayyo_world_model import (
     ObservationTransport,
     RobotJointCatalog,
     RobotStateObservation,
+    SensorAvailability,
+    SensorIdentity,
+    SensorKind,
     WorldEntityIdentity,
     WorldEntityKind,
 )
@@ -31,6 +35,12 @@ OTHER_PROVENANCE = ObservationProvenance(
     ObservationTransport.DIRECT,
     "direct.robot-state.v1",
 )
+IMU_SENSOR = SensorIdentity("ayyo.imu.body.v1", SensorKind.IMU, "imu_link")
+POSE_SENSOR = SensorIdentity(
+    "ayyo.body-pose.localization.v1",
+    SensorKind.BODY_POSE,
+    "base_link",
+)
 
 
 def catalog() -> RobotJointCatalog:
@@ -44,19 +54,39 @@ def catalog() -> RobotJointCatalog:
     )
 
 
-def memory(*, recent=4, entities=3, freshness=50, ttl=100, skew=5) -> WorkingMemory:
+def memory(
+    *,
+    recent=4,
+    entities=3,
+    freshness=50,
+    ttl=100,
+    skew=5,
+    sensors=(),
+) -> WorkingMemory:
     return WorkingMemory(
         catalog(),
         WorkingMemoryConfig(
             robot_id=AYYO_ROBOT_ID,
             source_clock=ObservationClock.TEST_TIME,
             allowed_provenance=(TEST_PROVENANCE,),
+            sensors=tuple(sorted(sensors, key=lambda item: item.sensor_id)),
             freshness_ns=freshness,
             retention_ttl_ns=ttl,
             permitted_future_skew_ns=skew,
             recent_evidence_capacity=recent,
             environment_entity_capacity=entities,
         ),
+    )
+
+
+def imu_observation(*, time=100, angular=(0.1, 0.2, 0.3), sensor=IMU_SENSOR):
+    return ImuObservation(
+        robot_id=AYYO_ROBOT_ID,
+        sensor=sensor,
+        angular_velocity_xyz=angular,
+        observed_at_ns=time,
+        provenance=TEST_PROVENANCE,
+        availability=SensorAvailability.AVAILABLE,
     )
 
 

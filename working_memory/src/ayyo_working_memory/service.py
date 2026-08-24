@@ -5,10 +5,14 @@ from __future__ import annotations
 from threading import RLock
 
 from ayyo_world_model import (
+    BodyPoseObservation,
     EnvironmentEntityObservation,
+    ImuObservation,
     MAX_OBSERVATION_TIME_NS,
     RobotJointCatalog,
     RobotStateObservation,
+    SensorHealthObservation,
+    SensorIdentity,
     WorldEntity,
     WorldModelFailureCode,
     WorldModelProjector,
@@ -56,6 +60,9 @@ class WorkingMemory:
         "_duplicate_count",
         "_entity_evidence",
         "_eviction_count",
+        "_body_pose_evidence",
+        "_health_evidence",
+        "_imu_evidence",
         "_joint_evidence",
         "_last_now_ns",
         "_last_receipt_monotonic_ns",
@@ -79,9 +86,12 @@ class WorkingMemory:
             )
         self._catalog = catalog
         self._config = config
-        self._projector = WorldModelProjector(catalog)
+        self._projector = WorldModelProjector(catalog, config.sensors)
         self._joint_evidence: dict[str, RobotStateObservation] = {}
         self._pose_evidence: RobotStateObservation | None = None
+        self._imu_evidence: dict[str, ImuObservation] = {}
+        self._body_pose_evidence: dict[str, BodyPoseObservation] = {}
+        self._health_evidence: dict[str, SensorHealthObservation] = {}
         self._entity_evidence: dict[str, EnvironmentEntityObservation] = {}
         self._recent: list[EvidenceEnvelope] = []
         self._last_now_ns: int | None = None
@@ -101,6 +111,9 @@ class WorkingMemory:
         with self._lock:
             self._joint_evidence.clear()
             self._pose_evidence = None
+            self._imu_evidence.clear()
+            self._body_pose_evidence.clear()
+            self._health_evidence.clear()
             self._entity_evidence.clear()
             self._recent.clear()
             self._last_now_ns = None
@@ -139,6 +152,21 @@ class WorkingMemory:
             and self._pose_evidence.observed_at_ns < threshold
         ):
             self._pose_evidence = None
+        self._imu_evidence = {
+            sensor_id: observation
+            for sensor_id, observation in self._imu_evidence.items()
+            if observation.observed_at_ns >= threshold
+        }
+        self._body_pose_evidence = {
+            sensor_id: observation
+            for sensor_id, observation in self._body_pose_evidence.items()
+            if observation.observed_at_ns >= threshold
+        }
+        self._health_evidence = {
+            sensor_id: observation
+            for sensor_id, observation in self._health_evidence.items()
+            if observation.observed_at_ns >= threshold
+        }
         expired_entities = [
             entity_id
             for entity_id, observation in self._entity_evidence.items()
@@ -157,6 +185,11 @@ class WorkingMemory:
         identities.update(item.observation_id for item in self._entity_evidence.values())
         if self._pose_evidence is not None:
             identities.add(self._pose_evidence.observation_id)
+        identities.update(item.observation_id for item in self._imu_evidence.values())
+        identities.update(
+            item.observation_id for item in self._body_pose_evidence.values()
+        )
+        identities.update(item.observation_id for item in self._health_evidence.values())
         return identities
 
     def _reject(
@@ -210,6 +243,20 @@ class WorkingMemory:
                     IngestionReason.PROVENANCE_NOT_ALLOWED,
                     "observation provenance is outside the reviewed source profiles",
                 )
+            if type(rebuilt) in {
+                ImuObservation,
+                BodyPoseObservation,
+                SensorHealthObservation,
+            }:
+                known_sensors = {
+                    sensor.sensor_id: sensor for sensor in self._config.sensors
+                }
+                if known_sensors.get(rebuilt.sensor.sensor_id) != rebuilt.sensor:
+                    return self._reject(
+                        rebuilt.observation_id,
+                        IngestionReason.UNKNOWN_SENSOR,
+                        "observation sensor is outside the reviewed sensor catalog",
+                    )
             if rebuilt.observed_at_ns > now_ns + self._config.permitted_future_skew_ns:
                 return self._reject(
                     rebuilt.observation_id,
@@ -245,6 +292,12 @@ class WorkingMemory:
                         error.detail,
                     )
                 return self._ingest_robot(rebuilt, envelope)
+            if type(rebuilt) in {
+                ImuObservation,
+                BodyPoseObservation,
+                SensorHealthObservation,
+            }:
+                return self._ingest_sensor(rebuilt, envelope)
             assert type(rebuilt) is EnvironmentEntityObservation
             return self._ingest_entity(rebuilt, envelope)
 
@@ -339,6 +392,42 @@ class WorkingMemory:
             replaced=decision == "newer",
         )
 
+    def _ingest_sensor(
+        self,
+        observation: ImuObservation | BodyPoseObservation | SensorHealthObservation,
+        envelope: EvidenceEnvelope,
+    ) -> IngestionResult:
+        sensor_id = observation.sensor.sensor_id
+        if type(observation) is ImuObservation:
+            collection = self._imu_evidence
+            key = StateKey(StateKeyKind.ROBOT_IMU, sensor_id)
+        elif type(observation) is BodyPoseObservation:
+            collection = self._body_pose_evidence
+            key = StateKey(StateKeyKind.ROBOT_BASE_POSE, sensor_id)
+        else:
+            collection = self._health_evidence
+            key = StateKey(StateKeyKind.SENSOR_HEALTH, sensor_id)
+        decision = self._compare_current(collection.get(sensor_id), observation)
+        if decision == "same_time_conflict":
+            return self._reject(
+                observation.observation_id,
+                IngestionReason.TEMPORAL_CONFLICT,
+                "same sensor state key and source time carry different evidence",
+            )
+        if decision == "older":
+            return self._reject(
+                observation.observation_id,
+                IngestionReason.OLDER_OBSERVATION,
+                "newer evidence for this sensor state key is already current",
+            )
+        collection[sensor_id] = observation
+        return self._accept(
+            observation,
+            envelope,
+            (key,),
+            replaced=decision == "newer",
+        )
+
     def _accept(
         self,
         observation,
@@ -395,6 +484,9 @@ class WorkingMemory:
                 joint_evidence=dict(self._joint_evidence),
                 pose_evidence=self._pose_evidence,
                 entity_evidence=dict(self._entity_evidence),
+                imu_evidence=dict(self._imu_evidence),
+                body_pose_evidence=dict(self._body_pose_evidence),
+                health_evidence=dict(self._health_evidence),
             )
 
     def get_robot_state(self, *, now_ns: int):
@@ -421,9 +513,13 @@ class WorkingMemory:
             if key.kind is StateKeyKind.ROBOT_JOINT:
                 observation = self._joint_evidence.get(key.identity)
             elif key.kind is StateKeyKind.ROBOT_BASE_POSE:
-                observation = self._pose_evidence
-                if observation is not None and key.identity != self._config.robot_id:
-                    observation = None
+                observation = self._body_pose_evidence.get(key.identity)
+                if observation is None and key.identity == self._config.robot_id:
+                    observation = self._pose_evidence
+            elif key.kind is StateKeyKind.ROBOT_IMU:
+                observation = self._imu_evidence.get(key.identity)
+            elif key.kind is StateKeyKind.SENSOR_HEALTH:
+                observation = self._health_evidence.get(key.identity)
             else:
                 observation = self._entity_evidence.get(key.identity)
             if observation is None:
@@ -455,6 +551,9 @@ class WorkingMemory:
             references = (
                 len(self._joint_evidence)
                 + int(self._pose_evidence is not None)
+                + len(self._imu_evidence)
+                + len(self._body_pose_evidence)
+                + len(self._health_evidence)
                 + len(self._entity_evidence)
                 + len(self._recent)
             )
@@ -469,4 +568,7 @@ class WorkingMemory:
                 duplicate_count=self._duplicate_count,
                 rejected_count=self._rejected_count,
                 eviction_count=self._eviction_count,
+                current_imu_count=len(self._imu_evidence),
+                current_body_pose_count=len(self._body_pose_evidence),
+                current_sensor_health_count=len(self._health_evidence),
             )

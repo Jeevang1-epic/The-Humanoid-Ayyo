@@ -9,6 +9,7 @@ from ayyo_world_model import (
     Observation,
     ObservationClock,
     ObservationProvenance,
+    SensorIdentity,
     rebuild_observation,
 )
 
@@ -42,6 +43,7 @@ class IngestionReason(StrEnum):
     FIXED_JOINT = "fixed_joint"
     INVALID_JOINT_VALUE = "invalid_joint_value"
     MALFORMED_OBSERVATION = "malformed_observation"
+    UNKNOWN_SENSOR = "unknown_sensor"
 
 
 class WorkingMemoryFreshness(StrEnum):
@@ -53,6 +55,8 @@ class WorkingMemoryFreshness(StrEnum):
 class StateKeyKind(StrEnum):
     ROBOT_JOINT = "robot_joint"
     ROBOT_BASE_POSE = "robot_base_pose"
+    ROBOT_IMU = "robot_imu"
+    SENSOR_HEALTH = "sensor_health"
     ENVIRONMENT_ENTITY = "environment_entity"
 
 
@@ -73,6 +77,7 @@ class WorkingMemoryConfig:
     robot_id: str
     source_clock: ObservationClock
     allowed_provenance: tuple[ObservationProvenance, ...]
+    sensors: tuple[SensorIdentity, ...] = ()
     freshness_ns: int = 500_000_000
     retention_ttl_ns: int = 2_000_000_000
     permitted_future_skew_ns: int = 50_000_000
@@ -98,6 +103,19 @@ class WorkingMemoryConfig:
         if any(item.clock is not self.source_clock for item in self.allowed_provenance):
             raise WorkingMemoryConfigurationError(
                 "all allowed provenance profiles must use the configured source clock"
+            )
+        if (
+            type(self.sensors) is not tuple
+            or len(self.sensors) > 32
+            or any(type(item) is not SensorIdentity for item in self.sensors)
+        ):
+            raise WorkingMemoryConfigurationError(
+                "sensor identities must be a bounded typed tuple"
+            )
+        sensor_ids = tuple(item.sensor_id for item in self.sensors)
+        if sensor_ids != tuple(sorted(set(sensor_ids))):
+            raise WorkingMemoryConfigurationError(
+                "sensor identities must be unique and sorted"
             )
         if (
             type(self.freshness_ns) is not int
@@ -195,6 +213,9 @@ class WorkingMemoryStats:
     duplicate_count: int
     rejected_count: int
     eviction_count: int
+    current_imu_count: int = 0
+    current_body_pose_count: int = 0
+    current_sensor_health_count: int = 0
 
     def __post_init__(self) -> None:
         numeric = (
@@ -207,6 +228,9 @@ class WorkingMemoryStats:
             self.duplicate_count,
             self.rejected_count,
             self.eviction_count,
+            self.current_imu_count,
+            self.current_body_pose_count,
+            self.current_sensor_health_count,
         )
         if any(type(item) is not int or item < 0 for item in numeric):
             raise WorkingMemoryConfigurationError("Working Memory statistics are invalid")
