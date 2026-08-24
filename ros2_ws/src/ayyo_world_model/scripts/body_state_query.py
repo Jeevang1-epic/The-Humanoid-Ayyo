@@ -73,6 +73,16 @@ def main() -> None:
                     'source_frame_id': response.base_pose_source_frame_id,
                     'target_frame_id': response.base_pose_target_frame_id,
                     'translation_xyz': list(response.base_pose_translation_xyz),
+                    'quality': (
+                        response.base_pose_quality
+                        if response.has_base_pose_quality
+                        else None
+                    ),
+                    'source_clock': response.base_pose_source_clock,
+                    'source_id': response.base_pose_source_id,
+                    'source_interface': response.base_pose_source_interface,
+                    'source_kind': response.base_pose_source_kind,
+                    'source_transport': response.base_pose_source_transport,
                 }
                 if response.has_base_pose
                 else None
@@ -136,14 +146,60 @@ def main() -> None:
                 {
                     'availability': availability,
                     'frame_id': frame_id,
+                    'health': (
+                        {
+                            'availability': health_availability,
+                            'detail': health_detail,
+                            'freshness': health_freshness,
+                            'observation_fingerprint': health_fingerprint,
+                            'observation_id': health_observation_id,
+                            'observed_at_ns': _nanoseconds(health_observed_at),
+                            'source_clock': health_source_clock,
+                            'source_id': health_source_id,
+                            'source_interface': health_source_interface,
+                            'source_kind': health_source_kind,
+                            'source_transport': health_source_transport,
+                        }
+                        if has_health
+                        else None
+                    ),
                     'kind': kind,
                     'sensor_id': sensor_id,
                 }
-                for sensor_id, kind, frame_id, availability in zip(
+                for (
+                    sensor_id,
+                    kind,
+                    frame_id,
+                    availability,
+                    has_health,
+                    health_availability,
+                    health_freshness,
+                    health_observed_at,
+                    health_observation_id,
+                    health_fingerprint,
+                    health_source_kind,
+                    health_source_id,
+                    health_source_clock,
+                    health_source_transport,
+                    health_source_interface,
+                    health_detail,
+                ) in zip(
                     response.sensor_ids,
                     response.sensor_kinds,
                     response.sensor_frame_ids,
                     response.sensor_availability,
+                    response.has_sensor_health,
+                    response.sensor_health_availability,
+                    response.sensor_health_freshness,
+                    response.sensor_health_observed_at,
+                    response.sensor_health_observation_ids,
+                    response.sensor_health_observation_fingerprints,
+                    response.sensor_health_source_kinds,
+                    response.sensor_health_source_ids,
+                    response.sensor_health_source_clocks,
+                    response.sensor_health_source_transports,
+                    response.sensor_health_source_interfaces,
+                    response.sensor_health_details,
                     strict=True,
                 )
             ],

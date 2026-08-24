@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # Copyright 2026 Ayyo Project Authors
 
-"""Lifecycle-managed fixed /joint_states observation adapter."""
+"""Lifecycle-managed fixed proprioception, localization, and health adapter."""
 
 from __future__ import annotations
 
@@ -9,7 +9,9 @@ import time
 
 from ayyo_interfaces.srv import GetRobotBodyState
 from ayyo_perception import (
+    AdmissionReason,
     AdmissionStatus,
+    EvidenceFailureKind,
     PerceptionClockRegressionError,
     PerceptionConfigurationError,
     PerceptionSourceContract,
@@ -43,16 +45,31 @@ from ayyo_world_model import (
     WorldModelValidationError,
 )
 from builtin_interfaces.msg import Time
+from diagnostic_msgs.msg import DiagnosticArray
+from localization_diagnostics import (
+    DiagnosticAdapterError,
+    DiagnosticComponentContract,
+    LocalizationAdapterError,
+    exact_lookup,
+    normalize_diagnostics,
+    normalize_localization,
+    odometry_transform,
+)
+from nav_msgs.msg import Odometry
 import rclpy
+from rclpy.duration import Duration
 from rclpy.executors import ExternalShutdownException, SingleThreadedExecutor
 from rclpy.lifecycle import LifecycleNode, State, TransitionCallbackReturn
 from rclpy.qos import qos_profile_sensor_data
 from rclpy.signals import SignalHandlerOptions
 from sensor_msgs.msg import Imu, JointState
+from tf2_ros import Buffer
 
 
 JOINT_STATE_TOPIC = '/joint_states'
 IMU_TOPIC = '/ayyo/imu/data'
+LOCALIZATION_TOPIC = '/ayyo/localization/odometry'
+DIAGNOSTICS_TOPIC = '/diagnostics'
 QUERY_SERVICE = '/ayyo/world_model/get_robot_body_state'
 SIMULATION_SOURCE_PROFILE = 'simulation_ros2_control_v1'
 PHYSICAL_SOURCE_PROFILE = 'physical_ros2_control_v1'
@@ -94,14 +111,30 @@ POSE_SOURCE_PROFILES = {
         source_id='ros.body-pose.simulation.localization.v1',
         clock=ObservationClock.ROS_SIMULATION_TIME,
         transport=ObservationTransport.ROS2,
-        interface='geometry-msgs.pose-with-covariance.v1',
+        interface='nav-msgs.odometry-tf2.v1',
     ),
     PHYSICAL_SOURCE_PROFILE: ObservationProvenance(
         source_kind=ObservationSourceKind.PHYSICAL_SENSOR,
         source_id='ros.body-pose.physical.localization.v1',
         clock=ObservationClock.ROS_SYSTEM_TIME,
         transport=ObservationTransport.ROS2,
-        interface='geometry-msgs.pose-with-covariance.v1',
+        interface='nav-msgs.odometry-tf2.v1',
+    ),
+}
+DIAGNOSTIC_SOURCE_PROFILES = {
+    SIMULATION_SOURCE_PROFILE: ObservationProvenance(
+        source_kind=ObservationSourceKind.SIMULATION,
+        source_id='ros.diagnostics.simulation.test-fixture.v1',
+        clock=ObservationClock.ROS_SIMULATION_TIME,
+        transport=ObservationTransport.ROS2,
+        interface='diagnostic-msgs.diagnostic-array.v1',
+    ),
+    PHYSICAL_SOURCE_PROFILE: ObservationProvenance(
+        source_kind=ObservationSourceKind.PHYSICAL_SENSOR,
+        source_id='ros.diagnostics.physical.standard.v1',
+        clock=ObservationClock.ROS_SYSTEM_TIME,
+        transport=ObservationTransport.ROS2,
+        interface='diagnostic-msgs.diagnostic-array.v1',
     ),
 }
 JOINT_SENSOR = SensorIdentity(
@@ -114,6 +147,18 @@ BODY_POSE_SENSOR = SensorIdentity(
     'ayyo.body-pose.localization.v1',
     SensorKind.BODY_POSE,
     'base_link',
+)
+DIAGNOSTIC_COMPONENTS = (
+    DiagnosticComponentContract(
+        'ayyo/proprioception/body_imu_source',
+        IMU_SENSOR.sensor_id,
+        IMU_SENSOR,
+    ),
+    DiagnosticComponentContract(
+        'ayyo/proprioception/joint_state_source',
+        JOINT_SENSOR.sensor_id,
+        JOINT_SENSOR,
+    ),
 )
 
 
@@ -265,12 +310,19 @@ class AyyoWorldModelNode(LifecycleNode):
         self.declare_parameter('permitted_future_skew_ms', 50)
         self.declare_parameter('recent_evidence_capacity', 256)
         self.declare_parameter('environment_entity_capacity', 128)
+        self.declare_parameter('pose_lookup_timeout_ms', 20)
         self._memory: WorkingMemory | None = None
         self._trust_boundary: PerceptionTrustBoundary | None = None
         self._provenance: ObservationProvenance | None = None
         self._imu_provenance: ObservationProvenance | None = None
+        self._pose_provenance: ObservationProvenance | None = None
+        self._diagnostic_provenance: ObservationProvenance | None = None
         self._joint_subscription = None
         self._imu_subscription = None
+        self._localization_subscription = None
+        self._diagnostics_subscription = None
+        self._pose_buffer: Buffer | None = None
+        self._pose_lookup_timeout_ns = 0
         self._query_service = None
         self._active = False
         self._invalid_message_count = 0
@@ -283,6 +335,13 @@ class AyyoWorldModelNode(LifecycleNode):
         if self._imu_subscription is not None:
             self.destroy_subscription(self._imu_subscription)
             self._imu_subscription = None
+        if self._localization_subscription is not None:
+            self.destroy_subscription(self._localization_subscription)
+            self._localization_subscription = None
+        if self._diagnostics_subscription is not None:
+            self.destroy_subscription(self._diagnostics_subscription)
+            self._diagnostics_subscription = None
+        self._pose_buffer = None
         if self._query_service is not None:
             self.destroy_service(self._query_service)
             self._query_service = None
@@ -294,7 +353,13 @@ class AyyoWorldModelNode(LifecycleNode):
             provenance = SOURCE_PROFILES.get(profile_name)
             imu_provenance = IMU_SOURCE_PROFILES.get(profile_name)
             pose_provenance = POSE_SOURCE_PROFILES.get(profile_name)
-            if provenance is None or imu_provenance is None or pose_provenance is None:
+            diagnostic_provenance = DIAGNOSTIC_SOURCE_PROFILES.get(profile_name)
+            if (
+                provenance is None
+                or imu_provenance is None
+                or pose_provenance is None
+                or diagnostic_provenance is None
+            ):
                 raise WorkingMemoryConfigurationError(
                     'source_profile must select one reviewed observation profile'
                 )
@@ -314,6 +379,14 @@ class AyyoWorldModelNode(LifecycleNode):
                 robot_id=AYYO_ROBOT_ID,
                 robot_description=description,
             )
+            pose_lookup_timeout_ms = int(
+                self.get_parameter('pose_lookup_timeout_ms').value
+            )
+            if not 0 <= pose_lookup_timeout_ms <= 100:
+                raise WorkingMemoryConfigurationError(
+                    'pose lookup timeout must be between zero and 100 milliseconds'
+                )
+            self._pose_lookup_timeout_ns = pose_lookup_timeout_ms * 1_000_000
             self._memory = WorkingMemory(
                 catalog,
                 WorkingMemoryConfig(
@@ -323,6 +396,7 @@ class AyyoWorldModelNode(LifecycleNode):
                         provenance,
                         imu_provenance,
                         pose_provenance,
+                        diagnostic_provenance,
                     ),
                     sensors=tuple(
                         sorted(
@@ -358,7 +432,15 @@ class AyyoWorldModelNode(LifecycleNode):
                         PerceptionSourceContract(
                             BODY_POSE_SENSOR,
                             pose_provenance,
-                            'map',
+                            'odom',
+                        ),
+                        PerceptionSourceContract(
+                            JOINT_SENSOR,
+                            diagnostic_provenance,
+                        ),
+                        PerceptionSourceContract(
+                            IMU_SENSOR,
+                            diagnostic_provenance,
                         ),
                     ),
                     freshness_ns=int(self.get_parameter('freshness_ms').value)
@@ -375,6 +457,8 @@ class AyyoWorldModelNode(LifecycleNode):
             )
             self._provenance = provenance
             self._imu_provenance = imu_provenance
+            self._pose_provenance = pose_provenance
+            self._diagnostic_provenance = diagnostic_provenance
             self._query_service = self.create_service(
                 GetRobotBodyState,
                 QUERY_SERVICE,
@@ -393,6 +477,8 @@ class AyyoWorldModelNode(LifecycleNode):
             self._trust_boundary = None
             self._provenance = None
             self._imu_provenance = None
+            self._pose_provenance = None
+            self._diagnostic_provenance = None
             self._destroy_runtime_interfaces()
             return TransitionCallbackReturn.FAILURE
 
@@ -403,6 +489,8 @@ class AyyoWorldModelNode(LifecycleNode):
             or self._trust_boundary is None
             or self._provenance is None
             or self._imu_provenance is None
+            or self._pose_provenance is None
+            or self._diagnostic_provenance is None
         ):
             return TransitionCallbackReturn.FAILURE
         self._joint_subscription = self.create_subscription(
@@ -417,6 +505,23 @@ class AyyoWorldModelNode(LifecycleNode):
             self._on_imu,
             qos_profile_sensor_data,
         )
+        self._pose_buffer = Buffer(
+            cache_time=Duration(
+                nanoseconds=self._trust_boundary.config.retention_ttl_ns
+            )
+        )
+        self._localization_subscription = self.create_subscription(
+            Odometry,
+            LOCALIZATION_TOPIC,
+            self._on_localization,
+            qos_profile_sensor_data,
+        )
+        self._diagnostics_subscription = self.create_subscription(
+            DiagnosticArray,
+            DIAGNOSTICS_TOPIC,
+            self._on_diagnostics,
+            10,
+        )
         self._active = True
         return TransitionCallbackReturn.SUCCESS
 
@@ -429,6 +534,13 @@ class AyyoWorldModelNode(LifecycleNode):
         if self._imu_subscription is not None:
             self.destroy_subscription(self._imu_subscription)
             self._imu_subscription = None
+        if self._localization_subscription is not None:
+            self.destroy_subscription(self._localization_subscription)
+            self._localization_subscription = None
+        if self._diagnostics_subscription is not None:
+            self.destroy_subscription(self._diagnostics_subscription)
+            self._diagnostics_subscription = None
+        self._pose_buffer = None
         return TransitionCallbackReturn.SUCCESS
 
     def on_cleanup(self, state: State) -> TransitionCallbackReturn:
@@ -443,6 +555,8 @@ class AyyoWorldModelNode(LifecycleNode):
         self._trust_boundary = None
         self._provenance = None
         self._imu_provenance = None
+        self._pose_provenance = None
+        self._diagnostic_provenance = None
         return TransitionCallbackReturn.SUCCESS
 
     def on_shutdown(self, state: State) -> TransitionCallbackReturn:
@@ -457,6 +571,8 @@ class AyyoWorldModelNode(LifecycleNode):
         self._trust_boundary = None
         self._provenance = None
         self._imu_provenance = None
+        self._pose_provenance = None
+        self._diagnostic_provenance = None
         return TransitionCallbackReturn.SUCCESS
 
     def on_error(self, state: State) -> TransitionCallbackReturn:
@@ -480,9 +596,9 @@ class AyyoWorldModelNode(LifecycleNode):
         if self._memory is not None:
             self._memory.reset()
 
-    def _admit_and_retain(self, observation) -> None:
+    def _admit_and_retain(self, observation):
         if self._trust_boundary is None or self._memory is None:
-            return
+            return None
         now_ns = self.get_clock().now().nanoseconds
         receipt_ns = time.monotonic_ns()
         try:
@@ -496,9 +612,9 @@ class AyyoWorldModelNode(LifecycleNode):
                     'rejected',
                     f'{admission.reason.value}: {admission.detail}',
                 )
-                return
+                return admission
             if admission.status is AdmissionStatus.DUPLICATE:
-                return
+                return admission
             retained = self._memory.ingest(
                 admission.observation,
                 now_ns=now_ns,
@@ -521,7 +637,7 @@ class AyyoWorldModelNode(LifecycleNode):
                     'rejected',
                     f'{admission.reason.value}: {admission.detail}',
                 )
-                return
+                return admission
             retained = self._memory.ingest(
                 admission.observation,
                 now_ns=now_ns,
@@ -532,6 +648,7 @@ class AyyoWorldModelNode(LifecycleNode):
                 'rejected',
                 f'{retained.reason.value}: {retained.detail}',
             )
+        return admission
 
     def _on_joint_state(self, message: JointState) -> None:
         if not self._active or self._provenance is None:
@@ -559,6 +676,104 @@ class AyyoWorldModelNode(LifecycleNode):
             WorldModelValidationError,
             WorkingMemoryConfigurationError,
         ) as error:
+            self._warn_bounded('invalid', str(error))
+
+    def _report_pose_failure(self, failure: EvidenceFailureKind, detail: str) -> None:
+        if self._trust_boundary is None or self._memory is None:
+            return
+        now_ns = self.get_clock().now().nanoseconds
+        receipt_ns = time.monotonic_ns()
+        result = self._trust_boundary.report_failure(
+            sensor_id=BODY_POSE_SENSOR.sensor_id,
+            failure=failure,
+            observed_at_ns=now_ns,
+            now_ns=now_ns,
+            received_at_monotonic_ns=receipt_ns,
+        )
+        if result.status is AdmissionStatus.ACCEPTED:
+            retained = self._memory.ingest(
+                result.observation,
+                now_ns=now_ns,
+                received_at_monotonic_ns=receipt_ns,
+            )
+            if retained.status is IngestionStatus.REJECTED:
+                self._warn_bounded('rejected', retained.detail)
+        self._warn_bounded('invalid', f'{failure.value}: {detail}')
+
+    def _on_localization(self, message: Odometry) -> None:
+        if (
+            not self._active
+            or self._pose_provenance is None
+            or self._pose_buffer is None
+        ):
+            return
+        try:
+            candidate = odometry_transform(message)
+            normalize_localization(
+                message,
+                candidate,
+                self._pose_provenance,
+                BODY_POSE_SENSOR,
+            )
+            observed_at_ns = _nanoseconds(
+                message.header.stamp.sec,
+                message.header.stamp.nanosec,
+            )
+            self._pose_buffer.set_transform(
+                candidate,
+                self._pose_provenance.source_id,
+            )
+            resolved = exact_lookup(
+                self._pose_buffer,
+                observed_at_ns=observed_at_ns,
+                timeout_ns=self._pose_lookup_timeout_ns,
+            )
+            observation = normalize_localization(
+                message,
+                resolved,
+                self._pose_provenance,
+                BODY_POSE_SENSOR,
+            )
+            admission = self._admit_and_retain(observation)
+            if (
+                admission is not None
+                and admission.status is AdmissionStatus.REJECTED
+                and admission.reason is AdmissionReason.STALE_OBSERVATION
+            ):
+                self._report_pose_failure(
+                    EvidenceFailureKind.STALE_TRANSFORM,
+                    'source transform was stale at admission',
+                )
+        except LocalizationAdapterError as error:
+            self._report_pose_failure(error.failure, error.detail)
+        except (
+            PerceptionConfigurationError,
+            ValueError,
+            WorldModelValidationError,
+            WorkingMemoryConfigurationError,
+        ) as error:
+            self._report_pose_failure(
+                EvidenceFailureKind.MALFORMED_NUMERIC_POSE,
+                str(error),
+            )
+
+    def _on_diagnostics(self, message: DiagnosticArray) -> None:
+        if not self._active or self._diagnostic_provenance is None:
+            return
+        try:
+            normalized = normalize_diagnostics(
+                message,
+                self._diagnostic_provenance,
+                DIAGNOSTIC_COMPONENTS,
+            )
+            for component in normalized.ignored_components:
+                self._warn_bounded(
+                    'rejected',
+                    f'unknown diagnostic component ignored: {component}',
+                )
+            for observation in normalized.observations:
+                self._admit_and_retain(observation)
+        except (DiagnosticAdapterError, ValueError, WorldModelValidationError) as error:
             self._warn_bounded('invalid', str(error))
 
     @staticmethod
@@ -612,6 +827,62 @@ class AyyoWorldModelNode(LifecycleNode):
             response.sensor_availability.append(
                 self._availability_code(sensor_state.availability)
             )
+        health_by_sensor = {
+            state.observation.sensor.sensor_id: state
+            for state in snapshot.robot.sensor_health_states
+        }
+        for sensor_state in snapshot.robot.sensor_states:
+            health = health_by_sensor.get(sensor_state.sensor.sensor_id)
+            response.has_sensor_health.append(health is not None)
+            if health is None:
+                response.sensor_health_availability.append(
+                    GetRobotBodyState.Response.SENSOR_UNAVAILABLE
+                )
+                response.sensor_health_freshness.append(
+                    GetRobotBodyState.Response.FRESHNESS_UNKNOWN
+                )
+                response.sensor_health_observed_at.append(Time())
+                response.sensor_health_observation_ids.append('')
+                response.sensor_health_observation_fingerprints.append('')
+                response.sensor_health_source_kinds.append('')
+                response.sensor_health_source_ids.append('')
+                response.sensor_health_source_clocks.append('')
+                response.sensor_health_source_transports.append('')
+                response.sensor_health_source_interfaces.append('')
+                response.sensor_health_details.append('')
+                continue
+            observation = health.observation
+            response.sensor_health_availability.append(
+                self._availability_code(health.availability)
+            )
+            response.sensor_health_freshness.append(
+                GetRobotBodyState.Response.FRESH
+                if health.freshness is FreshnessState.FRESH
+                else GetRobotBodyState.Response.STALE
+            )
+            observed_at = Time()
+            _assign_time(observed_at, observation.observed_at_ns)
+            response.sensor_health_observed_at.append(observed_at)
+            response.sensor_health_observation_ids.append(observation.observation_id)
+            response.sensor_health_observation_fingerprints.append(
+                str(observation.fingerprint)
+            )
+            response.sensor_health_source_kinds.append(
+                observation.provenance.source_kind.value
+            )
+            response.sensor_health_source_ids.append(
+                observation.provenance.source_id
+            )
+            response.sensor_health_source_clocks.append(
+                observation.provenance.clock.value
+            )
+            response.sensor_health_source_transports.append(
+                observation.provenance.transport.value
+            )
+            response.sensor_health_source_interfaces.append(
+                observation.provenance.interface
+            )
+            response.sensor_health_details.append(observation.evidence_detail)
         pose_sensor_state = next(
             (
                 state
@@ -738,6 +1009,14 @@ class AyyoWorldModelNode(LifecycleNode):
                 response.base_pose_observation_fingerprint = str(
                     pose.observation_fingerprint
                 )
+            response.base_pose_source_kind = pose.provenance.source_kind.value
+            response.base_pose_source_id = pose.provenance.source_id
+            response.base_pose_source_clock = pose.provenance.clock.value
+            response.base_pose_source_transport = pose.provenance.transport.value
+            response.base_pose_source_interface = pose.provenance.interface
+            if pose.confidence is not None:
+                response.has_base_pose_quality = True
+                response.base_pose_quality = pose.confidence
         return response
 
 

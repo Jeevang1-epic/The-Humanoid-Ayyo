@@ -5,9 +5,19 @@ from __future__ import annotations
 import ast
 import importlib.util
 from pathlib import Path
+import sys
 import xml.etree.ElementTree as ET
 
+from diagnostic_msgs.msg import DiagnosticArray, DiagnosticStatus, KeyValue
+from nav_msgs.msg import Odometry
 from sensor_msgs.msg import Imu, JointState
+from tf2_ros import (
+    ConnectivityException,
+    ExtrapolationException,
+    InvalidArgumentException,
+    LookupException,
+    TimeoutException,
+)
 
 
 PACKAGE_ROOT = Path(__file__).resolve().parents[1]
@@ -21,10 +31,23 @@ def script_source(name: str) -> str:
 
 
 def adapter_module():
+    scripts = str(PACKAGE_ROOT / 'scripts')
+    if scripts not in sys.path:
+        sys.path.insert(0, scripts)
     path = PACKAGE_ROOT / 'scripts' / 'world_model_node.py'
     spec = importlib.util.spec_from_file_location('ayyo_world_model_node_test', path)
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def support_module():
+    path = PACKAGE_ROOT / 'scripts' / 'localization_diagnostics.py'
+    spec = importlib.util.spec_from_file_location('ayyo_localization_test', path)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
     spec.loader.exec_module(module)
     return module
 
@@ -50,6 +73,9 @@ def test_read_only_service_contract_is_bounded_and_typed() -> None:
         'float64[] imu_orientation_xyzw',
         'bool has_imu_orientation_covariance',
         'uint8 base_pose_availability',
+        'string base_pose_source_id',
+        'bool[] has_sensor_health',
+        'string[] sensor_health_details',
         'uint32 perception_rejected_count',
     ):
         assert field in interface
@@ -91,16 +117,274 @@ def test_adapter_subscribes_only_to_fixed_standard_proprioceptive_interfaces() -
     }
     assert assignments['JOINT_STATE_TOPIC'] == '/joint_states'
     assert assignments['IMU_TOPIC'] == '/ayyo/imu/data'
+    assert assignments['LOCALIZATION_TOPIC'] == '/ayyo/localization/odometry'
+    assert assignments['DIAGNOSTICS_TOPIC'] == '/diagnostics'
     assert assignments['QUERY_SERVICE'] == '/ayyo/world_model/get_robot_body_state'
     assert 'create_subscription(' in source
     assert 'JOINT_STATE_TOPIC' in source
     assert 'IMU_TOPIC' in source
+    assert 'LOCALIZATION_TOPIC' in source
+    assert 'DIAGNOSTICS_TOPIC' in source
     assert 'qos_profile_sensor_data' in source
     assert 'get_topic_names_and_types' not in source
     assert "declare_parameter('topic'" not in source
     assert 'eval(' not in source
     assert 'exec(' not in source
     assert 'subprocess' not in source
+
+
+def localization_message(*, frame='odom', child='base_link', nanosec=5) -> Odometry:
+    message = Odometry()
+    message.header.stamp.sec = 2
+    message.header.stamp.nanosec = nanosec
+    message.header.frame_id = frame
+    message.child_frame_id = child
+    message.pose.pose.position.x = 1.0
+    message.pose.pose.position.y = 2.0
+    message.pose.pose.position.z = 3.0
+    message.pose.pose.orientation.w = 1.0
+    return message
+
+
+def test_localization_normalization_preserves_exact_frames_and_unknown_covariance() -> None:
+    adapter = adapter_module()
+    support = support_module()
+    message = localization_message()
+    transform = support.odometry_transform(message)
+    observation = support.normalize_localization(
+        message,
+        transform,
+        adapter.POSE_SOURCE_PROFILES[adapter.SIMULATION_SOURCE_PROFILE],
+        adapter.BODY_POSE_SENSOR,
+    )
+    assert observation.pose.frame_id == 'odom'
+    assert observation.pose.child_frame_id == 'base_link'
+    assert observation.pose.position_xyz == (1.0, 2.0, 3.0)
+    assert observation.covariance is None
+    assert observation.quality is None
+
+
+def test_localization_wrong_frames_zero_time_and_malformed_pose_fail_closed() -> None:
+    adapter = adapter_module()
+    support = support_module()
+    for message in (
+        localization_message(frame='map'),
+        localization_message(child='pelvis_link'),
+    ):
+        try:
+            support.odometry_transform(message)
+        except support.LocalizationAdapterError as error:
+            assert error.failure.value == 'invalid_frame_request'
+        else:
+            raise AssertionError('wrong localization frame was accepted')
+
+    zero = localization_message(nanosec=0)
+    zero.header.stamp.sec = 0
+    try:
+        support.odometry_transform(zero)
+    except support.LocalizationAdapterError as error:
+        assert 'latest' in error.detail
+    else:
+        raise AssertionError('TF2 latest-time sentinel was accepted as exact time')
+
+    malformed = localization_message()
+    malformed.pose.pose.position.x = float('nan')
+    transform = support.odometry_transform(malformed)
+    try:
+        support.normalize_localization(
+            malformed,
+            transform,
+            adapter.POSE_SOURCE_PROFILES[adapter.SIMULATION_SOURCE_PROFILE],
+            adapter.BODY_POSE_SENSOR,
+        )
+    except support.LocalizationAdapterError as error:
+        assert error.failure.value == 'malformed_numeric_pose'
+    else:
+        raise AssertionError('non-finite localization was accepted')
+
+
+def test_localization_invalid_quaternion_and_covariance_are_distinct() -> None:
+    adapter = adapter_module()
+    support = support_module()
+    message = localization_message()
+    message.pose.pose.orientation.w = 0.0
+    transform = support.odometry_transform(message)
+    try:
+        support.normalize_localization(
+            message,
+            transform,
+            adapter.POSE_SOURCE_PROFILES[adapter.SIMULATION_SOURCE_PROFILE],
+            adapter.BODY_POSE_SENSOR,
+        )
+    except support.LocalizationAdapterError as error:
+        assert error.failure.value == 'invalid_quaternion'
+    else:
+        raise AssertionError('invalid localization quaternion was accepted')
+
+    message = localization_message()
+    message.pose.covariance[0] = -1.0
+    transform = support.odometry_transform(message)
+    try:
+        support.normalize_localization(
+            message,
+            transform,
+            adapter.POSE_SOURCE_PROFILES[adapter.SIMULATION_SOURCE_PROFILE],
+            adapter.BODY_POSE_SENSOR,
+        )
+    except support.LocalizationAdapterError as error:
+        assert error.failure.value == 'invalid_covariance'
+    else:
+        raise AssertionError('invalid localization covariance was accepted')
+
+
+def test_exact_lookup_never_requests_latest_or_changes_frames() -> None:
+    support = support_module()
+    expected = support.odometry_transform(localization_message())
+
+    class Buffer:
+        def lookup_transform(self, target, source, stamp, *, timeout):
+            assert target == 'odom'
+            assert source == 'base_link'
+            assert stamp.nanoseconds == 2_000_000_005
+            assert stamp.nanoseconds != 0
+            assert timeout.nanoseconds == 20_000_000
+            return expected
+
+    result = support.exact_lookup(
+        Buffer(),
+        observed_at_ns=2_000_000_005,
+        timeout_ns=20_000_000,
+    )
+    assert result is expected
+
+
+def test_tf2_failures_are_typed_without_pose_fallback() -> None:
+    support = support_module()
+    expected = {
+        LookupException: 'frame_lookup_unavailable',
+        ConnectivityException: 'frame_lookup_connectivity',
+        ExtrapolationException: 'frame_lookup_extrapolation',
+        TimeoutException: 'frame_lookup_timeout',
+        InvalidArgumentException: 'invalid_frame_request',
+    }
+    for exception, failure in expected.items():
+        class Buffer:
+            def lookup_transform(self, target, source, stamp, *, timeout):
+                raise exception('failure')
+
+        try:
+            support.exact_lookup(
+                Buffer(),
+                observed_at_ns=1,
+                timeout_ns=0,
+            )
+        except support.LocalizationAdapterError as error:
+            assert error.failure.value == failure
+        else:
+            raise AssertionError(f'{exception.__name__} fabricated a pose')
+
+
+def diagnostic_message(*, level=DiagnosticStatus.OK, name=None, hardware_id=None):
+    adapter = adapter_module()
+    message = DiagnosticArray()
+    message.header.stamp.sec = 2
+    status = DiagnosticStatus()
+    status.level = level
+    status.name = name or 'ayyo/proprioception/body_imu_source'
+    status.hardware_id = hardware_id or adapter.IMU_SENSOR.sensor_id
+    status.message = 'reviewed fixture'
+    status.values = [KeyValue(key='temperature', value='nominal')]
+    message.status = [status]
+    return message
+
+
+def test_standard_diagnostic_levels_map_conservatively() -> None:
+    adapter = adapter_module()
+    support = support_module()
+    expected = {
+        DiagnosticStatus.OK: 'available',
+        DiagnosticStatus.WARN: 'degraded',
+        DiagnosticStatus.ERROR: 'error',
+        DiagnosticStatus.STALE: 'stale',
+    }
+    for level, availability in expected.items():
+        result = support.normalize_diagnostics(
+            diagnostic_message(level=level),
+            adapter.DIAGNOSTIC_SOURCE_PROFILES[adapter.SIMULATION_SOURCE_PROFILE],
+            adapter.DIAGNOSTIC_COMPONENTS,
+        )
+        assert result.observations[0].availability.value == availability
+        assert 'temperature' in result.observations[0].evidence_detail
+
+
+def test_unknown_diagnostic_is_ignored_but_identity_substitution_is_rejected() -> None:
+    adapter = adapter_module()
+    support = support_module()
+    unknown = diagnostic_message(name='other/component', hardware_id='other.hardware')
+    result = support.normalize_diagnostics(
+        unknown,
+        adapter.DIAGNOSTIC_SOURCE_PROFILES[adapter.SIMULATION_SOURCE_PROFILE],
+        adapter.DIAGNOSTIC_COMPONENTS,
+    )
+    assert result.observations == ()
+    assert result.ignored_components == ('other/component',)
+
+    wrong_identity = diagnostic_message(hardware_id='other.hardware')
+    try:
+        support.normalize_diagnostics(
+            wrong_identity,
+            adapter.DIAGNOSTIC_SOURCE_PROFILES[adapter.SIMULATION_SOURCE_PROFILE],
+            adapter.DIAGNOSTIC_COMPONENTS,
+        )
+    except support.DiagnosticAdapterError as error:
+        assert 'hardware identity' in str(error)
+    else:
+        raise AssertionError('wrong diagnostic hardware identity was accepted')
+
+
+def test_conflicting_malformed_and_oversized_diagnostics_are_rejected() -> None:
+    adapter = adapter_module()
+    support = support_module()
+    provenance = adapter.DIAGNOSTIC_SOURCE_PROFILES[adapter.SIMULATION_SOURCE_PROFILE]
+    malformed = diagnostic_message(level=255)
+    conflicting = diagnostic_message(level=DiagnosticStatus.OK)
+    second = diagnostic_message(level=DiagnosticStatus.ERROR).status[0]
+    conflicting.status.append(second)
+    oversized = diagnostic_message()
+    oversized.status[0].message = 'x' * 257
+    for message in (malformed, conflicting, oversized):
+        try:
+            support.normalize_diagnostics(
+                message,
+                provenance,
+                adapter.DIAGNOSTIC_COMPONENTS,
+            )
+        except support.DiagnosticAdapterError:
+            pass
+        else:
+            raise AssertionError('invalid diagnostic array was accepted')
+
+
+def test_diagnostic_text_remains_inert_evidence_and_absence_stays_absent() -> None:
+    adapter = adapter_module()
+    support = support_module()
+    provenance = adapter.DIAGNOSTIC_SOURCE_PROFILES[adapter.SIMULATION_SOURCE_PROFILE]
+    empty = DiagnosticArray()
+    empty.header.stamp.sec = 2
+    assert support.normalize_diagnostics(
+        empty,
+        provenance,
+        adapter.DIAGNOSTIC_COMPONENTS,
+    ).observations == ()
+    message = diagnostic_message()
+    message.status[0].message = '$(touch /tmp/never) ${approved} /commands'
+    observation = support.normalize_diagnostics(
+        message,
+        provenance,
+        adapter.DIAGNOSTIC_COMPONENTS,
+    ).observations[0]
+    assert '/commands' in observation.evidence_detail
+    assert observation.availability.value == 'available'
 
 
 def test_standard_joint_state_normalization_is_typed_and_partial_safe() -> None:
@@ -257,6 +541,7 @@ def test_wrapper_installs_single_owned_core_packages_and_fixed_clients() -> None
     assert '../../../perception/src/ayyo_perception' in cmake
     assert 'scripts/world_model_node.py' in cmake
     assert 'scripts/body_state_query.py' in cmake
+    assert 'scripts/localization_diagnostics.py' in cmake
     assert not (PACKAGE_ROOT / 'ayyo_world_model').exists()
     assert not (PACKAGE_ROOT / 'ayyo_working_memory').exists()
     assert not (PACKAGE_ROOT / 'ayyo_perception').exists()
@@ -269,7 +554,16 @@ def test_ros_dependency_boundary_has_no_cognition_or_durable_memory() -> None:
         for element in manifest
         if element.tag.endswith('depend') and element.text
     }
-    assert {'ayyo_interfaces', 'builtin_interfaces', 'rclpy', 'sensor_msgs'} <= dependencies
+    assert {
+        'ayyo_interfaces',
+        'builtin_interfaces',
+        'diagnostic_msgs',
+        'geometry_msgs',
+        'nav_msgs',
+        'rclpy',
+        'sensor_msgs',
+        'tf2_ros',
+    } <= dependencies
     assert not dependencies & {
         'ayyo_executive',
         'ayyo_memory',
@@ -345,6 +639,7 @@ def test_perception_smoke_proves_actual_imu_trust_path_and_lifecycle() -> None:
 def test_owned_sources_retain_project_copyright() -> None:
     for relative in (
         'scripts/body_state_query.py',
+        'scripts/localization_diagnostics.py',
         'scripts/world_model_node.py',
         'test/test_ros_adapter.py',
     ):

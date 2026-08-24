@@ -20,6 +20,7 @@ ament_python_install_package(
 install(
   PROGRAMS
     scripts/body_state_query.py
+    scripts/localization_diagnostics.py
     scripts/world_model_node.py
   DESTINATION lib/${PROJECT_NAME}
 )
@@ -33,6 +34,7 @@ if(BUILD_TESTING)
   ament_copyright(
     EXCLUDE
       scripts/body_state_query.py
+      scripts/localization_diagnostics.py
       scripts/world_model_node.py
       test/test_ros_adapter.py
   )
