@@ -261,14 +261,24 @@ class PerceptionTrustBoundary:
                     "failure report does not identify one reviewed source",
                 )
         source = matches[0]
+        availability_by_failure = {
+            EvidenceFailureKind.FRAME_LOOKUP_UNAVAILABLE: SensorAvailability.UNAVAILABLE,
+            EvidenceFailureKind.FRAME_LOOKUP_CONNECTIVITY: SensorAvailability.ERROR,
+            EvidenceFailureKind.FRAME_LOOKUP_EXTRAPOLATION: SensorAvailability.ERROR,
+            EvidenceFailureKind.FRAME_LOOKUP_TIMEOUT: SensorAvailability.UNAVAILABLE,
+            EvidenceFailureKind.INVALID_FRAME_REQUEST: SensorAvailability.ERROR,
+            EvidenceFailureKind.STALE_TRANSFORM: SensorAvailability.STALE,
+            EvidenceFailureKind.REJECTED_PROVENANCE: SensorAvailability.ERROR,
+            EvidenceFailureKind.MALFORMED_NUMERIC_POSE: SensorAvailability.ERROR,
+            EvidenceFailureKind.INVALID_QUATERNION: SensorAvailability.ERROR,
+            EvidenceFailureKind.INVALID_COVARIANCE: SensorAvailability.ERROR,
+            EvidenceFailureKind.SOURCE_UNAVAILABLE: SensorAvailability.UNAVAILABLE,
+            EvidenceFailureKind.ADAPTER_RESTARTED: SensorAvailability.UNAVAILABLE,
+        }
         observation = SensorHealthObservation(
             robot_id=self._config.robot_id,
             sensor=source.sensor,
-            availability=(
-                SensorAvailability.ERROR
-                if failure is EvidenceFailureKind.FRAME_LOOKUP_EXTRAPOLATION
-                else SensorAvailability.UNAVAILABLE
-            ),
+            availability=availability_by_failure[failure],
             observed_at_ns=observed_at_ns,
             provenance=source.provenance,
             evidence_detail=failure.value,

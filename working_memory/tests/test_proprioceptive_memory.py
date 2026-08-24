@@ -88,6 +88,15 @@ class ProprioceptiveWorkingMemoryTest(unittest.TestCase):
         self.assertEqual(1, len(robot.imu_states))
         self.assertEqual(SensorAvailability.ERROR, robot.imu_states[0].availability)
         self.assertEqual(SensorAvailability.ERROR, robot.sensor_states[0].availability)
+        self.assertEqual(1, len(robot.sensor_health_states))
+        self.assertEqual(
+            "driver error",
+            robot.sensor_health_states[0].observation.evidence_detail,
+        )
+        self.assertEqual(
+            SensorAvailability.ERROR,
+            robot.sensor_health_states[0].availability,
+        )
 
     def test_newer_measurement_supersedes_older_degraded_health(self) -> None:
         store = memory(sensors=(IMU_SENSOR,))
@@ -104,6 +113,45 @@ class ProprioceptiveWorkingMemoryTest(unittest.TestCase):
         robot = store.get_robot_state(now_ns=100)
         self.assertEqual(SensorAvailability.AVAILABLE, robot.imu_states[0].availability)
         self.assertEqual(SensorAvailability.AVAILABLE, robot.sensor_states[0].availability)
+        self.assertEqual(
+            SensorAvailability.DEGRADED,
+            robot.sensor_health_states[0].availability,
+        )
+
+    def test_missing_health_is_not_inferred_from_available_measurement(self) -> None:
+        store = memory(sensors=(IMU_SENSOR,))
+        self.ingest(store, imu_observation(time=100), now=100)
+        robot = store.get_robot_state(now_ns=100)
+        self.assertEqual(SensorAvailability.AVAILABLE, robot.sensor_states[0].availability)
+        self.assertEqual((), robot.sensor_health_states)
+
+    def test_health_freshness_changes_snapshot_once_then_expires(self) -> None:
+        store = memory(sensors=(IMU_SENSOR,), freshness=50, ttl=100)
+        health = SensorHealthObservation(
+            robot_id=AYYO_ROBOT_ID,
+            sensor=IMU_SENSOR,
+            availability=SensorAvailability.DEGRADED,
+            observed_at_ns=100,
+            provenance=TEST_PROVENANCE,
+            evidence_detail="calibrating",
+        )
+        self.ingest(store, health, now=100)
+        fresh = store.current_snapshot(now_ns=150)
+        stale = store.current_snapshot(now_ns=151)
+        stale_again = store.current_snapshot(now_ns=175)
+        expired = store.current_snapshot(now_ns=201)
+        self.assertEqual(
+            SensorAvailability.DEGRADED,
+            fresh.robot.sensor_health_states[0].availability,
+        )
+        self.assertEqual(
+            SensorAvailability.STALE,
+            stale.robot.sensor_health_states[0].availability,
+        )
+        self.assertEqual(stale.snapshot_id, stale_again.snapshot_id)
+        self.assertEqual((), expired.robot.sensor_health_states)
+        self.assertNotEqual(fresh.snapshot_id, stale.snapshot_id)
+        self.assertNotEqual(stale.snapshot_id, expired.snapshot_id)
 
     def test_fresh_to_stale_to_unavailable_disappearance_is_deterministic(self) -> None:
         store = memory(sensors=(IMU_SENSOR,), freshness=50, ttl=100)

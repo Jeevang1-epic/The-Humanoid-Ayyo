@@ -188,6 +188,31 @@ class PerceptionTrustBoundaryTest(unittest.TestCase):
         self.assertEqual(AdmissionReason.FRAME_LOOKUP_EXTRAPOLATION, result.reason)
         self.assertEqual(SensorAvailability.ERROR, result.observation.availability)
 
+    def test_lookup_failures_have_conservative_distinct_health_mapping(self) -> None:
+        expected = {
+            EvidenceFailureKind.FRAME_LOOKUP_UNAVAILABLE: SensorAvailability.UNAVAILABLE,
+            EvidenceFailureKind.FRAME_LOOKUP_CONNECTIVITY: SensorAvailability.ERROR,
+            EvidenceFailureKind.FRAME_LOOKUP_EXTRAPOLATION: SensorAvailability.ERROR,
+            EvidenceFailureKind.FRAME_LOOKUP_TIMEOUT: SensorAvailability.UNAVAILABLE,
+            EvidenceFailureKind.INVALID_FRAME_REQUEST: SensorAvailability.ERROR,
+            EvidenceFailureKind.STALE_TRANSFORM: SensorAvailability.STALE,
+            EvidenceFailureKind.REJECTED_PROVENANCE: SensorAvailability.ERROR,
+            EvidenceFailureKind.MALFORMED_NUMERIC_POSE: SensorAvailability.ERROR,
+            EvidenceFailureKind.INVALID_QUATERNION: SensorAvailability.ERROR,
+            EvidenceFailureKind.INVALID_COVARIANCE: SensorAvailability.ERROR,
+        }
+        for failure, availability in expected.items():
+            with self.subTest(failure=failure):
+                result = boundary().report_failure(
+                    sensor_id=POSE_SENSOR.sensor_id,
+                    failure=failure,
+                    observed_at_ns=100,
+                    now_ns=100,
+                    received_at_monotonic_ns=1,
+                )
+                self.assertEqual(AdmissionReason(failure.value), result.reason)
+                self.assertEqual(availability, result.observation.availability)
+
     def test_joint_state_uses_the_same_trust_boundary(self) -> None:
         observation = RobotStateObservation(
             robot_id=AYYO_ROBOT_ID,

@@ -1312,6 +1312,40 @@ class ObservedImuState:
 
 
 @dataclass(frozen=True, slots=True)
+class ObservedSensorHealthState:
+    observation: SensorHealthObservation
+    freshness: FreshnessState
+    availability: SensorAvailability
+
+    def __post_init__(self) -> None:
+        if type(self.observation) is not SensorHealthObservation:
+            _invalid(WorldModelFailureCode.SNAPSHOT_INVARIANT, "sensor health state is untyped")
+        if not isinstance(self.freshness, FreshnessState):
+            _invalid(WorldModelFailureCode.SNAPSHOT_INVARIANT, "sensor health freshness is invalid")
+        if not isinstance(self.availability, SensorAvailability):
+            _invalid(WorldModelFailureCode.SNAPSHOT_INVARIANT, "sensor health availability is invalid")
+        if self.freshness is FreshnessState.STALE and (
+            self.availability is not SensorAvailability.STALE
+        ):
+            _invalid(
+                WorldModelFailureCode.SNAPSHOT_INVARIANT,
+                "stale sensor health evidence must be explicitly marked stale",
+            )
+
+    def document(self) -> dict[str, JSONValue]:
+        return {
+            "availability": self.availability.value,
+            "evidence_detail": self.observation.evidence_detail,
+            "fingerprint": str(self.observation.fingerprint),
+            "freshness": self.freshness.value,
+            "observation_id": self.observation.observation_id,
+            "observed_at_ns": self.observation.observed_at_ns,
+            "provenance": self.observation.provenance.document(),
+            "sensor": self.observation.sensor.document(),
+        }
+
+
+@dataclass(frozen=True, slots=True)
 class SensorAvailabilityState:
     sensor: SensorIdentity
     availability: SensorAvailability
@@ -1364,6 +1398,7 @@ class RobotBodyState:
     availability: RobotAvailability
     imu_states: tuple[ObservedImuState, ...] = ()
     sensor_states: tuple[SensorAvailabilityState, ...] = ()
+    sensor_health_states: tuple[ObservedSensorHealthState, ...] = ()
 
     def __post_init__(self) -> None:
         canonical_identifier(self.robot_id, "robot body identity")
@@ -1413,6 +1448,24 @@ class RobotBodyState:
         sensor_ids = tuple(item.sensor.sensor_id for item in self.sensor_states)
         if sensor_ids != tuple(sorted(set(sensor_ids))):
             _invalid(WorldModelFailureCode.SNAPSHOT_INVARIANT, "sensor states must be unique and sorted")
+        if any(
+            type(item) is not ObservedSensorHealthState
+            for item in self.sensor_health_states
+        ):
+            _invalid(
+                WorldModelFailureCode.SNAPSHOT_INVARIANT,
+                "sensor health states must be typed",
+            )
+        health_ids = tuple(
+            item.observation.sensor.sensor_id for item in self.sensor_health_states
+        )
+        if health_ids != tuple(sorted(set(health_ids))) or not set(health_ids) <= set(
+            sensor_ids
+        ):
+            _invalid(
+                WorldModelFailureCode.SNAPSHOT_INVARIANT,
+                "sensor health states must be unique, sorted, and expected",
+            )
 
     def document(self) -> dict[str, JSONValue]:
         return {
@@ -1423,6 +1476,9 @@ class RobotBodyState:
             "robot_id": self.robot_id,
             "imu_states": [item.document() for item in self.imu_states],
             "sensor_states": [item.document() for item in self.sensor_states],
+            "sensor_health_states": [
+                item.document() for item in self.sensor_health_states
+            ],
         }
 
 

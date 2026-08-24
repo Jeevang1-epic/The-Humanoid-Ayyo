@@ -14,6 +14,7 @@ from .models import (
     ObservedImuState,
     ObservedJointState,
     ObservedPoseState,
+    ObservedSensorHealthState,
     RobotAvailability,
     RobotBodyState,
     RobotStateObservation,
@@ -239,6 +240,32 @@ class WorldModelProjector:
                 )
             )
 
+        sensor_health_states: list[ObservedSensorHealthState] = []
+        for sensor_id in sorted(health_sources):
+            rebuilt = rebuild_observation(health_sources[sensor_id])
+            assert type(rebuilt) is SensorHealthObservation
+            if rebuilt.sensor.sensor_id != sensor_id:
+                raise WorldModelValidationError(
+                    WorldModelFailureCode.SNAPSHOT_INVARIANT,
+                    "health evidence key and sensor identity disagree",
+                )
+            health_freshness = freshness_for(
+                observed_at_ns=rebuilt.observed_at_ns,
+                now_ns=now_ns,
+                fresh_for_ns=fresh_for_ns,
+            )
+            sensor_health_states.append(
+                ObservedSensorHealthState(
+                    observation=rebuilt,
+                    freshness=health_freshness,
+                    availability=(
+                        SensorAvailability.STALE
+                        if health_freshness is FreshnessState.STALE
+                        else rebuilt.availability
+                    ),
+                )
+            )
+
         if body_pose_sources:
             if len(body_pose_sources) != 1:
                 raise WorldModelValidationError(
@@ -290,6 +317,7 @@ class WorldModelProjector:
             availability=availability,
             imu_states=tuple(imu_states),
             sensor_states=tuple(sensor_states),
+            sensor_health_states=tuple(sensor_health_states),
         )
         entities: list[WorldEntity] = []
         for entity_id in sorted(entity_evidence):
