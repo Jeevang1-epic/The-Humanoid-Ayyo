@@ -10,7 +10,11 @@ from .canonical import (
     MAX_JSON_NODES,
     MAX_JSON_TEXT,
 )
-from .catalog import JointContract, RobotJointCatalog
+from .catalog import (
+    JOINT_LIMIT_OBSERVATION_TOLERANCE,
+    JointContract,
+    RobotJointCatalog,
+)
 from .errors import (
     ObservationIdentityError,
     SnapshotIdentityError,
@@ -56,6 +60,7 @@ __all__ = [
     "JSONScalar",
     "JSONValue",
     "JointContract",
+    "JOINT_LIMIT_OBSERVATION_TOLERANCE",
     "JointObservation",
     "MAX_ENVIRONMENT_ENTITIES",
     "MAX_INTEGER_BITS",

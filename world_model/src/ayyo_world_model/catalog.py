@@ -13,6 +13,9 @@ from .errors import WorldModelFailureCode, WorldModelValidationError
 from .models import JointObservation, RobotStateObservation, canonical_identifier
 
 
+JOINT_LIMIT_OBSERVATION_TOLERANCE = 1e-8
+
+
 @dataclass(frozen=True, slots=True)
 class JointContract:
     joint_name: str
@@ -203,12 +206,18 @@ class RobotJointCatalog:
                 WorldModelFailureCode.FIXED_JOINT,
                 f"joint {joint.joint_name!r} is fixed",
             )
-        if contract.lower is not None and joint.position < contract.lower:
+        if (
+            contract.lower is not None
+            and joint.position < contract.lower - JOINT_LIMIT_OBSERVATION_TOLERANCE
+        ):
             raise WorldModelValidationError(
                 WorldModelFailureCode.JOINT_BELOW_MINIMUM,
                 f"joint {joint.joint_name!r} position is below its URDF minimum",
             )
-        if contract.upper is not None and joint.position > contract.upper:
+        if (
+            contract.upper is not None
+            and joint.position > contract.upper + JOINT_LIMIT_OBSERVATION_TOLERANCE
+        ):
             raise WorldModelValidationError(
                 WorldModelFailureCode.JOINT_ABOVE_MAXIMUM,
                 f"joint {joint.joint_name!r} position is above its URDF maximum",
@@ -216,7 +225,8 @@ class RobotJointCatalog:
         if (
             joint.velocity is not None
             and contract.velocity_limit is not None
-            and abs(joint.velocity) > contract.velocity_limit
+            and abs(joint.velocity)
+            > contract.velocity_limit + JOINT_LIMIT_OBSERVATION_TOLERANCE
         ):
             raise WorldModelValidationError(
                 WorldModelFailureCode.JOINT_VELOCITY_EXCEEDED,
@@ -225,7 +235,8 @@ class RobotJointCatalog:
         if (
             joint.effort is not None
             and contract.effort_limit is not None
-            and abs(joint.effort) > contract.effort_limit
+            and abs(joint.effort)
+            > contract.effort_limit + JOINT_LIMIT_OBSERVATION_TOLERANCE
         ):
             raise WorldModelValidationError(
                 WorldModelFailureCode.JOINT_EFFORT_EXCEEDED,

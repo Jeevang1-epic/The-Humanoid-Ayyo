@@ -224,6 +224,20 @@ class ModelsAndCatalogTest(unittest.TestCase):
                 catalog().validate_observation(observation)
             self.assertEqual(code, context.exception.code)
 
+    def test_catalog_accepts_only_bounded_numerical_feedback_tolerance(self) -> None:
+        catalog().validate_observation(
+            self.robot_observation(
+                joints=(JointObservation("neck_yaw_joint", -1.2 - 1e-9),)
+            )
+        )
+        with self.assertRaises(WorldModelValidationError) as context:
+            catalog().validate_observation(
+                self.robot_observation(
+                    joints=(JointObservation("neck_yaw_joint", -1.2 - 1e-6),)
+                )
+            )
+        self.assertEqual(WorldModelFailureCode.JOINT_BELOW_MINIMUM, context.exception.code)
+
 
 if __name__ == "__main__":
     unittest.main()
