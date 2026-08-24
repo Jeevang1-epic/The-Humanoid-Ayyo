@@ -49,8 +49,8 @@ from diagnostic_msgs.msg import DiagnosticArray
 from localization_diagnostics import (
     DiagnosticAdapterError,
     DiagnosticComponentContract,
-    LocalizationAdapterError,
     exact_lookup,
+    LocalizationAdapterError,
     normalize_diagnostics,
     normalize_localization,
     odometry_transform,

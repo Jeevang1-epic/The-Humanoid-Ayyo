@@ -7,19 +7,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 import json
 
-from diagnostic_msgs.msg import DiagnosticArray, DiagnosticStatus
-from geometry_msgs.msg import TransformStamped
-from nav_msgs.msg import Odometry
-from rclpy.duration import Duration
-from rclpy.time import Time as RclpyTime
-from tf2_ros import (
-    ConnectivityException,
-    ExtrapolationException,
-    InvalidArgumentException,
-    LookupException,
-    TimeoutException,
-)
-
 from ayyo_perception import EvidenceFailureKind
 from ayyo_world_model import (
     AYYO_ROBOT_ID,
@@ -31,6 +18,18 @@ from ayyo_world_model import (
     SensorHealthObservation,
     SensorIdentity,
     SensorKind,
+)
+from diagnostic_msgs.msg import DiagnosticArray, DiagnosticStatus
+from geometry_msgs.msg import TransformStamped
+from nav_msgs.msg import Odometry
+from rclpy.duration import Duration
+from rclpy.time import Time as RclpyTime
+from tf2_ros import (
+    ConnectivityException,
+    ExtrapolationException,
+    InvalidArgumentException,
+    LookupException,
+    TimeoutException,
 )
 
 
