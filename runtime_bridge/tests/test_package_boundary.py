@@ -245,17 +245,29 @@ class RuntimeBridgePackageBoundaryTest(unittest.TestCase):
         self.assertIn("ament_python_install_package", cmake)
         self.assertIn("runtime_bridge/src/ayyo_runtime_bridge", cmake)
 
-    def test_only_owned_development_ros_interface_is_present(self) -> None:
+    def test_only_reviewed_non_runtime_ros_interfaces_are_present(self) -> None:
         interface_root = self.repository_root / "ros2_ws" / "src" / "ayyo_interfaces"
         generated = [
             path.relative_to(interface_root).as_posix()
             for suffix in ("*.msg", "*.srv", "*.action")
             for path in interface_root.rglob(suffix)
         ]
-        self.assertEqual(["srv/SetDevelopmentJointPosition.srv"], generated)
-        interface = (interface_root / generated[0]).read_text(encoding="utf-8")
-        self.assertIn("explicit development injection", interface)
-        self.assertNotIn("ApplyRuntimeJointPosition", interface)
+        self.assertEqual(
+            {
+                "srv/GetRobotBodyState.srv",
+                "srv/SetDevelopmentJointPosition.srv",
+            },
+            set(generated),
+        )
+        development = (
+            interface_root / "srv" / "SetDevelopmentJointPosition.srv"
+        ).read_text(encoding="utf-8")
+        body_query = (
+            interface_root / "srv" / "GetRobotBodyState.srv"
+        ).read_text(encoding="utf-8")
+        self.assertIn("explicit development injection", development)
+        self.assertIn("Read-only fixed query", body_query)
+        self.assertNotIn("ApplyRuntimeJointPosition", development + body_query)
 
     def test_build_artifacts_are_ignored_and_untracked(self) -> None:
         artifacts = (

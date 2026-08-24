@@ -148,7 +148,7 @@ python3 -c '
 import json
 import sys
 
-state = json.loads(sys.argv[1])
+state = json.loads(sys.argv[1].splitlines()[0])
 assert state["status"] == 0
 assert state["availability"] == 0
 assert state["snapshot_id"] == ""
