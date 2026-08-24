@@ -16,8 +16,11 @@ The separate
 [Perception Trust Boundary](PERCEPTION_TRUST_PROPRIOCEPTION.md) now admits
 standard joint-state and body-IMU evidence before Working Memory. Environment
 state still starts empty and remains empty unless a caller supplies actual typed
-evidence. No camera, microphone, TF/localization, person tracking, object
-detector, or pose is fabricated.
+evidence. The reviewed localization and diagnostics adapters now supply exact
+pose and explicit health evidence through the same path; see
+[BODY_LOCALIZATION_SENSOR_DIAGNOSTICS.md](BODY_LOCALIZATION_SENSOR_DIAGNOSTICS.md).
+No camera, microphone, person tracking, object detector, or missing pose/health
+is fabricated.
 
 Gazebo is a replaceable development body backend. It is not the final project
 goal. The final objective is the physical Ayyo humanoid, and the observation
@@ -100,8 +103,8 @@ properties, so creating an entity requires actual evidence.
 `Pose3D` names a parent and child frame, requires distinct canonical frames,
 finite XYZ values, and a normalized XYZW quaternion. The live joint-state
 adapter supplies no base pose because `/joint_states` does not provide one.
-Future TF or localization ingestion must use a separate reviewed adapter and the
-same typed core boundary.
+The separate reviewed localization adapter supplies only exact timestamped
+`odom` to `base_link` evidence through the same typed core boundary.
 
 `ImuObservation` independently preserves supplied orientation, angular
 velocity, linear acceleration, optional 3x3 covariance, optional quality,
@@ -109,10 +112,11 @@ exact `imu_link` sensor identity, provenance, availability, time, and canonical
 identity. Missing estimates and unknown covariance remain `None`.
 
 `BodyPoseObservation` adds an exact source/target-frame pose, optional 6x6
-covariance, optional quality, provenance, and availability. No live pose source
-exists. `SensorHealthObservation` provides bounded available/degraded/error/
-stale/unavailable evidence; diagnostic text is data only and grants no
-authority.
+covariance, optional quality, provenance, and availability.
+`SensorHealthObservation` provides bounded available/degraded/error/stale/
+unavailable evidence; diagnostic text is data only and grants no authority.
+Both now have narrow live adapters without changing these transport-neutral
+contracts.
 
 ## Provenance
 
@@ -280,6 +284,11 @@ one current IMU, 201 recent/unique observations, and 202 references;
 `tracemalloc` reported 545,739 current and 557,087 peak bytes. This has the same
 development-machine-only qualification.
 
+The localization/diagnostics regression runs 3,000 alternating pose and health
+cycles with one current pose, one current health item, 32 recent observations,
+at most 34 unique observations/references, current traced memory below 2 MB,
+and peak below 8 MB.
+
 ## Read-only query surfaces
 
 The core exposes immutable typed `current_snapshot`, `get_robot_state`,
@@ -296,7 +305,8 @@ ayyo_interfaces/srv/GetRobotBodyState
 
 It reports ready/not-ready, canonical robot/snapshot identities, source profile,
 expected and observed joints, IMU values with explicit presence flags,
-covariance/quality presence, pose availability, sensor summaries, timestamps,
+covariance/quality presence, exact pose frames/values/provenance, independent
+explicit health presence/detail/provenance, sensor summaries, timestamps,
 freshness, evidence IDs/fingerprints, and bounded retention counts. A query for
 another robot identity fails closed.
 
@@ -307,9 +317,11 @@ configure/activate transitions through the reviewed executable.
 
 - Configure selects one reviewed profile, verifies ROS clock compatibility,
   parses `robot_description`, creates Working Memory, and creates the query.
-- Activate creates fixed sensor-data QoS `/joint_states` and `/ayyo/imu/data`
-  subscriptions.
-- Deactivate destroys both subscriptions and makes queries not ready.
+- Activate creates fixed `/joint_states`, `/ayyo/imu/data`,
+  `/ayyo/localization/odometry`, and `/diagnostics` subscriptions plus one
+  retention-bounded TF2 buffer.
+- Deactivate destroys all subscriptions and the TF2 buffer and makes queries
+  not ready.
 - Cleanup/shutdown destroy interfaces and discard temporary state.
 - Error routes through cleanup.
 
@@ -399,6 +411,7 @@ python3 -m unittest discover -s perception/tests -v
 ./scripts/test_workspace.sh
 ./scripts/smoke_world_model.sh
 ./scripts/smoke_perception.sh
+./scripts/smoke_localization_diagnostics.sh
 ```
 
 The smoke starts controlled headless simulation, requires the lifecycle/query
@@ -409,17 +422,19 @@ Shutdown must be clean.
 
 ## Current limitations
 
-- Only ROS joint-state and simulated body-IMU ingestion are live.
-- Base pose, TF/localization, environment entities, health/diagnostics,
-  force/torque, touch, camera, depth, audio, navigation, manipulation, and human
-  tracking have typed or architectural space but no live adapter.
+- ROS joint-state, simulated body-IMU, exact-frame localization, and reviewed
+  joint/IMU diagnostic ingestion are live.
+- Environment entities, force/torque, touch, camera, depth, audio, navigation,
+  manipulation, and human tracking have typed or architectural space but no
+  live adapter.
 - Covariance and optional quality are preserved when supplied; v1 has no sensor
   fusion, calibration/bias estimation, trust scoring, probabilistic estimation,
   or cross-sensor conflict resolution.
 - Expected proprioceptive sensors have explicit query-time disappearance;
   environment entities still expire by TTL without a tombstone observation.
 - Working Memory is in-process/non-durable; node restart loses temporary state.
-- The ROS query exposes joint/IMU/pose-availability body state only.
+- The ROS query exposes joint, IMU, pose, sensor-summary, and explicit health
+  state only.
 - No automatic Memory Validation candidate selection or learning consolidation
   exists.
 - No edge-hardware benchmark or Raspberry Pi/Jetson compatibility claim exists.

@@ -18,8 +18,9 @@ gains, contact properties, and actuator selections remain design-dependent.
 The automated headless smokes have exercised Xacro expansion, URDF validation,
 installed packages, ROS node startup, TF, Gazebo server launch, entity spawn,
 the clock/IMU bridge, controller/hardware lifecycle, sole joint-state ownership,
-one bounded neck command, feedback, invalid rejection, and shutdown. Controlled
-Gazebo graphical inspection has not been executed and is not claimed as passed.
+opt-in localization/odometry bridge, one bounded neck command, feedback,
+invalid rejection, and shutdown. Controlled Gazebo graphical inspection has
+not been executed and is not claimed as passed.
 
 ## Package ownership
 
@@ -28,7 +29,7 @@ Gazebo graphical inspection has not been executed and is not claimed as passed.
   macro, RViz configuration, RViz-only launch, and description validator.
 - `ayyo_simulation` owns the Gazebo Harmonic world, static entity-spawn
   default, opt-in control composition, controller configuration, and explicit
-  ROS-Gazebo clock/body-IMU bridge configuration.
+  ROS-Gazebo clock/body-IMU/localization bridge configuration.
 - `ayyo_simulation_control` owns deterministic command/limit/result policy and
   the typed development ROS-to-controller adapter. See
   [SIMULATION_CONTROL.md](SIMULATION_CONTROL.md).
@@ -218,6 +219,11 @@ The two additional default-off flags are:
 - `enable_development_control:=true` — with control enabled, expose the fixed
   typed development command service after controller activation.
 
+A third independent default-off observation flag is
+`enable_localization:=true`. It conditionally enables Harmonic's fixed 50 Hz
+ground-truth odometry publisher and its reviewed one-way standard ROS bridge.
+It does not enable control, publish public TF, or claim physical localization.
+
 When control is enabled, `joint_state_publisher` is disabled so it cannot
 compete with controller-derived `/joint_states`.
 
@@ -227,16 +233,17 @@ compete with controller-derived `/joint_states`.
 physics configuration, and the Harmonic Physics, UserCommands, and
 SceneBroadcaster systems. It contains no duplicate Ayyo model.
 
-`ros_gz_bridge.yaml` has two one-way allowlisted interfaces:
+`ros_gz_bridge.yaml` has three one-way allowlisted interfaces:
 
 | Gazebo | ROS 2 | Direction | Reason |
 | --- | --- | --- | --- |
 | `/clock` `gz.msgs.Clock` | `/clock` `rosgraph_msgs/msg/Clock` | Gazebo → ROS | Drive `use_sim_time` for description nodes |
 | `/ayyo/imu/data` `gz.msgs.IMU` | `/ayyo/imu/data` `sensor_msgs/msg/Imu` | Gazebo → ROS | Standard observation-only body IMU |
+| `/ayyo/localization/ground_truth/odometry` `gz.msgs.Odometry` | `/ayyo/localization/odometry` `nav_msgs/msg/Odometry` | Gazebo → ROS | Opt-in simulation-only body localization evidence |
 
 There is no wildcard bridge, command bridge, joint command, service, or action.
-The IMU is the only sensor stream. No Gazebo Classic package, API, or plugin is
-used.
+The IMU and opt-in localization are observation-only streams. No Gazebo Classic
+package, API, or plugin is used.
 
 ## ros2_control integration
 
@@ -312,6 +319,7 @@ After building, run the complete headless lifecycle smoke:
 ./scripts/build_workspace.sh
 ./scripts/smoke_simulation.sh
 ./scripts/smoke_simulation_control.sh
+./scripts/smoke_localization_diagnostics.sh
 ```
 
 The first smoke verifies installed package lookup, description validation,
@@ -319,7 +327,9 @@ nodes, TF, clock/IMU bridge, Gazebo entity discovery, and bounded shutdown. The
 controlled smoke additionally verifies controller/hardware state, exactly one
 claimed command interface, exactly one `/joint_states` publisher, typed bounded
 motion with correlated feedback, out-of-range rejection, and clean adapter
-shutdown. Neither starts a graphical desktop.
+shutdown. The localization/diagnostics smoke enables the optional Harmonic
+odometry source and proves its exact frames/provenance through the read-only
+World Model query. None starts a graphical desktop.
 
 ## Manual graphical validation
 
@@ -375,7 +385,9 @@ pass from successful launch.
   its proxy dynamics and contacts are not validated.
 - Only `neck_yaw_joint` is commandable, through development injection. There is
   no trajectory, whole-body, walking, manipulation, or navigation controller.
-- Only joint-state and simulated body-IMU observation are live. No physical
-  sensor, pose/localization, diagnostics, general perception, autonomous
-  walking, physical hardware driver, physical communication, production
-  runtime motion service, or physical-safety system exists.
+- Joint-state, simulated body-IMU, and opt-in simulation ground-truth
+  localization observation are live. No physical sensor/localization
+  validation, production diagnostics producer, SLAM/fusion, general
+  perception, autonomous walking, physical hardware driver, physical
+  communication, production runtime motion service, or physical-safety system
+  exists.

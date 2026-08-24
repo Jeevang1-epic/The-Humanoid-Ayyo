@@ -162,6 +162,24 @@
   proving actual Gazebo → ROS → trust boundary → Working Memory → World Model
   evidence, unknown covariance/quality preservation, unavailable pose,
   lifecycle deactivate/reactivate, and clean shutdown
+- Fixed `/ayyo/localization/odometry` `nav_msgs/Odometry` ingestion with exact
+  nonzero timestamped `odom` to `base_link` TF2 lookup, a 20 ms default/100 ms
+  maximum wait, bounded cache, explicit failure health, and no latest/zero-pose
+  fallback
+- Opt-in 50 Hz Harmonic ground-truth odometry plus one fixed Gazebo-to-ROS
+  observation bridge, labeled with simulation-only localization provenance and
+  disabled by default
+- Fixed `/diagnostics` `DiagnosticArray` ingestion with exact reviewed
+  joint-state/body-IMU component and hardware identities, conservative
+  OK/WARN/ERROR/STALE mapping, bounded inert detail, deterministic conflicts,
+  and no inferred health
+- Additive body-state query fields for pose covariance/quality/provenance and
+  independent explicit sensor health presence, freshness, identity,
+  provenance, evidence detail, and disappearance
+- A test-only non-installed fixed diagnostics fixture and headless smoke proving
+  actual localization, all four diagnostic levels, unknown/wrong-frame
+  rejection, expiry, existing 0.1 rad development motion independence, and
+  bounded clean shutdown
 
 ## Planned, but not implemented
 
@@ -170,11 +188,11 @@
   mass, and inertia tensors
 - Ayyo-specific RViz and Gazebo graphical review of orientation, scale, pivots,
   symmetry, clipping, collision alignment, and joint direction
-- Physical sensor validation and perception beyond standard joint-state and
-  simulated body-IMU feedback
-- Live TF/base-pose, force/torque, touch, camera, depth, audio, object, person,
-  navigation, manipulation, and health/diagnostic observation adapters
-- Sensor fusion, calibration/bias estimation, trust scoring, clock
+- Physical joint, IMU, localization, and diagnostic-source validation
+- Force/torque, touch, camera, depth, audio, object, person, navigation, and
+  manipulation observation adapters
+- Production diagnostic producers, SLAM, visual localization, sensor fusion,
+  calibration/bias estimation, trust scoring, clock
   synchronization, and environment-state ROS query transport
 - Reviewed Working-Memory-to-Memory-Validation candidate selection and learning
   consolidation
@@ -206,7 +224,8 @@ controlled ROS Runtime Bridge compatibility boundary. The downstream
 Simulation Control Foundation can actuate one bounded simulated neck joint only
 through explicit development injection and can prove the result from
 controller-derived feedback. The independent perception boundary admits
-standard joint/IMU evidence but grants no authority. The project does not
+standard joint/IMU, exact body-localization, and allowlisted diagnostic
+evidence but grants no authority. The project does not
 provide inferred personality, natural-language understanding, model reasoning,
 general perception, physical sensor validation, authenticated
 authorization, live backend attestation, physical-safety certification,

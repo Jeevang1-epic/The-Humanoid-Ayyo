@@ -31,13 +31,17 @@ domain boundary for provenance-aware owner memory. The deterministic
 [Perception Trust Boundary and Proprioception Foundation](PERCEPTION_TRUST_PROPRIOCEPTION.md)
 now admits exact provenance-bound joint and IMU evidence through a standalone
 transport-neutral core before it can affect temporary world state. Its live ROS
-adapter uses fixed standard topics; body pose and diagnostics remain explicit
-contract-only seams. The deterministic
+adapter now also admits exact timestamped `odom` to `base_link` localization
+and two allowlisted standard diagnostic components. The dedicated
+[Body Localization and Sensor Diagnostics Foundation](BODY_LOCALIZATION_SENSOR_DIAGNOSTICS.md)
+defines the fixed APIs, bounded TF2 behavior, simulation/physical provenance,
+health mapping, and opt-in Harmonic source. The deterministic
 [World Model and Working Memory Foundation](WORLD_MODEL_WORKING_MEMORY.md)
 implements immutable current embodied/environment evidence, deterministic
 snapshots, freshness, and bounded temporary retention ahead of durable memory.
-Its live fixed ROS composition now projects standard joint-state and simulated
-body-IMU feedback; it does not fabricate pose or persist telemetry. The deterministic
+Its live fixed ROS composition now projects standard joint-state, simulated
+body-IMU, localization, and explicit health evidence; it does not fabricate
+missing state or persist telemetry. The deterministic
 [Memory Validation policy](MEMORY_VALIDATION.md) now evaluates candidate evidence
 before explicitly approved mutations reach Memory OS. The read-only
 [Personal Context Twin](PERSONAL_CONTEXT_TWIN.md) projects deterministic,
@@ -90,6 +94,11 @@ replace proxy geometry without duplicating or bypassing frame semantics.
   clock, timestamp, numeric, covariance, freshness, duplicate/order, identity,
   and resource admission before evidence can affect world or memory state. It
   cannot grant identity, authority, permission, safety, or execution.
+- The localization adapter owns one fixed `odom` to `base_link` exact-time TF2
+  lookup with bounded wait/cache and typed failure health. It never requests
+  latest TF, publishes duplicate public TF, aliases frames, or fabricates a
+  pose. The diagnostics adapter owns an exact two-component name/hardware
+  allowlist and treats bounded message/key/value text as inert evidence only.
 - World Model owns transport-neutral provenance-bound current robot/environment
   observations, authoritative body-value validation, IMU/pose/covariance/
   availability contracts, discrete freshness, and canonical immutable
@@ -136,6 +145,8 @@ replace proxy geometry without duplicating or bypassing frame semantics.
   consume that same source; simulation does not maintain a duplicate Ayyo
   model, import cognition, or create an authorization bypass. Control mode has
   one command interface, while the body IMU is observation-only in both static
-  and controlled simulation.
+  and controlled simulation. Opt-in Harmonic localization is a replaceable
+  simulation observation source with distinct provenance, not motion authority
+  or a physical localization claim.
 - Learning updates remain candidates until evaluation and controlled promotion;
   consolidation does not bypass safety or permissions.

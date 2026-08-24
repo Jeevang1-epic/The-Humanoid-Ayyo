@@ -52,8 +52,12 @@ general perception or a developmental simulation scenario framework.
 Perception Trust Boundary and Proprioceptive Observation Foundation v1 now adds
 exact transport-neutral sensor admission, immutable IMU/pose/covariance/health
 contracts, deterministic disappearance, one authoritative body-IMU mount, and
-a live simulated standard-IMU proof through the same World Model. Body pose,
-diagnostics, physical sensors, and fusion remain unavailable.
+a live simulated standard-IMU proof through the same World Model. Body
+Localization and Sensor Diagnostics Foundation v1 now activates the narrow
+pose/health seams: exact timestamped `odom` to `base_link` lookup, an opt-in
+standard simulated odometry source, explicit typed failure health, and a
+bounded two-component standard ROS diagnostics allowlist. These are
+observation foundations, not SLAM, fusion, navigation, or authority.
 
 Final Ayyo assets, graphical controlled-design validation, additional joints,
 trajectory/whole-body controllers, validated dynamics/contact behavior,
@@ -61,8 +65,8 @@ authenticated identity, permissions, approval verification, live backend
 attestation, production typed ROS services, audit persistence,
 timeout/resource enforcement, runtime skill implementations, and
 physical-safety integration remain future work. Live camera/audio/depth/
-force/touch perception, physical IMU validation, body localization, sensor
-diagnostics, sensor fusion, environment entity production, and
+force/touch perception, physical IMU/localization validation, production
+diagnostic producers, SLAM, sensor fusion, environment entity production, and
 reviewed Working-Memory-to-Memory-Validation consolidation also remain future
 work. Executive proposals, Safety
 eligibility, Skill Manager runtime-handoff eligibility, Runtime Bridge

@@ -7,8 +7,8 @@ can mature behind stable boundaries before physical hardware is introduced.
 
 ## Current status
 
-Ayyo has reached the Perception Trust Boundary and Proprioceptive Observation
-Foundation v1 review stage.
+Ayyo has reached the Body Localization and Sensor Diagnostics Foundation v1
+review stage.
 
 Implemented:
 
@@ -66,9 +66,19 @@ Implemented:
 - Immutable IMU, body-pose, covariance, quality, health/availability,
   freshness, and disappearance contracts integrated into Working Memory and
   World Model without fabricating missing state
-- A lifecycle-managed fixed `/joint_states` and `/ayyo/imu/data` ROS adapter
-  plus typed read-only body-state query; a truthful Harmonic IMU smoke proves
-  actual evidence through the trust boundary while pose remains unavailable
+- A lifecycle-managed fixed `/joint_states`, `/ayyo/imu/data`,
+  `/ayyo/localization/odometry`, and `/diagnostics` ROS adapter plus an additive
+  typed read-only body-state query
+- Exact timestamped `odom` to `base_link` localization through a bounded TF2
+  lookup, with no latest/identity fallback, explicit typed failure health,
+  unknown covariance preservation, and distinct simulation/physical provenance
+- An opt-in 50 Hz Harmonic ground-truth odometry source and fixed one-way
+  standard `nav_msgs/Odometry` bridge, truthfully labeled as simulation
+- An exact two-component standard ROS diagnostics allowlist for joint-state and
+  body-IMU sources, conservative OK/WARN/ERROR/STALE mapping, bounded inert
+  detail, explicit expiry, and no health inferred from measurement arrival
+- A headless end-to-end smoke proving localization, diagnostics, adversarial
+  rejection, existing bounded development motion, and clean shutdown
 
 Planned, but not implemented:
 
@@ -76,8 +86,9 @@ Planned, but not implemented:
 - Graphical Ayyo mesh/frame/collision validation
 - Additional commandable joints, trajectory/whole-body control, and validated
   dynamics/contact behavior
-- Physical sensor validation, live body localization/TF, diagnostics, and
-  perception beyond standard joint-state and simulated body-IMU feedback
+- Physical localization and sensor validation, real diagnostic producers,
+  SLAM/fusion/calibration, and perception beyond the reviewed proprioceptive
+  observation sources
 - Natural-language/model integration and authenticated identity/approval
 - Runtime skill implementations, manipulation, and navigation
 - Production-authorized typed ROS services, runtime scheduling, and resource
@@ -102,6 +113,7 @@ independent of cognition and learned policies. See
 [docs/SIMULATION_CONTROL.md](docs/SIMULATION_CONTROL.md),
 [docs/WORLD_MODEL_WORKING_MEMORY.md](docs/WORLD_MODEL_WORKING_MEMORY.md),
 [docs/PERCEPTION_TRUST_PROPRIOCEPTION.md](docs/PERCEPTION_TRUST_PROPRIOCEPTION.md),
+[docs/BODY_LOCALIZATION_SENSOR_DIAGNOSTICS.md](docs/BODY_LOCALIZATION_SENSOR_DIAGNOSTICS.md),
 [docs/AYYO_MESH_IMPORT.md](docs/AYYO_MESH_IMPORT.md), and
 [docs/SAFETY.md](docs/SAFETY.md).
 
@@ -235,6 +247,12 @@ Run the trusted proprioception integration smoke after building:
 ./scripts/smoke_perception.sh
 ```
 
+Run the body localization and sensor diagnostics integration smoke:
+
+```bash
+./scripts/smoke_localization_diagnostics.sh
+```
+
 ## Repository layout
 
 ```text
@@ -261,7 +279,8 @@ Immutable Safety Kernel v1, Skill Manager v1, controlled ROS Runtime Bridge v1,
 Robot Description & Simulation Foundation v1, and the one-joint Simulation
 Control & Actuation Foundation v1, Embodied World Model and Working Memory
 Foundation v1, and Perception Trust Boundary and Proprioceptive Observation
-Foundation v1 are implemented. Production motion remains
+Foundation v1, plus Body Localization and Sensor Diagnostics Foundation v1,
+are implemented. Production motion remains
 closed because Safety v1 defers physical movement; only explicit development
 injection can exercise the simulated neck joint. The perception path adds
 evidence only and grants no execution authority. Final Ayyo assets,
