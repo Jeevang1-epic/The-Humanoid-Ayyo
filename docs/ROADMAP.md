@@ -42,13 +42,22 @@ controller-derived state, deterministic typed control contracts, and a
 separately flagged development command service. This is infrastructure proof,
 not integrated production execution. Physical-movement Safety remains
 `DEFERRED`, and no production Runtime Bridge motion endpoint is implemented.
+The cross-stage World Model and Working Memory Foundation v1 is also implemented:
+transport-neutral embodied/environment observations, deterministic snapshots,
+bounded temporary evidence, and an opt-in lifecycle ROS joint-state adapter now
+provide current observed body state without coupling semantics to Gazebo or
+writing telemetry to durable memory. This is proprioceptive infrastructure, not
+general perception or a developmental simulation scenario framework.
 
 Final Ayyo assets, graphical controlled-design validation, additional joints,
 trajectory/whole-body controllers, validated dynamics/contact behavior,
 authenticated identity, permissions, approval verification, live backend
 attestation, production typed ROS services, audit persistence,
 timeout/resource enforcement, runtime skill implementations, and
-physical-safety integration remain future work. Executive proposals, Safety
+physical-safety integration remain future work. Live camera/audio/depth/IMU/
+force/touch perception, sensor fusion, environment entity production, and
+reviewed Working-Memory-to-Memory-Validation consolidation also remain future
+work. Executive proposals, Safety
 eligibility, Skill Manager runtime-handoff eligibility, Runtime Bridge
 eligibility, transport acceptance, development injection, and simulated motion
 do not count as production authorization or physical-safety certification.

@@ -120,6 +120,33 @@
   installed packages, nodes, TF/clock, entity spawn, controllers, hardware
   interfaces, sole joint-state publisher, valid motion, invalid rejection, and
   bounded clean shutdown
+- Standalone transport-neutral `ayyo-world-model` with immutable robot and
+  environment observations, explicit simulation/physical/recorded/test
+  provenance, source-clock semantics, optional spatial pose, bounded generic
+  entity evidence, and deterministic observation identities
+- Immutable URDF-derived robot joint catalog with wrong-robot, unknown/fixed
+  joint, finite numeric, and bounded position/velocity/effort validation plus a
+  narrow numerical feedback tolerance that does not change command limits
+- Pure deterministic World Model projection with unavailable/partial/available
+  body coverage, per-joint provenance/confidence/freshness, optional base pose,
+  evidence-backed environment entities, and canonical snapshot identities
+- Standalone `ayyo-working-memory` with explicit source-clock TTL/freshness,
+  bounded recent evidence and current entities, duplicate suppression,
+  old/future/conflicting observation rejection, partial joint replacement,
+  deterministic eviction, clock-regression reset semantics, and no persistence
+- Configurable defaults of 500 ms freshness, 2 second TTL, 50 ms permitted
+  future skew, 256 recent observations, and 128 environment entities, with
+  hard resource maxima and measured regression tests
+- Lifecycle-managed `ayyo_world_model` ROS adapter with one fixed
+  `/joint_states` subscription, exact reviewed simulation/physical source
+  profiles, authoritative `robot_description`, no Gazebo/core dependency, and
+  bounded configure/activate/deactivate/cleanup/shutdown behavior
+- Typed fixed read-only `/ayyo/world_model/get_robot_body_state` service with
+  body coverage, source profile, per-joint values/timestamps/confidence/
+  freshness/evidence identities, snapshot identity, and retained-evidence counts
+- Headless embodied feedback smoke proving an 18-joint simulation-sourced
+  snapshot, observed neck state change after the existing bounded development
+  motion, command/observation separation, and clean lifecycle shutdown
 
 ## Planned, but not implemented
 
@@ -128,7 +155,13 @@
   mass, and inertia tensors
 - Ayyo-specific RViz and Gazebo graphical review of orientation, scale, pivots,
   symmetry, clipping, collision alignment, and joint direction
-- Perception
+- Physical/environment perception beyond standard joint-state feedback
+- Live TF/base-pose, IMU, force/torque, touch, camera, depth, audio, object,
+  person, navigation, manipulation, and health/diagnostic observation adapters
+- Sensor fusion, covariance, trust scoring, explicit disappearance evidence,
+  and environment-state ROS query transport
+- Reviewed Working-Memory-to-Memory-Validation candidate selection and learning
+  consolidation
 - Provenance aggregation and advanced consolidation policy
 - ROS 2 memory bridge
 - Natural-language/model cognition integration

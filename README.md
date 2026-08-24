@@ -7,7 +7,8 @@ can mature behind stable boundaries before physical hardware is introduced.
 
 ## Current status
 
-Ayyo has reached the Simulation Control & Actuation Foundation v1 review stage.
+Ayyo has reached the Embodied World Model and Working Memory Foundation v1
+review stage.
 
 Implemented:
 
@@ -52,6 +53,15 @@ Implemented:
 - A separately flagged typed development ROS service that proves bounded motion
   from controller-derived state without arbitrary endpoint dispatch, plus
   non-control and controlled headless lifecycle smoke tests
+- A standalone transport-neutral World Model with immutable provenance-bound
+  robot/environment observations, authoritative URDF joint validation,
+  deterministic freshness, and canonical current-state snapshots
+- A standalone deterministic Working Memory with explicit TTL, bounded current
+  entities, bounded recent evidence, duplicate suppression, out-of-order and
+  future-time rejection, deterministic eviction, and no durable persistence
+- A lifecycle-managed fixed `/joint_states` ROS observation adapter and typed
+  read-only body-state query that distinguish simulation from future physical
+  provenance and learn movement only from observed controller feedback
 
 Planned, but not implemented:
 
@@ -59,7 +69,7 @@ Planned, but not implemented:
 - Graphical Ayyo mesh/frame/collision validation
 - Additional commandable joints, trajectory/whole-body control, and validated
   dynamics/contact behavior
-- Perception
+- Physical/environment perception beyond standard joint-state feedback
 - Natural-language/model integration and authenticated identity/approval
 - Runtime skill implementations, manipulation, and navigation
 - Production-authorized typed ROS services, runtime scheduling, and resource
@@ -82,6 +92,7 @@ independent of cognition and learned policies. See
 [docs/ROS_RUNTIME_BRIDGE.md](docs/ROS_RUNTIME_BRIDGE.md),
 [docs/ROBOT_DESCRIPTION_SIMULATION.md](docs/ROBOT_DESCRIPTION_SIMULATION.md),
 [docs/SIMULATION_CONTROL.md](docs/SIMULATION_CONTROL.md),
+[docs/WORLD_MODEL_WORKING_MEMORY.md](docs/WORLD_MODEL_WORKING_MEMORY.md),
 [docs/AYYO_MESH_IMPORT.md](docs/AYYO_MESH_IMPORT.md), and
 [docs/SAFETY.md](docs/SAFETY.md).
 
@@ -186,6 +197,22 @@ PYTHONPATH=memory/src:personal_context/src:executive/src:safety_kernel/src:skill
 python3 -m unittest discover -s simulation_control/tests -v
 ```
 
+Run World Model and Working Memory tests:
+
+```bash
+PYTHONPATH=world_model/src \
+python3 -m unittest discover -s world_model/tests -v
+
+PYTHONPATH=world_model/src:working_memory/src \
+python3 -m unittest discover -s working_memory/tests -v
+```
+
+Run the embodied feedback integration smoke after building:
+
+```bash
+./scripts/smoke_world_model.sh
+```
+
 ## Repository layout
 
 ```text
@@ -198,6 +225,8 @@ safety_kernel/  Immutable deterministic proposal safety review and its tests
 skill_manager/  Immutable declarative skill contracts and Safety binding
 runtime_bridge/  Deterministic Skill-to-ROS compatibility and transport boundary
 simulation_control/  Bounded deterministic simulation-control policy and feedback
+world_model/  Transport-neutral embodied/environment observations and snapshots
+working_memory/  Bounded temporary current-state and recent-evidence retention
 ros2_ws/src/   ROS 2 interfaces, description, simulation, Runtime Bridge, and bringup
 scripts/       Local environment, build, and test commands
 tests/         Repository-level tests when justified
@@ -207,7 +236,8 @@ The roadmap defines the intended progression. Memory persistence, deterministic
 candidate validation, Personal Context Twin v1, Executive Cognition v1,
 Immutable Safety Kernel v1, Skill Manager v1, controlled ROS Runtime Bridge v1,
 Robot Description & Simulation Foundation v1, and the one-joint Simulation
-Control & Actuation Foundation v1 are implemented. Production motion remains
+Control & Actuation Foundation v1, and Embodied World Model and Working Memory
+Foundation v1 are implemented. Production motion remains
 closed because Safety v1 defers physical movement; only explicit development
 injection can exercise the simulated neck joint. Final Ayyo assets,
 authenticated identity/approval, production runtime services, additional

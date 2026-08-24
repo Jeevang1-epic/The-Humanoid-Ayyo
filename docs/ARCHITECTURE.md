@@ -28,6 +28,11 @@ These are architectural boundaries, not claims of implemented functionality.
 
 The standalone [Memory OS core](MEMORY_OS.md) implements the persistence and
 domain boundary for provenance-aware owner memory. The deterministic
+[World Model and Working Memory Foundation](WORLD_MODEL_WORKING_MEMORY.md)
+implements immutable current embodied/environment evidence, deterministic
+snapshots, freshness, and bounded temporary retention ahead of durable memory.
+Its live fixed ROS adapter currently normalizes standard joint-state feedback;
+it does not fabricate perception or persist telemetry. The deterministic
 [Memory Validation policy](MEMORY_VALIDATION.md) now evaluates candidate evidence
 before explicitly approved mutations reach Memory OS. The read-only
 [Personal Context Twin](PERSONAL_CONTEXT_TWIN.md) projects deterministic,
@@ -77,6 +82,12 @@ replace proxy geometry without duplicating or bypassing frame semantics.
 
 - Perception processing produces evidence that crosses an explicit trust boundary
   before it can affect world or memory state.
+- World Model owns transport-neutral provenance-bound current robot/environment
+  observations, authoritative body-value validation, discrete freshness, and
+  canonical immutable snapshots without importing ROS or Gazebo.
+- Working Memory owns bounded temporary current/recent evidence, TTL, duplicate
+  suppression, temporal ordering, and deterministic eviction. It cannot write
+  Memory OS; future durable candidates must still pass Memory Validation.
 - Memory validation owns deterministic admission, conservative identity
   normalization, duplicate decisions, correction authority, and contradiction
   review without selecting probabilistic truth.
