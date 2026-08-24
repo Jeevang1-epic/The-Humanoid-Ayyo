@@ -61,10 +61,13 @@ class JointContract:
             )
 
 
+@dataclass(frozen=True, slots=True, init=False)
 class RobotJointCatalog:
     """Immutable reviewed kinematic bounds used to validate body evidence."""
 
-    __slots__ = ("robot_id", "fingerprint", "_joints")
+    robot_id: str
+    fingerprint: str
+    _joints: Mapping[str, JointContract]
 
     def __init__(self, *, robot_id: str, joints: tuple[JointContract, ...]) -> None:
         canonical_identifier(robot_id, "catalog robot_id")
@@ -99,11 +102,17 @@ class RobotJointCatalog:
             "robot_id": robot_id,
             "schema": "ayyo.world-model.joint-catalog.v1",
         }
-        self.robot_id = robot_id
-        self._joints: Mapping[str, JointContract] = MappingProxyType(
-            {item.joint_name: item for item in ordered}
+        object.__setattr__(self, "robot_id", robot_id)
+        object.__setattr__(
+            self,
+            "_joints",
+            MappingProxyType({item.joint_name: item for item in ordered}),
         )
-        self.fingerprint = f"joint_catalog:sha256:{sha256_document(document)}"
+        object.__setattr__(
+            self,
+            "fingerprint",
+            f"joint_catalog:sha256:{sha256_document(document)}",
+        )
 
     @classmethod
     def from_urdf(cls, *, robot_id: str, robot_description: str) -> "RobotJointCatalog":

@@ -56,9 +56,15 @@ class WorldModelProjector:
         entity_evidence: Mapping[str, EnvironmentEntityObservation],
     ) -> WorldSnapshot:
         joints: list[ObservedJointState] = []
+        rebuilt_robot_evidence: dict[str, RobotStateObservation] = {}
         for joint_name in sorted(joint_evidence):
-            observation = rebuild_observation(joint_evidence[joint_name])
-            assert type(observation) is RobotStateObservation
+            source = joint_evidence[joint_name]
+            observation = rebuilt_robot_evidence.get(source.observation_id)
+            if observation is None:
+                rebuilt = rebuild_observation(source)
+                assert type(rebuilt) is RobotStateObservation
+                observation = rebuilt
+                rebuilt_robot_evidence[observation.observation_id] = observation
             self._catalog.validate_observation(observation)
             joint = next(
                 (item for item in observation.joints if item.joint_name == joint_name),

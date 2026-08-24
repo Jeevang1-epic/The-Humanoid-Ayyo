@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import unittest
+from unittest.mock import patch
 
 from ayyo_world_model import (
     AYYO_ROBOT_ID,
@@ -13,6 +14,7 @@ from ayyo_world_model import (
     WorldEntityIdentity,
     WorldEntityKind,
     WorldModelProjector,
+    rebuild_observation,
     rebuild_snapshot,
 )
 
@@ -95,6 +97,50 @@ class ProjectorTest(unittest.TestCase):
         object.__setattr__(snapshot, "snapshot_id", "world-snapshot-" + "0" * 64)
         with self.assertRaises(SnapshotIdentityError):
             rebuild_snapshot(snapshot)
+
+    def test_maximum_valid_entities_fit_aggregate_snapshot_identity_bound(self) -> None:
+        entities = {
+            f"object.{index}": EnvironmentEntityObservation(
+                robot_id=AYYO_ROBOT_ID,
+                entity=WorldEntityIdentity(f"object.{index}", WorldEntityKind.OBJECT),
+                properties={"samples": list(range(256))},
+                observed_at_ns=100,
+                provenance=TEST_PROVENANCE,
+                confidence=0.5,
+            )
+            for index in range(16)
+        }
+        snapshot = self.project(entities=entities)
+        self.assertEqual(16, len(snapshot.entities))
+        self.assertTrue(snapshot.snapshot_id.startswith("world-snapshot-"))
+
+    def test_shared_batch_evidence_is_rebuilt_once_per_projection(self) -> None:
+        observation = RobotStateObservation(
+            robot_id=AYYO_ROBOT_ID,
+            joints=(
+                JointObservation("head_pitch_joint", 0.1),
+                JointObservation("neck_yaw_joint", 0.2),
+            ),
+            observed_at_ns=100,
+            provenance=TEST_PROVENANCE,
+            confidence=1.0,
+        )
+        with patch(
+            "ayyo_world_model.projector.rebuild_observation",
+            wraps=rebuild_observation,
+        ) as rebuild:
+            snapshot = WorldModelProjector(catalog()).project(
+                now_ns=100,
+                fresh_for_ns=50,
+                joint_evidence={
+                    "head_pitch_joint": observation,
+                    "neck_yaw_joint": observation,
+                },
+                pose_evidence=None,
+                entity_evidence={},
+            )
+        self.assertEqual(1, rebuild.call_count)
+        self.assertEqual(RobotAvailability.AVAILABLE, snapshot.robot.availability)
 
 
 if __name__ == "__main__":

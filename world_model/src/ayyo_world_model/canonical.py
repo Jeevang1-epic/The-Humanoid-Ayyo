@@ -19,6 +19,8 @@ MAX_JSON_COLLECTION = 256
 MAX_JSON_TEXT = 4_096
 MAX_JSON_CHARACTERS = 65_536
 MAX_INTEGER_BITS = 1_024
+MAX_CANONICAL_NODES = 600_000
+MAX_CANONICAL_CHARACTERS = 32_000_000
 
 
 def _fail(detail: str) -> None:
@@ -28,8 +30,16 @@ def _fail(detail: str) -> None:
     )
 
 
-def validate_json(value: object, *, field_name: str = "value") -> None:
-    """Validate an acyclic, resource-bounded JSON tree without recursion."""
+def _validate_json(
+    value: object,
+    *,
+    field_name: str,
+    maximum_depth: int,
+    maximum_nodes: int,
+    maximum_collection: int,
+    maximum_text: int,
+    maximum_characters: int,
+) -> None:
 
     stack: list[tuple[object, int, bool]] = [(value, 0, False)]
     active: set[int] = set()
@@ -41,10 +51,10 @@ def validate_json(value: object, *, field_name: str = "value") -> None:
             active.remove(id(current))
             continue
         nodes += 1
-        if nodes > MAX_JSON_NODES:
-            _fail(f"{field_name} exceeds {MAX_JSON_NODES} JSON nodes")
-        if depth > MAX_JSON_DEPTH:
-            _fail(f"{field_name} exceeds JSON depth {MAX_JSON_DEPTH}")
+        if nodes > maximum_nodes:
+            _fail(f"{field_name} exceeds {maximum_nodes} JSON nodes")
+        if depth > maximum_depth:
+            _fail(f"{field_name} exceeds JSON depth {maximum_depth}")
         if current is None or type(current) is bool:
             continue
         if type(current) is int:
@@ -63,10 +73,10 @@ def validate_json(value: object, *, field_name: str = "value") -> None:
                     WorldModelFailureCode.MALFORMED_OBSERVATION,
                     f"{field_name} contains invalid Unicode",
                 ) from error
-            if len(current) > MAX_JSON_TEXT:
+            if len(current) > maximum_text:
                 _fail(f"{field_name} contains an oversized string")
             characters += len(current)
-            if characters > MAX_JSON_CHARACTERS:
+            if characters > maximum_characters:
                 _fail(f"{field_name} exceeds its aggregate text bound")
             continue
         if type(current) not in {list, dict}:
@@ -74,8 +84,8 @@ def validate_json(value: object, *, field_name: str = "value") -> None:
         identity = id(current)
         if identity in active:
             _fail(f"{field_name} contains a reference cycle")
-        if len(current) > MAX_JSON_COLLECTION:
-            _fail(f"{field_name} exceeds collection capacity {MAX_JSON_COLLECTION}")
+        if len(current) > maximum_collection:
+            _fail(f"{field_name} exceeds collection capacity {maximum_collection}")
         active.add(identity)
         stack.append((current, depth, True))
         if type(current) is list:
@@ -85,13 +95,27 @@ def validate_json(value: object, *, field_name: str = "value") -> None:
             for key in current:
                 if type(key) is not str:
                     _fail(f"{field_name} object keys must be strings")
-                if len(key) > MAX_JSON_TEXT:
+                if len(key) > maximum_text:
                     _fail(f"{field_name} contains an oversized object key")
                 characters += len(key)
             stack.extend(
                 (item, depth + 1, False)
                 for item in reversed(tuple(current.values()))
             )
+
+
+def validate_json(value: object, *, field_name: str = "value") -> None:
+    """Validate an acyclic, resource-bounded ingress JSON tree."""
+
+    _validate_json(
+        value,
+        field_name=field_name,
+        maximum_depth=MAX_JSON_DEPTH,
+        maximum_nodes=MAX_JSON_NODES,
+        maximum_collection=MAX_JSON_COLLECTION,
+        maximum_text=MAX_JSON_TEXT,
+        maximum_characters=MAX_JSON_CHARACTERS,
+    )
 
 
 def copy_json(value: object, *, field_name: str = "value") -> JSONValue:
@@ -146,7 +170,18 @@ def copy_mapping(
 
 
 def canonical_json(value: JSONValue) -> str:
-    validate_json(value, field_name="canonical document")
+    # Canonical documents aggregate already-bounded public values. Their limit
+    # must represent the maximum valid World Snapshot rather than reapplying a
+    # single-observation ingress bound.
+    _validate_json(
+        value,
+        field_name="canonical document",
+        maximum_depth=MAX_JSON_DEPTH + 8,
+        maximum_nodes=MAX_CANONICAL_NODES,
+        maximum_collection=MAX_CANONICAL_NODES,
+        maximum_text=MAX_JSON_TEXT,
+        maximum_characters=MAX_CANONICAL_CHARACTERS,
+    )
     return json.dumps(
         value,
         allow_nan=False,

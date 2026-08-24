@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import replace
+from dataclasses import FrozenInstanceError
 import unittest
 
 from ayyo_world_model import (
@@ -191,6 +191,8 @@ class ModelsAndCatalogTest(unittest.TestCase):
         self.assertEqual((-1.2, 1.2, 1.5, 8.0), (
             neck.lower, neck.upper, neck.velocity_limit, neck.effort_limit
         ))
+        with self.assertRaises(FrozenInstanceError):
+            left.robot_id = "other.robot.v1"
 
     def test_catalog_rejects_wrong_robot_unknown_fixed_and_invalid_values(self) -> None:
         cases = (

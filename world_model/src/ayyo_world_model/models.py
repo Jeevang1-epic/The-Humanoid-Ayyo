@@ -580,6 +580,18 @@ class ObservedJointState:
             _invalid(WorldModelFailureCode.SNAPSHOT_INVARIANT, "joint freshness is invalid")
         if not self.observation_id.startswith("world-observation-"):
             _invalid(WorldModelFailureCode.SNAPSHOT_INVARIANT, "joint evidence ID is invalid")
+        if type(self.observation_fingerprint) is not ObservationFingerprint:
+            _invalid(
+                WorldModelFailureCode.SNAPSHOT_INVARIANT,
+                "joint evidence fingerprint is invalid",
+            )
+        if self.observation_id.removeprefix("world-observation-") != (
+            self.observation_fingerprint.digest
+        ):
+            _invalid(
+                WorldModelFailureCode.SNAPSHOT_INVARIANT,
+                "joint evidence ID and fingerprint disagree",
+            )
 
     def document(self) -> dict[str, JSONValue]:
         return {
@@ -601,6 +613,23 @@ class ObservedPoseState:
     confidence: float
     freshness: FreshnessState
     observation_id: str
+
+    def __post_init__(self) -> None:
+        if type(self.pose) is not Pose3D:
+            _invalid(WorldModelFailureCode.SNAPSHOT_INVARIANT, "pose state is untyped")
+        if type(self.observed_at_ns) is not int or self.observed_at_ns < 0:
+            _invalid(WorldModelFailureCode.SNAPSHOT_INVARIANT, "pose time is invalid")
+        if type(self.provenance) is not ObservationProvenance:
+            _invalid(WorldModelFailureCode.SNAPSHOT_INVARIANT, "pose provenance is invalid")
+        _confidence(self.confidence)
+        if not isinstance(self.freshness, FreshnessState):
+            _invalid(WorldModelFailureCode.SNAPSHOT_INVARIANT, "pose freshness is invalid")
+        if (
+            type(self.observation_id) is not str
+            or re.fullmatch(r"world-observation-[0-9a-f]{64}", self.observation_id)
+            is None
+        ):
+            _invalid(WorldModelFailureCode.SNAPSHOT_INVARIANT, "pose evidence ID is invalid")
 
     def document(self) -> dict[str, JSONValue]:
         return {
@@ -628,6 +657,18 @@ class RobotBodyState:
             _invalid(
                 WorldModelFailureCode.SNAPSHOT_INVARIANT,
                 "known joints must be unique and sorted",
+            )
+        for joint_name in self.known_joint_names:
+            canonical_identifier(joint_name, "known joint name")
+        if any(type(item) is not ObservedJointState for item in self.joints):
+            _invalid(
+                WorldModelFailureCode.SNAPSHOT_INVARIANT,
+                "robot joints must be ObservedJointState values",
+            )
+        if self.base_pose is not None and type(self.base_pose) is not ObservedPoseState:
+            _invalid(
+                WorldModelFailureCode.SNAPSHOT_INVARIANT,
+                "robot base pose must be an ObservedPoseState",
             )
         actual = tuple(item.joint.joint_name for item in self.joints)
         if actual != tuple(sorted(set(actual))) or not set(actual) <= set(expected):
@@ -681,9 +722,22 @@ class WorldEntity:
         freshness: FreshnessState,
         observation_id: str,
     ) -> None:
+        if type(identity) is not WorldEntityIdentity:
+            _invalid(WorldModelFailureCode.SNAPSHOT_INVARIANT, "entity identity is invalid")
+        if pose is not None and type(pose) is not Pose3D:
+            _invalid(WorldModelFailureCode.SNAPSHOT_INVARIANT, "entity pose is invalid")
+        if type(observed_at_ns) is not int or observed_at_ns < 0:
+            _invalid(WorldModelFailureCode.SNAPSHOT_INVARIANT, "entity time is invalid")
+        if type(provenance) is not ObservationProvenance:
+            _invalid(WorldModelFailureCode.SNAPSHOT_INVARIANT, "entity provenance is invalid")
         copied = copy_mapping(properties, field_name="world entity properties")
         if not isinstance(freshness, FreshnessState):
             _invalid(WorldModelFailureCode.SNAPSHOT_INVARIANT, "entity freshness is invalid")
+        if (
+            type(observation_id) is not str
+            or re.fullmatch(r"world-observation-[0-9a-f]{64}", observation_id) is None
+        ):
+            _invalid(WorldModelFailureCode.SNAPSHOT_INVARIANT, "entity evidence ID is invalid")
         object.__setattr__(self, "identity", identity)
         object.__setattr__(self, "pose", pose)
         object.__setattr__(self, "observed_at_ns", observed_at_ns)
@@ -752,6 +806,11 @@ class WorldSnapshot:
             _invalid(WorldModelFailureCode.SNAPSHOT_INVARIANT, "snapshot robot state is invalid")
         if type(entities) is not tuple or len(entities) > MAX_ENVIRONMENT_ENTITIES:
             _invalid(WorldModelFailureCode.SNAPSHOT_INVARIANT, "snapshot entities are invalid")
+        if any(type(item) is not WorldEntity for item in entities):
+            _invalid(
+                WorldModelFailureCode.SNAPSHOT_INVARIANT,
+                "snapshot entities must be typed WorldEntity values",
+            )
         ordered = tuple(sorted(entities, key=lambda item: item.identity.entity_id))
         if len({item.identity.entity_id for item in ordered}) != len(ordered):
             _invalid(WorldModelFailureCode.SNAPSHOT_INVARIANT, "snapshot entity IDs repeat")
