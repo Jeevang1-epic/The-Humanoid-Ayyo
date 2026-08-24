@@ -1,0 +1,35 @@
+# Read-only fixed query for the current observed Ayyo body state.
+string robot_id
+---
+uint8 NOT_READY=0
+uint8 READY=1
+uint8 UNAVAILABLE=0
+uint8 PARTIAL=1
+uint8 AVAILABLE=2
+uint8 FRESH=1
+uint8 STALE=2
+uint8 status
+string detail
+string robot_id
+string snapshot_id
+string snapshot_fingerprint
+uint8 availability
+builtin_interfaces/Time queried_at
+uint32 known_joint_count
+string source_kind
+string source_id
+string source_clock
+string source_transport
+string source_interface
+string[] joint_names
+float64[] positions
+bool[] has_velocity
+float64[] velocities
+bool[] has_effort
+float64[] efforts
+builtin_interfaces/Time[] joint_observed_at
+float64[] joint_confidence
+uint8[] joint_freshness
+string[] joint_observation_ids
+uint32 environment_entity_count
+uint32 recent_evidence_count

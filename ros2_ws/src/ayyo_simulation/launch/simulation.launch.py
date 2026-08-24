@@ -29,6 +29,7 @@ def generate_launch_description() -> LaunchDescription:
     headless = LaunchConfiguration('headless')
     enable_control = LaunchConfiguration('enable_control')
     enable_development_control = LaunchConfiguration('enable_development_control')
+    enable_world_model = LaunchConfiguration('enable_world_model')
     use_meshes = LaunchConfiguration('use_meshes')
     spawn_x = LaunchConfiguration('spawn_x')
     spawn_y = LaunchConfiguration('spawn_y')
@@ -151,6 +152,17 @@ def generate_launch_description() -> LaunchDescription:
             AndSubstitution(enable_control, enable_development_control)
         ),
     )
+    world_model_node = Node(
+        package='ayyo_world_model',
+        executable='world_model_node.py',
+        name='ayyo_world_model',
+        output='screen',
+        parameters=[
+            description_parameters,
+            {'source_profile': 'simulation_ros2_control_v1'},
+        ],
+        condition=IfCondition(enable_world_model),
+    )
 
     return LaunchDescription(
         [
@@ -178,6 +190,13 @@ def generate_launch_description() -> LaunchDescription:
                     'Expose the typed development-only command service; requires control.'
                 ),
             ),
+            DeclareLaunchArgument(
+                'enable_world_model',
+                default_value='false',
+                description=(
+                    'Activate the fixed lifecycle-managed body-state observer.'
+                ),
+            ),
             DeclareLaunchArgument('spawn_x', default_value='0.0'),
             DeclareLaunchArgument('spawn_y', default_value='0.0'),
             DeclareLaunchArgument(
@@ -195,6 +214,7 @@ def generate_launch_description() -> LaunchDescription:
                 output='screen',
                 parameters=[description_parameters],
             ),
+            world_model_node,
             Node(
                 package='joint_state_publisher',
                 executable='joint_state_publisher',

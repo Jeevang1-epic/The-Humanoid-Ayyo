@@ -113,6 +113,7 @@ def test_launch_uses_bounded_simulation_nodes() -> None:
         and call.func.id == 'Node'
     ]
     assert {constant_keyword(call, 'package') for call in node_calls} == {
+        'ayyo_world_model',
         'controller_manager',
         'joint_state_publisher',
         'robot_state_publisher',
@@ -160,6 +161,7 @@ def test_launch_defaults_to_headless_proxy_ground_contact() -> None:
     assert defaults['headless'] == 'true'
     assert defaults['enable_control'] == 'false'
     assert defaults['enable_development_control'] == 'false'
+    assert defaults['enable_world_model'] == 'false'
     assert defaults['use_meshes'] == 'false'
     assert defaults['spawn_z'] == '0.95'
 
@@ -222,6 +224,7 @@ def test_simulation_package_has_no_authorization_layer_dependency() -> None:
     }
     assert 'ayyo_description' in dependencies
     assert 'ayyo_simulation_control' in dependencies
+    assert 'ayyo_world_model' in dependencies
     assert {
         'controller_manager',
         'forward_command_controller',

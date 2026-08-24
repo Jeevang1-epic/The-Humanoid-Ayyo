@@ -10,6 +10,7 @@
 
   <exec_depend>ayyo_description</exec_depend>
   <exec_depend>ayyo_simulation_control</exec_depend>
+  <exec_depend>ayyo_world_model</exec_depend>
   <exec_depend>controller_manager</exec_depend>
   <exec_depend>forward_command_controller</exec_depend>
   <exec_depend>gz_ros2_control</exec_depend>
