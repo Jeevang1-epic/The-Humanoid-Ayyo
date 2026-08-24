@@ -137,6 +137,24 @@ assert all(value.startswith("world-observation-") for value in state["joint_obse
 ' "$smoke_root/initial.json"
 printf 'PASS: World Model exposes a fresh provenance-bound complete body snapshot\n'
 
+set +e
+wrong_robot_output="$(
+  ros2 run ayyo_world_model body_state_query.py --robot-id other.robot.v1
+)"
+wrong_robot_status=$?
+set -e
+[[ "$wrong_robot_status" -eq 2 ]]
+python3 -c '
+import json
+import sys
+
+state = json.loads(sys.argv[1])
+assert state["status"] == 0
+assert state["availability"] == 0
+assert state["snapshot_id"] == ""
+' "$wrong_robot_output"
+printf 'PASS: wrong robot identity cannot read or relabel current Ayyo state\n'
+
 ros2 run ayyo_simulation_control development_command.py --position 0.1 \
   >"$smoke_root/control.json"
 

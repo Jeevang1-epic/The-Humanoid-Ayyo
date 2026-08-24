@@ -78,6 +78,45 @@ def _assign_time(message, value_ns: int) -> None:
     message.nanosec = value_ns % 1_000_000_000
 
 
+def normalize_joint_state(
+    message: JointState,
+    provenance: ObservationProvenance,
+) -> RobotStateObservation:
+    """Normalize one standard message without consulting ROS graph state."""
+    if not isinstance(message, JointState):
+        raise ValueError('body-state evidence must be sensor_msgs/JointState')
+    if type(provenance) is not ObservationProvenance:
+        raise ValueError('body-state evidence requires reviewed provenance')
+    names = tuple(message.name)
+    positions = tuple(message.position)
+    velocities = tuple(message.velocity)
+    efforts = tuple(message.effort)
+    if not names or len(names) != len(positions):
+        raise ValueError('joint names and positions must be non-empty and equal')
+    if velocities and len(velocities) != len(names):
+        raise ValueError('velocity array must be empty or match joint names')
+    if efforts and len(efforts) != len(names):
+        raise ValueError('effort array must be empty or match joint names')
+    return RobotStateObservation(
+        robot_id=AYYO_ROBOT_ID,
+        joints=tuple(
+            JointObservation(
+                joint_name=name,
+                position=positions[index],
+                velocity=None if not velocities else velocities[index],
+                effort=None if not efforts else efforts[index],
+            )
+            for index, name in enumerate(names)
+        ),
+        observed_at_ns=_nanoseconds(
+            message.header.stamp.sec,
+            message.header.stamp.nanosec,
+        ),
+        provenance=provenance,
+        confidence=1.0,
+    )
+
+
 class AyyoWorldModelNode(LifecycleNode):
     """Own reviewed ROS normalization while cores remain transport-neutral."""
 
@@ -231,35 +270,7 @@ class AyyoWorldModelNode(LifecycleNode):
         if not self._active or self._memory is None or self._provenance is None:
             return
         try:
-            names = tuple(message.name)
-            positions = tuple(message.position)
-            velocities = tuple(message.velocity)
-            efforts = tuple(message.effort)
-            if not names or len(names) != len(positions):
-                raise ValueError('joint names and positions must be non-empty and equal')
-            if velocities and len(velocities) != len(names):
-                raise ValueError('velocity array must be empty or match joint names')
-            if efforts and len(efforts) != len(names):
-                raise ValueError('effort array must be empty or match joint names')
-            observed_at_ns = _nanoseconds(
-                message.header.stamp.sec,
-                message.header.stamp.nanosec,
-            )
-            observation = RobotStateObservation(
-                robot_id=AYYO_ROBOT_ID,
-                joints=tuple(
-                    JointObservation(
-                        joint_name=name,
-                        position=positions[index],
-                        velocity=None if not velocities else velocities[index],
-                        effort=None if not efforts else efforts[index],
-                    )
-                    for index, name in enumerate(names)
-                ),
-                observed_at_ns=observed_at_ns,
-                provenance=self._provenance,
-                confidence=1.0,
-            )
+            observation = normalize_joint_state(message, self._provenance)
             now_ns = self.get_clock().now().nanoseconds
             try:
                 result = self._memory.ingest(

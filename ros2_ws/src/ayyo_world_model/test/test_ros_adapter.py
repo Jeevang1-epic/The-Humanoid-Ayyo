@@ -3,8 +3,11 @@
 from __future__ import annotations
 
 import ast
+import importlib.util
 from pathlib import Path
 import xml.etree.ElementTree as ET
+
+from sensor_msgs.msg import JointState
 
 
 PACKAGE_ROOT = Path(__file__).resolve().parents[1]
@@ -15,6 +18,15 @@ SIMULATION_ROOT = REPOSITORY_ROOT / 'ros2_ws' / 'src' / 'ayyo_simulation'
 
 def script_source(name: str) -> str:
     return (PACKAGE_ROOT / 'scripts' / name).read_text(encoding='utf-8')
+
+
+def adapter_module():
+    path = PACKAGE_ROOT / 'scripts' / 'world_model_node.py'
+    spec = importlib.util.spec_from_file_location('ayyo_world_model_node_test', path)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 
 
 def test_read_only_service_contract_is_bounded_and_typed() -> None:
@@ -80,6 +92,41 @@ def test_adapter_subscribes_only_to_fixed_standard_joint_state_interface() -> No
     assert 'eval(' not in source
     assert 'exec(' not in source
     assert 'subprocess' not in source
+
+
+def test_standard_joint_state_normalization_is_typed_and_partial_safe() -> None:
+    module = adapter_module()
+    message = JointState()
+    message.header.stamp.sec = 2
+    message.header.stamp.nanosec = 3
+    message.name = ['neck_yaw_joint', 'head_pitch_joint']
+    message.position = [0.1, 0.2]
+    message.effort = [0.3, 0.4]
+    observation = module.normalize_joint_state(
+        message,
+        module.SOURCE_PROFILES[module.SIMULATION_SOURCE_PROFILE],
+    )
+    assert observation.observed_at_ns == 2_000_000_003
+    assert [item.joint_name for item in observation.joints] == [
+        'head_pitch_joint',
+        'neck_yaw_joint',
+    ]
+    assert all(item.velocity is None for item in observation.joints)
+    assert observation.provenance.source_kind.value == 'simulation'
+
+
+def test_malformed_joint_state_shapes_fail_before_working_memory() -> None:
+    module = adapter_module()
+    message = JointState()
+    message.name = ['neck_yaw_joint']
+    message.position = []
+    provenance = module.SOURCE_PROFILES[module.SIMULATION_SOURCE_PROFILE]
+    try:
+        module.normalize_joint_state(message, provenance)
+    except ValueError as error:
+        assert 'names and positions' in str(error)
+    else:
+        raise AssertionError('malformed standard joint state was normalized')
 
 
 def test_simulation_and_physical_profiles_cannot_masquerade_as_each_other() -> None:
@@ -160,6 +207,26 @@ def test_simulation_launch_keeps_adapter_opt_in_and_pins_simulation_profile() ->
     assert "package='ayyo_world_model'" in source
     assert "{'source_profile': 'simulation_ros2_control_v1'}" in source
     assert 'condition=IfCondition(enable_world_model)' in source
+
+
+def test_integration_smoke_proves_feedback_identity_and_clean_shutdown() -> None:
+    source = (REPOSITORY_ROOT / 'scripts' / 'smoke_world_model.sh').read_text(
+        encoding='utf-8'
+    )
+    for expected in (
+        'enable_world_model:=true',
+        'ros2 lifecycle get /ayyo_world_model',
+        'body_state_query.py',
+        '--robot-id other.robot.v1',
+        'development_command.py --position 0.1',
+        'joint_observation_ids',
+        'snapshot_id',
+        'kill -INT',
+        'shut down cleanly',
+    ):
+        assert expected in source
+    assert 'ros2 topic pub' not in source
+    assert (REPOSITORY_ROOT / 'scripts' / 'smoke_world_model.sh').stat().st_mode & 0o111
 
 
 def test_owned_sources_retain_project_copyright() -> None:
