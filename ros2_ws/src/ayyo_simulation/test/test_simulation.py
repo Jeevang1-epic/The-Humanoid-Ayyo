@@ -84,7 +84,7 @@ def test_no_gazebo_classic_api_is_present() -> None:
         assert forbidden not in source_text
 
 
-def test_bridge_allowlist_contains_only_clock_and_body_imu() -> None:
+def test_bridge_allowlist_contains_only_reviewed_observation_topics() -> None:
     config = yaml.safe_load(
         (PACKAGE_ROOT / 'config' / 'ros_gz_bridge.yaml').read_text(
             encoding='utf-8'
@@ -106,6 +106,16 @@ def test_bridge_allowlist_contains_only_clock_and_body_imu() -> None:
             'gz_topic_name': '/ayyo/imu/data',
             'ros_type_name': 'sensor_msgs/msg/Imu',
             'gz_type_name': 'gz.msgs.IMU',
+            'direction': 'GZ_TO_ROS',
+            'lazy': False,
+            'publisher_queue': 10,
+            'subscriber_queue': 10,
+        },
+        {
+            'ros_topic_name': '/ayyo/localization/odometry',
+            'gz_topic_name': '/ayyo/localization/ground_truth/odometry',
+            'ros_type_name': 'nav_msgs/msg/Odometry',
+            'gz_type_name': 'gz.msgs.Odometry',
             'direction': 'GZ_TO_ROS',
             'lazy': False,
             'publisher_queue': 10,
@@ -147,6 +157,7 @@ def test_launch_spawns_authoritative_description_as_static() -> None:
     assert "'ayyo.urdf.xacro'" in source
     assert "' simulation_mode:=true simulation_static:=true'" in source
     assert "' simulation_control:='" in source
+    assert "' simulation_localization:='" in source
     assert "' simulation_controller_config:='" in source
     assert "'topic': 'robot_description'" in source
     assert "'allow_renaming': False" in source
@@ -173,6 +184,7 @@ def test_launch_defaults_to_headless_proxy_ground_contact() -> None:
     assert defaults['enable_control'] == 'false'
     assert defaults['enable_development_control'] == 'false'
     assert defaults['enable_world_model'] == 'false'
+    assert defaults['enable_localization'] == 'false'
     assert defaults['use_meshes'] == 'false'
     assert defaults['spawn_z'] == '0.95'
 

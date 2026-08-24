@@ -145,6 +145,29 @@ def test_simulation_mode_is_static_and_plugin_free(proxy_robot: ET.Element) -> N
     assert proxy_robot.find('.//sensor') is None
 
 
+def test_localization_mode_adds_only_exact_ground_truth_odometry() -> None:
+    robot = parse_robot(
+        expand_xacro(
+            PACKAGE_ROOT / 'urdf' / 'ayyo.urdf.xacro',
+            'simulation_mode:=true',
+            'simulation_static:=true',
+            'simulation_localization:=true',
+        )
+    )
+    plugins = robot.findall('./gazebo/plugin')
+    assert len(plugins) == 1
+    plugin = plugins[0]
+    assert plugin.get('filename') == 'gz-sim-odometry-publisher-system'
+    assert plugin.get('name') == 'gz::sim::systems::OdometryPublisher'
+    assert plugin.findtext('odom_frame') == 'odom'
+    assert plugin.findtext('robot_base_frame') == 'base_link'
+    assert plugin.findtext('dimensions') == '3'
+    assert plugin.findtext('odom_publish_frequency') == '50'
+    assert plugin.findtext('odom_topic') == (
+        '/ayyo/localization/ground_truth/odometry'
+    )
+
+
 def test_ros2_control_contract_is_dormant_and_complete(proxy_robot: ET.Element) -> None:
     source = ET.parse(PACKAGE_ROOT / 'urdf' / 'ayyo_ros2_control.xacro').getroot()
     contract_joints = {

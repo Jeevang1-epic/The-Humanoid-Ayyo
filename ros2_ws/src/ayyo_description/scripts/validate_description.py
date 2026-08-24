@@ -310,6 +310,37 @@ def validate_package(package_root: Path) -> tuple[int, int, int, int]:
     ):
         raise DescriptionValidationError('simulation IMU contract is incomplete')
 
+    localized_robot = parse_robot(
+        expand_xacro(
+            xacro_path,
+            'simulation_mode:=true',
+            'simulation_static:=true',
+            'simulation_localization:=true',
+        )
+    )
+    localization_plugins = localized_robot.findall(
+        "./gazebo/plugin[@name='gz::sim::systems::OdometryPublisher']"
+    )
+    if len(localization_plugins) != 1:
+        raise DescriptionValidationError(
+            'localization mode must contain exactly one odometry publisher'
+        )
+    localization = localization_plugins[0]
+    expected_localization = {
+        'odom_frame': 'odom',
+        'robot_base_frame': 'base_link',
+        'dimensions': '3',
+        'odom_publish_frequency': '50',
+        'odom_topic': '/ayyo/localization/ground_truth/odometry',
+    }
+    if any(
+        localization.findtext(key) != value
+        for key, value in expected_localization.items()
+    ):
+        raise DescriptionValidationError(
+            'simulation localization contract is incomplete'
+        )
+
     controlled_robot = parse_robot(
         expand_xacro(
             xacro_path,

@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro">
   <xacro:macro name="ayyo_gazebo"
-               params="static_model control_enabled controller_config">
+               params="static_model control_enabled localization_enabled controller_config">
     <gazebo reference="imu_link">
       <sensor name="body_imu" type="imu">
         <always_on>true</always_on>
@@ -12,6 +12,16 @@
       </sensor>
     </gazebo>
     <gazebo>
+      <xacro:if value="${localization_enabled}">
+        <plugin filename="gz-sim-odometry-publisher-system"
+                name="gz::sim::systems::OdometryPublisher">
+          <odom_frame>odom</odom_frame>
+          <robot_base_frame>base_link</robot_base_frame>
+          <dimensions>3</dimensions>
+          <odom_publish_frequency>50</odom_publish_frequency>
+          <odom_topic>/ayyo/localization/ground_truth/odometry</odom_topic>
+        </plugin>
+      </xacro:if>
       <xacro:if value="${control_enabled}">
         <static>false</static>
         <plugin filename="gz_ros2_control-system"

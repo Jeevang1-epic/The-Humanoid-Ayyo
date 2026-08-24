@@ -30,6 +30,7 @@ def generate_launch_description() -> LaunchDescription:
     enable_control = LaunchConfiguration('enable_control')
     enable_development_control = LaunchConfiguration('enable_development_control')
     enable_world_model = LaunchConfiguration('enable_world_model')
+    enable_localization = LaunchConfiguration('enable_localization')
     use_meshes = LaunchConfiguration('use_meshes')
     spawn_x = LaunchConfiguration('spawn_x')
     spawn_y = LaunchConfiguration('spawn_y')
@@ -59,6 +60,8 @@ def generate_launch_description() -> LaunchDescription:
                 ' simulation_mode:=true simulation_static:=true',
                 ' simulation_control:=',
                 enable_control,
+                ' simulation_localization:=',
+                enable_localization,
                 ' simulation_controller_config:=',
                 controller_config,
             ]
@@ -195,6 +198,13 @@ def generate_launch_description() -> LaunchDescription:
                 default_value='false',
                 description=(
                     'Activate the fixed lifecycle-managed body-state observer.'
+                ),
+            ),
+            DeclareLaunchArgument(
+                'enable_localization',
+                default_value='false',
+                description=(
+                    'Expose simulation-only ground-truth odom to base_link evidence.'
                 ),
             ),
             DeclareLaunchArgument('spawn_x', default_value='0.0'),
