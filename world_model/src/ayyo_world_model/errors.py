@@ -11,10 +11,12 @@ class WorldModelError(Exception):
 
 class WorldModelFailureCode(StrEnum):
     MALFORMED_OBSERVATION = "malformed_observation"
+    MALFORMED_COVARIANCE = "malformed_covariance"
     MALFORMED_PROVENANCE = "malformed_provenance"
     IDENTITY_MISMATCH = "identity_mismatch"
     WRONG_ROBOT_IDENTITY = "wrong_robot_identity"
     UNKNOWN_JOINT = "unknown_joint"
+    UNKNOWN_SENSOR = "unknown_sensor"
     FIXED_JOINT = "fixed_joint"
     JOINT_BELOW_MINIMUM = "joint_below_minimum"
     JOINT_ABOVE_MAXIMUM = "joint_above_maximum"
