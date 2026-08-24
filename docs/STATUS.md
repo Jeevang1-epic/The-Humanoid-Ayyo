@@ -84,8 +84,8 @@
 - Narrow transport protocol with an unavailable-by-default ROS service sentinel;
   the deterministic in-memory implementation exists only in tests
 - Authoritative modular `ayyo_description` Xacro with a canonical `base_link`
-  root, 35 links, 34 joints, 18 provisional movable joints, and an explicit
-  head camera mounting frame without a sensor implementation
+  root, 36 links, 35 joints, 18 provisional movable joints, an explicit head
+  camera mounting frame without a sensor, and one fixed pelvis body-IMU datum
 - Development proxy visual/collision primitives isolated from a normalized,
   machine-readable 33-part contract for absent final visual and collision
   meshes
@@ -98,8 +98,9 @@
 - Dedicated `ayyo_simulation` package with an SDF 1.10 Gazebo Harmonic world,
   static non-actuating default spawn from the authoritative Xacro, opt-in
   controlled dynamic spawn, and no duplicate robot model
-- Explicit one-way Gazebo `/clock` to ROS `/clock` bridge with no commands,
-  sensors, services, actions, or wildcard bridging
+- Explicit one-way Gazebo-to-ROS allowlist for `/clock` and the observation-only
+  `/ayyo/imu/data` standard IMU, with no commands, services, actions, or
+  wildcard bridging
 - Opt-in Jazzy/Harmonic `gz_ros2_control` system with position/velocity/effort
   state for all 18 movable joints and exactly one claimed position command
   interface for `neck_yaw_joint`
@@ -137,16 +138,30 @@
 - Configurable defaults of 500 ms freshness, 2 second TTL, 50 ms permitted
   future skew, 256 recent observations, and 128 environment entities, with
   hard resource maxima and measured regression tests
-- Lifecycle-managed `ayyo_world_model` ROS adapter with one fixed
-  `/joint_states` subscription, exact reviewed simulation/physical source
-  profiles, authoritative `robot_description`, no Gazebo/core dependency, and
-  bounded configure/activate/deactivate/cleanup/shutdown behavior
+- Standalone `ayyo-perception` trust boundary depending only on public World
+  Model contracts, with exact robot/source/sensor/frame/provenance/clock policy,
+  immutable reconstruction, duplicate/order/future/stale rejection, typed
+  lookup failure evidence, and constant-space source tracking
+- Immutable IMU, body-pose, 3x3/6x6 covariance, optional quality, and sensor
+  availability/health contracts with canonical quaternion normalization/sign,
+  positive-semidefinite covariance validation, and no fabricated missing state
+- Working Memory and World Model projection of bounded IMU/pose/health evidence,
+  query-time fresh/stale/unavailable disappearance, and semantic snapshot
+  changes only at evidence or discrete freshness transitions
+- Lifecycle-managed `ayyo_world_model` ROS adapter with fixed `/joint_states`
+  and `/ayyo/imu/data` sensor-data subscriptions, exact reviewed simulation/
+  physical source profiles, authoritative `robot_description`, no Gazebo core
+  dependency, and bounded configure/activate/deactivate/cleanup/shutdown
 - Typed fixed read-only `/ayyo/world_model/get_robot_body_state` service with
   body coverage, source profile, per-joint values/timestamps/confidence/
   freshness/evidence identities, snapshot identity, and retained-evidence counts
 - Headless embodied feedback smoke proving an 18-joint simulation-sourced
   snapshot, observed neck state change after the existing bounded development
   motion, command/observation separation, and clean lifecycle shutdown
+- Authoritative 100 Hz Harmonic body IMU on `imu_link` and a headless smoke
+  proving actual Gazebo → ROS → trust boundary → Working Memory → World Model
+  evidence, unknown covariance/quality preservation, unavailable pose,
+  lifecycle deactivate/reactivate, and clean shutdown
 
 ## Planned, but not implemented
 
@@ -155,11 +170,12 @@
   mass, and inertia tensors
 - Ayyo-specific RViz and Gazebo graphical review of orientation, scale, pivots,
   symmetry, clipping, collision alignment, and joint direction
-- Physical/environment perception beyond standard joint-state feedback
-- Live TF/base-pose, IMU, force/torque, touch, camera, depth, audio, object,
-  person, navigation, manipulation, and health/diagnostic observation adapters
-- Sensor fusion, covariance, trust scoring, explicit disappearance evidence,
-  and environment-state ROS query transport
+- Physical sensor validation and perception beyond standard joint-state and
+  simulated body-IMU feedback
+- Live TF/base-pose, force/torque, touch, camera, depth, audio, object, person,
+  navigation, manipulation, and health/diagnostic observation adapters
+- Sensor fusion, calibration/bias estimation, trust scoring, clock
+  synchronization, and environment-state ROS query transport
 - Reviewed Working-Memory-to-Memory-Validation candidate selection and learning
   consolidation
 - Provenance aggregation and advanced consolidation policy
@@ -189,8 +205,10 @@ proposal-review boundary, an inert declarative Skill Manager boundary, and a
 controlled ROS Runtime Bridge compatibility boundary. The downstream
 Simulation Control Foundation can actuate one bounded simulated neck joint only
 through explicit development injection and can prove the result from
-controller-derived feedback. It does not provide inferred personality,
-natural-language understanding, model reasoning, perception, authenticated
+controller-derived feedback. The independent perception boundary admits
+standard joint/IMU evidence but grants no authority. The project does not
+provide inferred personality, natural-language understanding, model reasoning,
+general perception, physical sensor validation, authenticated
 authorization, live backend attestation, physical-safety certification,
 production runtime motion, task execution, walking, manipulation, or physical
 execution.

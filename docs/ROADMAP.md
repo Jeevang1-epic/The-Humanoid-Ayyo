@@ -35,7 +35,8 @@ as ROS Runtime Bridge v1 with a service-only endpoint allowlist, pure
 eligibility, and an unavailable-by-default transport boundary. Stage 5 now has
 Robot Description & Simulation Foundation v1: a canonical mesh-ready
 frame/joint model, deterministic validation, separate RViz and Gazebo Harmonic
-launch paths, a static development spawn, and a clock-only ros_gz boundary.
+launch paths, a static development spawn, and a fixed clock/sensor ros_gz
+allowlist.
 Stage 5 now also has Simulation Control & Actuation Foundation v1: opt-in
 Jazzy/Harmonic `gz_ros2_control`, one URDF-bounded neck position interface,
 controller-derived state, deterministic typed control contracts, and a
@@ -48,14 +49,20 @@ bounded temporary evidence, and an opt-in lifecycle ROS joint-state adapter now
 provide current observed body state without coupling semantics to Gazebo or
 writing telemetry to durable memory. This is proprioceptive infrastructure, not
 general perception or a developmental simulation scenario framework.
+Perception Trust Boundary and Proprioceptive Observation Foundation v1 now adds
+exact transport-neutral sensor admission, immutable IMU/pose/covariance/health
+contracts, deterministic disappearance, one authoritative body-IMU mount, and
+a live simulated standard-IMU proof through the same World Model. Body pose,
+diagnostics, physical sensors, and fusion remain unavailable.
 
 Final Ayyo assets, graphical controlled-design validation, additional joints,
 trajectory/whole-body controllers, validated dynamics/contact behavior,
 authenticated identity, permissions, approval verification, live backend
 attestation, production typed ROS services, audit persistence,
 timeout/resource enforcement, runtime skill implementations, and
-physical-safety integration remain future work. Live camera/audio/depth/IMU/
-force/touch perception, sensor fusion, environment entity production, and
+physical-safety integration remain future work. Live camera/audio/depth/
+force/touch perception, physical IMU validation, body localization, sensor
+diagnostics, sensor fusion, environment entity production, and
 reviewed Working-Memory-to-Memory-Validation consolidation also remain future
 work. Executive proposals, Safety
 eligibility, Skill Manager runtime-handoff eligibility, Runtime Bridge

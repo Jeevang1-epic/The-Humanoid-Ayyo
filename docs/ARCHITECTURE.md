@@ -28,11 +28,16 @@ These are architectural boundaries, not claims of implemented functionality.
 
 The standalone [Memory OS core](MEMORY_OS.md) implements the persistence and
 domain boundary for provenance-aware owner memory. The deterministic
+[Perception Trust Boundary and Proprioception Foundation](PERCEPTION_TRUST_PROPRIOCEPTION.md)
+now admits exact provenance-bound joint and IMU evidence through a standalone
+transport-neutral core before it can affect temporary world state. Its live ROS
+adapter uses fixed standard topics; body pose and diagnostics remain explicit
+contract-only seams. The deterministic
 [World Model and Working Memory Foundation](WORLD_MODEL_WORKING_MEMORY.md)
 implements immutable current embodied/environment evidence, deterministic
 snapshots, freshness, and bounded temporary retention ahead of durable memory.
-Its live fixed ROS adapter currently normalizes standard joint-state feedback;
-it does not fabricate perception or persist telemetry. The deterministic
+Its live fixed ROS composition now projects standard joint-state and simulated
+body-IMU feedback; it does not fabricate pose or persist telemetry. The deterministic
 [Memory Validation policy](MEMORY_VALIDATION.md) now evaluates candidate evidence
 before explicitly approved mutations reach Memory OS. The read-only
 [Personal Context Twin](PERSONAL_CONTEXT_TWIN.md) projects deterministic,
@@ -80,11 +85,15 @@ replace proxy geometry without duplicating or bypassing frame semantics.
 
 ## Boundary responsibilities
 
-- Perception processing produces evidence that crosses an explicit trust boundary
-  before it can affect world or memory state.
+- Perception processing decodes only fixed standard sensor interfaces. The
+  standalone trust boundary owns exact robot/source/sensor/frame/provenance,
+  clock, timestamp, numeric, covariance, freshness, duplicate/order, identity,
+  and resource admission before evidence can affect world or memory state. It
+  cannot grant identity, authority, permission, safety, or execution.
 - World Model owns transport-neutral provenance-bound current robot/environment
-  observations, authoritative body-value validation, discrete freshness, and
-  canonical immutable snapshots without importing ROS or Gazebo.
+  observations, authoritative body-value validation, IMU/pose/covariance/
+  availability contracts, discrete freshness, and canonical immutable
+  snapshots without importing ROS or Gazebo.
 - Working Memory owns bounded temporary current/recent evidence, TTL, duplicate
   suppression, temporal ordering, and deterministic eviction. It cannot write
   Memory OS; future durable candidates must still pass Memory Validation.
@@ -122,9 +131,11 @@ replace proxy geometry without duplicating or bypassing frame semantics.
   service is not production runtime authority.
 - Future physical controls remain isolated from higher-level contracts and
   constrained by the Runtime Bridge plus dedicated lower safety systems.
-- Robot description single-owns kinematic frame semantics. RViz and Gazebo
+- Robot description single-owns kinematic and fixed sensor-frame semantics.
+  RViz and Gazebo
   consume that same source; simulation does not maintain a duplicate Ayyo
   model, import cognition, or create an authorization bypass. Control mode has
-  one command interface, while non-control mode remains static and plugin-free.
+  one command interface, while the body IMU is observation-only in both static
+  and controlled simulation.
 - Learning updates remain candidates until evaluation and controlled promotion;
   consolidation does not bypass safety or permissions.

@@ -7,8 +7,8 @@ can mature behind stable boundaries before physical hardware is introduced.
 
 ## Current status
 
-Ayyo has reached the Embodied World Model and Working Memory Foundation v1
-review stage.
+Ayyo has reached the Perception Trust Boundary and Proprioceptive Observation
+Foundation v1 review stage.
 
 Implemented:
 
@@ -38,12 +38,13 @@ Implemented:
   validates an exact service-only endpoint allowlist, emits deterministic
   dispatch-eligibility decisions, and models an unavailable-by-default
   transport boundary without a concrete ROS client or robot execution
-- A modular 35-link, 34-joint canonical Ayyo humanoid frame tree with 18
-  provisional movable joints, deterministic Xacro/URDF validation, isolated
-  proxy geometry, and a machine-readable 33-part final-mesh contract
+- A modular 36-link, 35-joint canonical Ayyo humanoid frame tree with 18
+  provisional movable joints, one fixed body-IMU mount frame, deterministic
+  Xacro/URDF validation, isolated proxy geometry, and a machine-readable
+  33-part final-mesh contract
 - Separate RViz-only and Gazebo Harmonic launch paths using the same
-  authoritative Xacro, plus a static non-actuating simulation spawn and one
-  explicit Gazebo-to-ROS clock bridge
+  authoritative Xacro, plus a static non-actuating simulation spawn and an
+  explicit Gazebo-to-ROS clock/body-IMU bridge allowlist
 - An opt-in Jazzy/Harmonic `gz_ros2_control` path with `AyyoSystem`, an
   authoritative `joint_state_broadcaster`, and one position command interface
   for the URDF-bounded `neck_yaw_joint`; non-control simulation remains static
@@ -59,9 +60,15 @@ Implemented:
 - A standalone deterministic Working Memory with explicit TTL, bounded current
   entities, bounded recent evidence, duplicate suppression, out-of-order and
   future-time rejection, deterministic eviction, and no durable persistence
-- A lifecycle-managed fixed `/joint_states` ROS observation adapter and typed
-  read-only body-state query that distinguish simulation from future physical
-  provenance and learn movement only from observed controller feedback
+- A standalone deterministic Perception Trust Boundary with exact source,
+  sensor, frame, provenance, clock, time-order, fingerprint, and bounded
+  resource admission policy and no ROS/Gazebo/vendor dependency
+- Immutable IMU, body-pose, covariance, quality, health/availability,
+  freshness, and disappearance contracts integrated into Working Memory and
+  World Model without fabricating missing state
+- A lifecycle-managed fixed `/joint_states` and `/ayyo/imu/data` ROS adapter
+  plus typed read-only body-state query; a truthful Harmonic IMU smoke proves
+  actual evidence through the trust boundary while pose remains unavailable
 
 Planned, but not implemented:
 
@@ -69,7 +76,8 @@ Planned, but not implemented:
 - Graphical Ayyo mesh/frame/collision validation
 - Additional commandable joints, trajectory/whole-body control, and validated
   dynamics/contact behavior
-- Physical/environment perception beyond standard joint-state feedback
+- Physical sensor validation, live body localization/TF, diagnostics, and
+  perception beyond standard joint-state and simulated body-IMU feedback
 - Natural-language/model integration and authenticated identity/approval
 - Runtime skill implementations, manipulation, and navigation
 - Production-authorized typed ROS services, runtime scheduling, and resource
@@ -93,6 +101,7 @@ independent of cognition and learned policies. See
 [docs/ROBOT_DESCRIPTION_SIMULATION.md](docs/ROBOT_DESCRIPTION_SIMULATION.md),
 [docs/SIMULATION_CONTROL.md](docs/SIMULATION_CONTROL.md),
 [docs/WORLD_MODEL_WORKING_MEMORY.md](docs/WORLD_MODEL_WORKING_MEMORY.md),
+[docs/PERCEPTION_TRUST_PROPRIOCEPTION.md](docs/PERCEPTION_TRUST_PROPRIOCEPTION.md),
 [docs/AYYO_MESH_IMPORT.md](docs/AYYO_MESH_IMPORT.md), and
 [docs/SAFETY.md](docs/SAFETY.md).
 
@@ -207,10 +216,23 @@ PYTHONPATH=world_model/src:working_memory/src \
 python3 -m unittest discover -s working_memory/tests -v
 ```
 
+Run Perception Trust Boundary tests:
+
+```bash
+PYTHONPATH=world_model/src:perception/src \
+python3 -m unittest discover -s perception/tests -v
+```
+
 Run the embodied feedback integration smoke after building:
 
 ```bash
 ./scripts/smoke_world_model.sh
+```
+
+Run the trusted proprioception integration smoke after building:
+
+```bash
+./scripts/smoke_perception.sh
 ```
 
 ## Repository layout
@@ -226,6 +248,7 @@ skill_manager/  Immutable declarative skill contracts and Safety binding
 runtime_bridge/  Deterministic Skill-to-ROS compatibility and transport boundary
 simulation_control/  Bounded deterministic simulation-control policy and feedback
 world_model/  Transport-neutral embodied/environment observations and snapshots
+perception/  Deterministic sensor/provenance/time admission trust boundary
 working_memory/  Bounded temporary current-state and recent-evidence retention
 ros2_ws/src/   ROS 2 interfaces, description, simulation, Runtime Bridge, and bringup
 scripts/       Local environment, build, and test commands
@@ -236,10 +259,12 @@ The roadmap defines the intended progression. Memory persistence, deterministic
 candidate validation, Personal Context Twin v1, Executive Cognition v1,
 Immutable Safety Kernel v1, Skill Manager v1, controlled ROS Runtime Bridge v1,
 Robot Description & Simulation Foundation v1, and the one-joint Simulation
-Control & Actuation Foundation v1, and Embodied World Model and Working Memory
+Control & Actuation Foundation v1, Embodied World Model and Working Memory
+Foundation v1, and Perception Trust Boundary and Proprioceptive Observation
 Foundation v1 are implemented. Production motion remains
 closed because Safety v1 defers physical movement; only explicit development
-injection can exercise the simulated neck joint. Final Ayyo assets,
+injection can exercise the simulated neck joint. The perception path adds
+evidence only and grants no execution authority. Final Ayyo assets,
 authenticated identity/approval, production runtime services, additional
 controllers, physical-safety subsystems, and physical robot execution remain
 planned.

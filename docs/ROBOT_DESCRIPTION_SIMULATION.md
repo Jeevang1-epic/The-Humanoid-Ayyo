@@ -17,7 +17,7 @@ gains, contact properties, and actuator selections remain design-dependent.
 
 The automated headless smokes have exercised Xacro expansion, URDF validation,
 installed packages, ROS node startup, TF, Gazebo server launch, entity spawn,
-the clock bridge, controller/hardware lifecycle, sole joint-state ownership,
+the clock/IMU bridge, controller/hardware lifecycle, sole joint-state ownership,
 one bounded neck command, feedback, invalid rejection, and shutdown. Controlled
 Gazebo graphical inspection has not been executed and is not claimed as passed.
 
@@ -28,7 +28,7 @@ Gazebo graphical inspection has not been executed and is not claimed as passed.
   macro, RViz configuration, RViz-only launch, and description validator.
 - `ayyo_simulation` owns the Gazebo Harmonic world, static entity-spawn
   default, opt-in control composition, controller configuration, and explicit
-  ROS-Gazebo clock bridge configuration.
+  ROS-Gazebo clock/body-IMU bridge configuration.
 - `ayyo_simulation_control` owns deterministic command/limit/result policy and
   the typed development ROS-to-controller adapter. See
   [SIMULATION_CONTROL.md](SIMULATION_CONTROL.md).
@@ -65,6 +65,7 @@ design verification.
 ```text
 base_link
 └── pelvis_link
+    ├── imu_link
     ├── torso_link
     │   └── chest_link
     │       ├── neck_link
@@ -100,8 +101,11 @@ base_link
                             └── right_foot_link
 ```
 
-The camera frame is a mounting datum only. No camera, sensor plugin,
-perception topic, or perception behavior exists.
+The camera frame is a mounting datum only. No camera, camera sensor plugin,
+or camera perception behavior exists. `imu_link` is a fixed pelvis-mounted
+body-IMU datum; the frame exists for physical transfer, while its sensor exists
+only in simulation expansion and is consumed through the independent
+perception trust boundary.
 
 ## Joint contract
 
@@ -114,6 +118,7 @@ velocity, range, and safety limits require reviewed Ayyo hardware data.
 | Joint | Parent → child | Origin | Axis | Type | Lower / upper (rad) | Effort / velocity | Intended relationship |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | `base_to_pelvis_joint` | `base_link` → `pelvis_link` | `0 0 0` | — | fixed | — | — | Body datum, no actuator |
+| `body_imu_mount_joint` | `pelvis_link` → `imu_link` | `0 0 0.04` | — | fixed | — | — | Reviewed body-IMU mounting datum |
 | `pelvis_to_torso_joint` | `pelvis_link` → `torso_link` | `0 0 0.08` | — | fixed | — | — | V1 rigid spine datum |
 | `torso_to_chest_joint` | `torso_link` → `chest_link` | `0 0 0.18` | — | fixed | — | — | V1 rigid chest datum |
 | `neck_yaw_joint` | `chest_link` → `neck_link` | `0 0 0.20` | `0 0 1` | revolute | `-1.2 / 1.2` | `8 / 1.5` | Provisional neck-yaw actuator |
@@ -200,7 +205,7 @@ ros2 launch ayyo_simulation simulation.launch.py \
 ```
 
 The launch starts Gazebo Harmonic server-only by default, publishes the same
-Xacro description, publishes zero development joint states, bridges the clock,
+Xacro description, publishes zero development joint states, bridges clock/IMU,
 and spawns a static non-actuating entity named `ayyo`. `headless:=false` adds
 the Gazebo graphical client. RViz is intentionally not composed into this
 launch.
@@ -222,14 +227,16 @@ compete with controller-derived `/joint_states`.
 physics configuration, and the Harmonic Physics, UserCommands, and
 SceneBroadcaster systems. It contains no duplicate Ayyo model.
 
-`ros_gz_bridge.yaml` has one allowlisted interface:
+`ros_gz_bridge.yaml` has two one-way allowlisted interfaces:
 
 | Gazebo | ROS 2 | Direction | Reason |
 | --- | --- | --- | --- |
 | `/clock` `gz.msgs.Clock` | `/clock` `rosgraph_msgs/msg/Clock` | Gazebo → ROS | Drive `use_sim_time` for description nodes |
+| `/ayyo/imu/data` `gz.msgs.IMU` | `/ayyo/imu/data` `sensor_msgs/msg/Imu` | Gazebo → ROS | Standard observation-only body IMU |
 
-There is no wildcard bridge, command bridge, joint command, sensor stream,
-service, or action. No Gazebo Classic package, API, or plugin is used.
+There is no wildcard bridge, command bridge, joint command, service, or action.
+The IMU is the only sensor stream. No Gazebo Classic package, API, or plugin is
+used.
 
 ## ros2_control integration
 
@@ -308,7 +315,7 @@ After building, run the complete headless lifecycle smoke:
 ```
 
 The first smoke verifies installed package lookup, description validation,
-nodes, TF, clock bridge, Gazebo entity discovery, and bounded shutdown. The
+nodes, TF, clock/IMU bridge, Gazebo entity discovery, and bounded shutdown. The
 controlled smoke additionally verifies controller/hardware state, exactly one
 claimed command interface, exactly one `/joint_states` publisher, typed bounded
 motion with correlated feedback, out-of-range rejection, and clean adapter
@@ -368,6 +375,7 @@ pass from successful launch.
   its proxy dynamics and contacts are not validated.
 - Only `neck_yaw_joint` is commandable, through development injection. There is
   no trajectory, whole-body, walking, manipulation, or navigation controller.
-- No perception, autonomous walking, physical hardware driver, physical
-  communication, production runtime motion service, or physical-safety system
-  exists.
+- Only joint-state and simulated body-IMU observation are live. No physical
+  sensor, pose/localization, diagnostics, general perception, autonomous
+  walking, physical hardware driver, physical communication, production
+  runtime motion service, or physical-safety system exists.
