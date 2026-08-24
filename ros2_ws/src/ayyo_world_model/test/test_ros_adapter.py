@@ -7,7 +7,7 @@ import importlib.util
 from pathlib import Path
 import xml.etree.ElementTree as ET
 
-from sensor_msgs.msg import JointState
+from sensor_msgs.msg import Imu, JointState
 
 
 PACKAGE_ROOT = Path(__file__).resolve().parents[1]
@@ -45,6 +45,12 @@ def test_read_only_service_contract_is_bounded_and_typed() -> None:
         'uint8[] joint_freshness',
         'string[] joint_observation_ids',
         'uint32 recent_evidence_count',
+        'string[] sensor_ids',
+        'bool has_imu',
+        'float64[] imu_orientation_xyzw',
+        'bool has_imu_orientation_covariance',
+        'uint8 base_pose_availability',
+        'uint32 perception_rejected_count',
     ):
         assert field in interface
     assert interface.count('---') == 1
@@ -71,7 +77,7 @@ def test_adapter_uses_managed_lifecycle_and_no_background_polling() -> None:
     assert source.index('trigger_cleanup') < source.index('destroy_node()')
 
 
-def test_adapter_subscribes_only_to_fixed_standard_joint_state_interface() -> None:
+def test_adapter_subscribes_only_to_fixed_standard_proprioceptive_interfaces() -> None:
     source = script_source('world_model_node.py')
     tree = ast.parse(source)
     assignments = {
@@ -84,9 +90,12 @@ def test_adapter_subscribes_only_to_fixed_standard_joint_state_interface() -> No
         and isinstance(node.value.value, str)
     }
     assert assignments['JOINT_STATE_TOPIC'] == '/joint_states'
+    assert assignments['IMU_TOPIC'] == '/ayyo/imu/data'
     assert assignments['QUERY_SERVICE'] == '/ayyo/world_model/get_robot_body_state'
     assert 'create_subscription(' in source
     assert 'JOINT_STATE_TOPIC' in source
+    assert 'IMU_TOPIC' in source
+    assert 'qos_profile_sensor_data' in source
     assert 'get_topic_names_and_types' not in source
     assert "declare_parameter('topic'" not in source
     assert 'eval(' not in source
@@ -129,6 +138,85 @@ def test_malformed_joint_state_shapes_fail_before_working_memory() -> None:
         raise AssertionError('malformed standard joint state was normalized')
 
 
+def test_standard_imu_normalization_preserves_ros_unavailable_and_unknown_semantics() -> None:
+    module = adapter_module()
+    message = Imu()
+    message.header.stamp.sec = 2
+    message.header.stamp.nanosec = 3
+    message.header.frame_id = 'imu_link'
+    message.orientation.w = 1.0
+    message.angular_velocity.x = 0.1
+    message.linear_acceleration.z = 9.81
+    observation = module.normalize_imu(
+        message,
+        module.IMU_SOURCE_PROFILES[module.SIMULATION_SOURCE_PROFILE],
+    )
+    assert observation.observed_at_ns == 2_000_000_003
+    assert observation.sensor == module.IMU_SENSOR
+    assert observation.orientation_xyzw == (0.0, 0.0, 0.0, 1.0)
+    assert observation.orientation_covariance is None
+    assert observation.angular_velocity_covariance is None
+    assert observation.quality is None
+
+    message.orientation_covariance[0] = -1.0
+    unavailable_orientation = module.normalize_imu(
+        message,
+        module.IMU_SOURCE_PROFILES[module.SIMULATION_SOURCE_PROFILE],
+    )
+    assert unavailable_orientation.orientation_xyzw is None
+    assert unavailable_orientation.orientation_covariance is None
+
+
+def test_malformed_imu_frame_numbers_and_covariance_fail_before_admission() -> None:
+    module = adapter_module()
+    provenance = module.IMU_SOURCE_PROFILES[module.SIMULATION_SOURCE_PROFILE]
+    message = Imu()
+    message.header.frame_id = 'other_imu_link'
+    message.orientation.w = 1.0
+    try:
+        module.normalize_imu(message, provenance)
+    except ValueError as error:
+        assert 'frame identity' in str(error)
+    else:
+        raise AssertionError('wrong IMU frame was normalized')
+
+    message.header.frame_id = 'imu_link'
+    message.angular_velocity.x = float('nan')
+    try:
+        module.normalize_imu(message, provenance)
+    except module.WorldModelValidationError:
+        pass
+    else:
+        raise AssertionError('non-finite IMU evidence was normalized')
+
+    message.angular_velocity.x = 0.0
+    message.orientation_covariance[0] = -0.1
+    try:
+        module.normalize_imu(message, provenance)
+    except module.WorldModelValidationError as error:
+        assert error.code.value == 'malformed_covariance'
+    else:
+        raise AssertionError('negative IMU variance was normalized')
+
+
+def test_all_explicitly_unavailable_imu_fields_do_not_create_measurement() -> None:
+    module = adapter_module()
+    message = Imu()
+    message.header.frame_id = 'imu_link'
+    message.orientation_covariance[0] = -1.0
+    message.angular_velocity_covariance[0] = -1.0
+    message.linear_acceleration_covariance[0] = -1.0
+    try:
+        module.normalize_imu(
+            message,
+            module.IMU_SOURCE_PROFILES[module.SIMULATION_SOURCE_PROFILE],
+        )
+    except module.WorldModelValidationError as error:
+        assert 'at least one supplied estimate' in error.detail
+    else:
+        raise AssertionError('fully unavailable IMU became a measurement')
+
+
 def test_simulation_and_physical_profiles_cannot_masquerade_as_each_other() -> None:
     source = script_source('world_model_node.py')
     for expected in (
@@ -157,16 +245,21 @@ def test_adapter_learns_only_from_observation_not_control_request() -> None:
         assert forbidden not in source
     assert 'RobotStateObservation' in source
     assert 'JointState' in source
+    assert 'ImuObservation' in source
+    assert 'PerceptionTrustBoundary' in source
+    assert '_admit_and_retain(observation)' in source
 
 
 def test_wrapper_installs_single_owned_core_packages_and_fixed_clients() -> None:
     cmake = (PACKAGE_ROOT / 'CMakeLists.txt').read_text(encoding='utf-8')
     assert '../../../world_model/src/ayyo_world_model' in cmake
     assert '../../../working_memory/src/ayyo_working_memory' in cmake
+    assert '../../../perception/src/ayyo_perception' in cmake
     assert 'scripts/world_model_node.py' in cmake
     assert 'scripts/body_state_query.py' in cmake
     assert not (PACKAGE_ROOT / 'ayyo_world_model').exists()
     assert not (PACKAGE_ROOT / 'ayyo_working_memory').exists()
+    assert not (PACKAGE_ROOT / 'ayyo_perception').exists()
 
 
 def test_ros_dependency_boundary_has_no_cognition_or_durable_memory() -> None:

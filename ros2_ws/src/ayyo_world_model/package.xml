@@ -2,7 +2,7 @@
 <package format="3">
   <name>ayyo_world_model</name>
   <version>0.1.0</version>
-  <description>Lifecycle-managed ROS body-state observation boundary for Ayyo.</description>
+  <description>Lifecycle-managed ROS proprioceptive perception boundary for Ayyo.</description>
   <maintainer email="jeevan116p@gmail.com">P. Jeevan Kumar</maintainer>
   <license>Proprietary</license>
 

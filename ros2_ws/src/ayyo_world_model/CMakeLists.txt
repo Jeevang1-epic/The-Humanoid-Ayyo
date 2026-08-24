@@ -12,6 +12,10 @@ ament_python_install_package(
   ayyo_working_memory
   PACKAGE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../../working_memory/src/ayyo_working_memory"
 )
+ament_python_install_package(
+  ayyo_perception
+  PACKAGE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../../perception/src/ayyo_perception"
+)
 
 install(
   PROGRAMS

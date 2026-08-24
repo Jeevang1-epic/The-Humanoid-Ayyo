@@ -38,8 +38,46 @@ def main() -> None:
         if not future.done() or future.cancelled() or future.exception() is not None:
             raise RuntimeError('World Model query did not complete within its bound')
         response = future.result()
+        imu_orientation = (
+            list(response.imu_orientation_xyzw)
+            if response.has_imu_orientation
+            else None
+        )
+        imu_angular_velocity = (
+            list(response.imu_angular_velocity_xyz)
+            if response.has_imu_angular_velocity
+            else None
+        )
+        imu_linear_acceleration = (
+            list(response.imu_linear_acceleration_xyz)
+            if response.has_imu_linear_acceleration
+            else None
+        )
         result = {
             'availability': response.availability,
+            'base_pose': (
+                {
+                    'availability': response.base_pose_availability,
+                    'covariance': (
+                        list(response.base_pose_covariance)
+                        if response.has_base_pose_covariance
+                        else None
+                    ),
+                    'observation_fingerprint': (
+                        response.base_pose_observation_fingerprint
+                    ),
+                    'observation_id': response.base_pose_observation_id,
+                    'observed_at_ns': _nanoseconds(response.base_pose_observed_at),
+                    'orientation_xyzw': list(response.base_pose_orientation_xyzw),
+                    'sensor_id': response.base_pose_sensor_id,
+                    'source_frame_id': response.base_pose_source_frame_id,
+                    'target_frame_id': response.base_pose_target_frame_id,
+                    'translation_xyz': list(response.base_pose_translation_xyz),
+                }
+                if response.has_base_pose
+                else None
+            ),
+            'base_pose_availability': response.base_pose_availability,
             'detail': response.detail,
             'environment_entity_count': response.environment_entity_count,
             'joint_confidence': list(response.joint_confidence),
@@ -50,10 +88,65 @@ def main() -> None:
                 _nanoseconds(value) for value in response.joint_observed_at
             ],
             'known_joint_count': response.known_joint_count,
+            'imu': (
+                {
+                    'angular_velocity_covariance': (
+                        list(response.imu_angular_velocity_covariance)
+                        if response.has_imu_angular_velocity_covariance
+                        else None
+                    ),
+                    'angular_velocity_xyz': imu_angular_velocity,
+                    'availability': response.imu_availability,
+                    'frame_id': response.imu_frame_id,
+                    'freshness': response.imu_freshness,
+                    'linear_acceleration_covariance': (
+                        list(response.imu_linear_acceleration_covariance)
+                        if response.has_imu_linear_acceleration_covariance
+                        else None
+                    ),
+                    'linear_acceleration_xyz': imu_linear_acceleration,
+                    'observation_fingerprint': response.imu_observation_fingerprint,
+                    'observation_id': response.imu_observation_id,
+                    'observed_at_ns': _nanoseconds(response.imu_observed_at),
+                    'orientation_covariance': (
+                        list(response.imu_orientation_covariance)
+                        if response.has_imu_orientation_covariance
+                        else None
+                    ),
+                    'orientation_xyzw': imu_orientation,
+                    'quality': response.imu_quality if response.has_imu_quality else None,
+                    'sensor_id': response.imu_sensor_id,
+                    'source_clock': response.imu_source_clock,
+                    'source_id': response.imu_source_id,
+                    'source_interface': response.imu_source_interface,
+                    'source_kind': response.imu_source_kind,
+                    'source_transport': response.imu_source_transport,
+                }
+                if response.has_imu
+                else None
+            ),
             'positions': list(response.positions),
+            'perception_accepted_count': response.perception_accepted_count,
+            'perception_duplicate_count': response.perception_duplicate_count,
+            'perception_rejected_count': response.perception_rejected_count,
             'queried_at_ns': _nanoseconds(response.queried_at),
             'recent_evidence_count': response.recent_evidence_count,
             'robot_id': response.robot_id,
+            'sensors': [
+                {
+                    'availability': availability,
+                    'frame_id': frame_id,
+                    'kind': kind,
+                    'sensor_id': sensor_id,
+                }
+                for sensor_id, kind, frame_id, availability in zip(
+                    response.sensor_ids,
+                    response.sensor_kinds,
+                    response.sensor_frame_ids,
+                    response.sensor_availability,
+                    strict=True,
+                )
+            ],
             'snapshot_fingerprint': response.snapshot_fingerprint,
             'snapshot_id': response.snapshot_id,
             'source_clock': response.source_clock,
