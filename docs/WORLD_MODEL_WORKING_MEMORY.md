@@ -202,6 +202,8 @@ bound and disappears after TTL. A duplicate cannot refresh either interval.
 Source-clock regression raises a typed error. The ROS adapter responds by
 discarding all temporary state and starting a new evidence epoch; it never
 compares simulation time to wall time or retains future state across a reset.
+Monotonic receipt time is also required not to regress within one Working Memory
+epoch; impossible ordering is rejected rather than hidden.
 
 Publisher disappearance requires no timer: the next read evaluates source time,
 expires old evidence, and reports not ready. Adapter restart begins empty.
@@ -235,6 +237,12 @@ unique observations, and reference slots stay within configured caps. A
 `tracemalloc` test measures 2,000 compact updates and enforces current traced
 memory below 2 MB and peak below 8 MB. These are development-machine bounds,
 not a compatibility claim for a specific Raspberry Pi or Jetson model.
+
+An explicit review run using the current authoritative 18-joint catalog and
+5,000 full joint batches at a simulated 100 Hz retained 201 unique batches
+(the 2-second TTL boundary), 18 current-joint references, 219 total observation
+references, 745,212 current traced bytes, and a 756,679-byte traced peak. This
+measurement excludes the Python interpreter, ROS middleware, and Gazebo.
 
 ## Read-only query surfaces
 
