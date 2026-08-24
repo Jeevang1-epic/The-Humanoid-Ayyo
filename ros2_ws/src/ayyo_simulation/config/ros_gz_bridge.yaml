@@ -6,3 +6,11 @@
   lazy: false
   publisher_queue: 10
   subscriber_queue: 10
+- ros_topic_name: /ayyo/imu/data
+  gz_topic_name: /ayyo/imu/data
+  ros_type_name: sensor_msgs/msg/Imu
+  gz_type_name: gz.msgs.IMU
+  direction: GZ_TO_ROS
+  lazy: false
+  publisher_queue: 10
+  subscriber_queue: 10

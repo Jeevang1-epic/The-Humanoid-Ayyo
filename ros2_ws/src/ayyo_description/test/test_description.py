@@ -45,7 +45,7 @@ def test_complete_validation_command_passes() -> None:
     )
     assert result.returncode == 0, result.stderr
     assert result.stdout == (
-        'PASS: Ayyo description (35 links, 34 joints, 18 movable, '
+        'PASS: Ayyo description (36 links, 35 joints, 18 movable, '
         '33 mesh contracts)\n'
     )
 
@@ -56,7 +56,7 @@ def test_default_expansion_is_byte_deterministic() -> None:
 
 
 def test_canonical_topology(proxy_robot: ET.Element) -> None:
-    assert validate_tree(proxy_robot) == (35, 34, 18)
+    assert validate_tree(proxy_robot) == (36, 35, 18)
 
 
 def test_expected_major_frames_are_present(proxy_robot: ET.Element) -> None:
@@ -126,7 +126,7 @@ def test_mesh_mode_exactly_matches_manifest() -> None:
     assert robot.find('.//visual/material') is None
 
 
-def test_simulation_mode_is_static_and_plugin_free() -> None:
+def test_simulation_mode_is_static_and_plugin_free(proxy_robot: ET.Element) -> None:
     robot = parse_robot(
         expand_xacro(
             PACKAGE_ROOT / 'urdf' / 'ayyo.urdf.xacro',
@@ -136,6 +136,13 @@ def test_simulation_mode_is_static_and_plugin_free() -> None:
     assert robot.findtext('./gazebo/static') == 'true'
     assert robot.find('.//plugin') is None
     assert robot.find('ros2_control') is None
+    sensor = robot.find("./gazebo[@reference='imu_link']/sensor[@type='imu']")
+    assert sensor is not None
+    assert sensor.get('name') == 'body_imu'
+    assert sensor.findtext('topic') == '/ayyo/imu/data'
+    assert sensor.findtext('gz_frame_id') == 'imu_link'
+    assert sensor.findtext('update_rate') == '100'
+    assert proxy_robot.find('.//sensor') is None
 
 
 def test_ros2_control_contract_is_dormant_and_complete(proxy_robot: ET.Element) -> None:
@@ -242,7 +249,7 @@ def test_owned_python_sources_retain_project_copyright() -> None:
 
 
 def test_validation_api_reports_expected_counts() -> None:
-    assert validate_package(PACKAGE_ROOT) == (35, 34, 18, 33)
+    assert validate_package(PACKAGE_ROOT) == (36, 35, 18, 33)
 
 
 def test_rviz_launch_has_only_description_display_nodes() -> None:

@@ -67,6 +67,7 @@ def test_world_has_only_required_harmonic_systems() -> None:
         ('gz-sim-physics-system', 'gz::sim::systems::Physics'),
         ('gz-sim-scene-broadcaster-system', 'gz::sim::systems::SceneBroadcaster'),
         ('gz-sim-user-commands-system', 'gz::sim::systems::UserCommands'),
+        ('gz-sim-imu-system', 'gz::sim::systems::Imu'),
     }
 
 
@@ -83,7 +84,7 @@ def test_no_gazebo_classic_api_is_present() -> None:
         assert forbidden not in source_text
 
 
-def test_bridge_allowlist_contains_only_simulation_clock() -> None:
+def test_bridge_allowlist_contains_only_clock_and_body_imu() -> None:
     config = yaml.safe_load(
         (PACKAGE_ROOT / 'config' / 'ros_gz_bridge.yaml').read_text(
             encoding='utf-8'
@@ -99,7 +100,17 @@ def test_bridge_allowlist_contains_only_simulation_clock() -> None:
             'lazy': False,
             'publisher_queue': 10,
             'subscriber_queue': 10,
-        }
+        },
+        {
+            'ros_topic_name': '/ayyo/imu/data',
+            'gz_topic_name': '/ayyo/imu/data',
+            'ros_type_name': 'sensor_msgs/msg/Imu',
+            'gz_type_name': 'gz.msgs.IMU',
+            'direction': 'GZ_TO_ROS',
+            'lazy': False,
+            'publisher_queue': 10,
+            'subscriber_queue': 10,
+        },
     ]
 
 

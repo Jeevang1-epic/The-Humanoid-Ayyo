@@ -10,6 +10,11 @@
     <xacro:ayyo_fixed_joint name="base_to_pelvis_joint"
       parent="base_link" child="pelvis_link" xyz="0 0 0" rpy="0 0 0"/>
 
+    <!-- Fixed physical body-IMU mounting datum; the sensor exists only in simulation mode. -->
+    <xacro:ayyo_frame_link name="imu_link"/>
+    <xacro:ayyo_fixed_joint name="body_imu_mount_joint"
+      parent="pelvis_link" child="imu_link" xyz="0 0 0.04" rpy="0 0 0"/>
+
     <xacro:ayyo_box_link name="torso_link" sx="0.27" sy="0.18" sz="0.18"
       ox="0" oy="0" oz="0.09" mass="3.0" material="ayyo_charcoal"
       mesh_name="torso" use_meshes="${use_meshes}"/>

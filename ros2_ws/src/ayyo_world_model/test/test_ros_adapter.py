@@ -322,6 +322,26 @@ def test_integration_smoke_proves_feedback_identity_and_clean_shutdown() -> None
     assert (REPOSITORY_ROOT / 'scripts' / 'smoke_world_model.sh').stat().st_mode & 0o111
 
 
+def test_perception_smoke_proves_actual_imu_trust_path_and_lifecycle() -> None:
+    path = REPOSITORY_ROOT / 'scripts' / 'smoke_perception.sh'
+    source = path.read_text(encoding='utf-8')
+    for expected in (
+        'enable_world_model:=true',
+        'ros2 lifecycle get /ayyo_world_model',
+        'body_state_query.py',
+        'ayyo.imu.body.v1',
+        'imu_link',
+        'ros_simulation_time',
+        'base_pose_availability',
+        'ros2 lifecycle set /ayyo_world_model deactivate',
+        'ros2 lifecycle set /ayyo_world_model activate',
+        'kill -INT',
+    ):
+        assert expected in source
+    assert 'ros2 topic pub' not in source
+    assert path.stat().st_mode & 0o111
+
+
 def test_owned_sources_retain_project_copyright() -> None:
     for relative in (
         'scripts/body_state_query.py',

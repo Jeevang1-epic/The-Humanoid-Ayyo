@@ -24,6 +24,7 @@ EXPECTED_MAJOR_FRAMES = frozenset(
         'neck_link',
         'head_link',
         'head_camera_frame',
+        'imu_link',
         'left_shoulder_mount_link',
         'left_upper_arm_link',
         'left_elbow_link',
@@ -297,6 +298,17 @@ def validate_package(package_root: Path) -> tuple[int, int, int, int]:
         raise DescriptionValidationError('foundation description must not load plugins')
     if simulation_robot.find('ros2_control') is not None:
         raise DescriptionValidationError('foundation description must not activate ros2_control')
+    sensors = simulation_robot.findall("./gazebo/sensor[@type='imu']")
+    if len(sensors) != 1:
+        raise DescriptionValidationError('simulation must contain exactly one body IMU')
+    imu = sensors[0]
+    if (
+        imu.get('name') != 'body_imu'
+        or imu.findtext('topic') != '/ayyo/imu/data'
+        or imu.findtext('gz_frame_id') != 'imu_link'
+        or imu.findtext('update_rate') != '100'
+    ):
+        raise DescriptionValidationError('simulation IMU contract is incomplete')
 
     controlled_robot = parse_robot(
         expand_xacro(
