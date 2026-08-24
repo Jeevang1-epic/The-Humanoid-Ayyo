@@ -282,6 +282,41 @@ class CovarianceMatrix:
                         WorldModelFailureCode.MALFORMED_COVARIANCE,
                         "covariance matrix must be symmetric",
                     )
+        # A covariance must be positive semidefinite. A bounded LDLᵀ check is
+        # dependency-free and accepts zero-variance axes only when their
+        # remaining coupled residual is also zero within numerical tolerance.
+        scale = max(1.0, *(abs(value) for value in values))
+        tolerance = 1e-12 * scale
+        lower = [[0.0] * self.dimension for _ in range(self.dimension)]
+        diagonal = [0.0] * self.dimension
+        for row in range(self.dimension):
+            lower[row][row] = 1.0
+            for column in range(row):
+                residual = values[row * self.dimension + column] - sum(
+                    lower[row][index]
+                    * diagonal[index]
+                    * lower[column][index]
+                    for index in range(column)
+                )
+                if abs(diagonal[column]) <= tolerance:
+                    if abs(residual) > tolerance:
+                        _invalid(
+                            WorldModelFailureCode.MALFORMED_COVARIANCE,
+                            "covariance matrix is not positive semidefinite",
+                        )
+                    lower[row][column] = 0.0
+                else:
+                    lower[row][column] = residual / diagonal[column]
+            pivot = values[row * self.dimension + row] - sum(
+                lower[row][index] ** 2 * diagonal[index]
+                for index in range(row)
+            )
+            if pivot < -tolerance:
+                _invalid(
+                    WorldModelFailureCode.MALFORMED_COVARIANCE,
+                    "covariance matrix is not positive semidefinite",
+                )
+            diagonal[row] = 0.0 if abs(pivot) <= tolerance else pivot
         object.__setattr__(self, "values", values)
 
     def document(self) -> dict[str, JSONValue]:

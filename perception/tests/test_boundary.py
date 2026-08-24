@@ -7,6 +7,7 @@ from ayyo_perception import (
     AdmissionStatus,
     EvidenceFailureKind,
     PerceptionClockRegressionError,
+    PerceptionConfigurationError,
     PerceptionSourceContract,
     PerceptionTrustBoundary,
     PerceptionTrustConfig,
@@ -234,6 +235,29 @@ class PerceptionTrustBoundaryTest(unittest.TestCase):
             trust.stats().rejected_count,
         ))
         self.assertEqual(AdmissionStatus.ACCEPTED, self.admit(trust, imu()).status)
+
+    def test_source_policy_rejects_malformed_frames_and_oversized_registries(self) -> None:
+        with self.assertRaises(PerceptionConfigurationError):
+            PerceptionSourceContract(POSE_SENSOR, POSE_PROVENANCE, 'bad frame')
+        sources = tuple(
+            PerceptionSourceContract(
+                SensorIdentity(f'ayyo.imu.{index}.v1', SensorKind.IMU, 'imu_link'),
+                ObservationProvenance(
+                    ObservationSourceKind.TEST_FIXTURE,
+                    f'test.imu.{index}.v1',
+                    ObservationClock.TEST_TIME,
+                    ObservationTransport.DIRECT,
+                    'direct.imu.v1',
+                ),
+            )
+            for index in range(33)
+        )
+        with self.assertRaises(PerceptionConfigurationError):
+            PerceptionTrustConfig(
+                robot_id=AYYO_ROBOT_ID,
+                source_clock=ObservationClock.TEST_TIME,
+                sources=sources,
+            )
 
 
 if __name__ == "__main__":

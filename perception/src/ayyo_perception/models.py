@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import StrEnum
+import re
 
 from ayyo_world_model import (
     MAX_OBSERVATION_TIME_NS,
@@ -20,6 +21,7 @@ from .errors import PerceptionConfigurationError
 
 MAX_PERCEPTION_SOURCES = 32
 MAX_PERCEPTION_RETENTION_NS = 300_000_000_000
+_FRAME = re.compile(r"^[A-Za-z][A-Za-z0-9_/-]*$")
 
 
 class AdmissionStatus(StrEnum):
@@ -73,6 +75,9 @@ class PerceptionSourceContract:
                 or not self.pose_source_frame_id
                 or self.pose_source_frame_id != self.pose_source_frame_id.strip()
                 or len(self.pose_source_frame_id) > 256
+                or _FRAME.fullmatch(self.pose_source_frame_id) is None
+                or "//" in self.pose_source_frame_id
+                or self.pose_source_frame_id.endswith("/")
             ):
                 raise PerceptionConfigurationError(
                     "body-pose source requires one reviewed source frame"
