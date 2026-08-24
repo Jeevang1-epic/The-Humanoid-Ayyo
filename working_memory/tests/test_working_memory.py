@@ -236,6 +236,18 @@ class WorkingMemoryTest(unittest.TestCase):
         self.assertEqual(12345, retained.received_at_monotonic_ns)
         self.assertEqual(observation.observation_id, retained.observation.observation_id)
 
+    def test_impossible_monotonic_receipt_order_is_rejected(self) -> None:
+        store = memory()
+        self.ingest(store, robot_observation(time=90), now=100, receipt=10)
+        result = self.ingest(
+            store,
+            robot_observation(time=100, position=0.2),
+            now=100,
+            receipt=9,
+        )
+        self.assertEqual(IngestionReason.RECEIPT_TIME_REGRESSION, result.reason)
+        self.assertEqual(0.1, store.get_robot_state(now_ns=100).joints[0].joint.position)
+
 
 if __name__ == "__main__":
     unittest.main()

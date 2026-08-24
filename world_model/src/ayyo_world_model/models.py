@@ -21,6 +21,7 @@ WORLD_MODEL_SCHEMA_VERSION = 1
 AYYO_ROBOT_ID = "ayyo.robot.v1"
 MAX_OBSERVATION_ITEMS = 128
 MAX_ENVIRONMENT_ENTITIES = 256
+MAX_OBSERVATION_TIME_NS = (1 << 63) - 1
 
 _IDENTIFIER = re.compile(r"^[a-z0-9]+(?:[._-][a-z0-9]+)*$")
 _FRAME = re.compile(r"^[A-Za-z][A-Za-z0-9_/-]*$")
@@ -367,7 +368,10 @@ class RobotStateObservation:
                 WorldModelFailureCode.MALFORMED_OBSERVATION,
                 "base_pose must be a Pose3D when provided",
             )
-        if type(observed_at_ns) is not int or observed_at_ns < 0:
+        if (
+            type(observed_at_ns) is not int
+            or not 0 <= observed_at_ns <= MAX_OBSERVATION_TIME_NS
+        ):
             _invalid(
                 WorldModelFailureCode.MALFORMED_OBSERVATION,
                 "observed_at_ns must be non-negative integer source time",
@@ -457,7 +461,10 @@ class EnvironmentEntityObservation:
                 WorldModelFailureCode.MALFORMED_OBSERVATION,
                 "environment observation must contain bounded evidence",
             )
-        if type(observed_at_ns) is not int or observed_at_ns < 0:
+        if (
+            type(observed_at_ns) is not int
+            or not 0 <= observed_at_ns <= MAX_OBSERVATION_TIME_NS
+        ):
             _invalid(
                 WorldModelFailureCode.MALFORMED_OBSERVATION,
                 "observed_at_ns must be non-negative integer source time",
@@ -571,7 +578,10 @@ class ObservedJointState:
     def __post_init__(self) -> None:
         if type(self.joint) is not JointObservation:
             _invalid(WorldModelFailureCode.SNAPSHOT_INVARIANT, "joint state is untyped")
-        if type(self.observed_at_ns) is not int or self.observed_at_ns < 0:
+        if (
+            type(self.observed_at_ns) is not int
+            or not 0 <= self.observed_at_ns <= MAX_OBSERVATION_TIME_NS
+        ):
             _invalid(WorldModelFailureCode.SNAPSHOT_INVARIANT, "joint time is invalid")
         if type(self.provenance) is not ObservationProvenance:
             _invalid(WorldModelFailureCode.SNAPSHOT_INVARIANT, "joint provenance is invalid")
@@ -617,7 +627,10 @@ class ObservedPoseState:
     def __post_init__(self) -> None:
         if type(self.pose) is not Pose3D:
             _invalid(WorldModelFailureCode.SNAPSHOT_INVARIANT, "pose state is untyped")
-        if type(self.observed_at_ns) is not int or self.observed_at_ns < 0:
+        if (
+            type(self.observed_at_ns) is not int
+            or not 0 <= self.observed_at_ns <= MAX_OBSERVATION_TIME_NS
+        ):
             _invalid(WorldModelFailureCode.SNAPSHOT_INVARIANT, "pose time is invalid")
         if type(self.provenance) is not ObservationProvenance:
             _invalid(WorldModelFailureCode.SNAPSHOT_INVARIANT, "pose provenance is invalid")
@@ -726,7 +739,10 @@ class WorldEntity:
             _invalid(WorldModelFailureCode.SNAPSHOT_INVARIANT, "entity identity is invalid")
         if pose is not None and type(pose) is not Pose3D:
             _invalid(WorldModelFailureCode.SNAPSHOT_INVARIANT, "entity pose is invalid")
-        if type(observed_at_ns) is not int or observed_at_ns < 0:
+        if (
+            type(observed_at_ns) is not int
+            or not 0 <= observed_at_ns <= MAX_OBSERVATION_TIME_NS
+        ):
             _invalid(WorldModelFailureCode.SNAPSHOT_INVARIANT, "entity time is invalid")
         if type(provenance) is not ObservationProvenance:
             _invalid(WorldModelFailureCode.SNAPSHOT_INVARIANT, "entity provenance is invalid")
@@ -800,7 +816,10 @@ class WorldSnapshot:
         snapshot_id: str | None = None,
         version: WorldModelVersion | None = None,
     ) -> None:
-        if type(captured_at_ns) is not int or captured_at_ns < 0:
+        if (
+            type(captured_at_ns) is not int
+            or not 0 <= captured_at_ns <= MAX_OBSERVATION_TIME_NS
+        ):
             _invalid(WorldModelFailureCode.SNAPSHOT_INVARIANT, "snapshot time is invalid")
         if type(robot) is not RobotBodyState:
             _invalid(WorldModelFailureCode.SNAPSHOT_INVARIANT, "snapshot robot state is invalid")

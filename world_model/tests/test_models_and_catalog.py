@@ -99,6 +99,8 @@ class ModelsAndCatalogTest(unittest.TestCase):
                 )
             )
         with self.assertRaises(WorldModelValidationError):
+            self.robot_observation(observed_at_ns=1 << 63)
+        with self.assertRaises(WorldModelValidationError):
             self.robot_observation(
                 joints=tuple(
                     JointObservation(f"joint_{index}", 0.0) for index in range(129)

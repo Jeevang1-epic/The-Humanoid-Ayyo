@@ -6,6 +6,7 @@ from threading import RLock
 
 from ayyo_world_model import (
     EnvironmentEntityObservation,
+    MAX_OBSERVATION_TIME_NS,
     RobotJointCatalog,
     RobotStateObservation,
     WorldEntity,
@@ -57,6 +58,7 @@ class WorkingMemory:
         "_eviction_count",
         "_joint_evidence",
         "_last_now_ns",
+        "_last_receipt_monotonic_ns",
         "_lock",
         "_pose_evidence",
         "_projector",
@@ -83,6 +85,7 @@ class WorkingMemory:
         self._entity_evidence: dict[str, EnvironmentEntityObservation] = {}
         self._recent: list[EvidenceEnvelope] = []
         self._last_now_ns: int | None = None
+        self._last_receipt_monotonic_ns: int | None = None
         self._accepted_count = 0
         self._duplicate_count = 0
         self._rejected_count = 0
@@ -101,13 +104,17 @@ class WorkingMemory:
             self._entity_evidence.clear()
             self._recent.clear()
             self._last_now_ns = None
+            self._last_receipt_monotonic_ns = None
             self._accepted_count = 0
             self._duplicate_count = 0
             self._rejected_count = 0
             self._eviction_count = 0
 
     def _advance_time(self, now_ns: int) -> None:
-        if type(now_ns) is not int or now_ns < 0:
+        if (
+            type(now_ns) is not int
+            or not 0 <= now_ns <= MAX_OBSERVATION_TIME_NS
+        ):
             raise WorkingMemoryConfigurationError(
                 "Working Memory requires non-negative integer source time"
             )
@@ -181,6 +188,16 @@ class WorkingMemory:
         )
         with self._lock:
             self._advance_time(now_ns)
+            if (
+                self._last_receipt_monotonic_ns is not None
+                and received_at_monotonic_ns < self._last_receipt_monotonic_ns
+            ):
+                return self._reject(
+                    rebuilt.observation_id,
+                    IngestionReason.RECEIPT_TIME_REGRESSION,
+                    "monotonic receipt time regressed",
+                )
+            self._last_receipt_monotonic_ns = received_at_monotonic_ns
             if rebuilt.robot_id != self._config.robot_id:
                 return self._reject(
                     rebuilt.observation_id,

@@ -32,6 +32,7 @@ class IngestionReason(StrEnum):
     ACCEPTED_REPLACEMENT = "accepted_replacement"
     DUPLICATE_OBSERVATION = "duplicate_observation"
     OLDER_OBSERVATION = "older_observation"
+    RECEIPT_TIME_REGRESSION = "receipt_time_regression"
     TEMPORAL_CONFLICT = "temporal_conflict"
     FUTURE_OBSERVATION = "future_observation"
     EXPIRED_OBSERVATION = "expired_observation"
@@ -130,7 +131,10 @@ class EvidenceEnvelope:
 
     def __post_init__(self) -> None:
         rebuilt = rebuild_observation(self.observation)
-        if type(self.received_at_monotonic_ns) is not int or self.received_at_monotonic_ns < 0:
+        if (
+            type(self.received_at_monotonic_ns) is not int
+            or not 0 <= self.received_at_monotonic_ns <= (1 << 63) - 1
+        ):
             raise WorkingMemoryConfigurationError(
                 "receipt time must be non-negative monotonic nanoseconds"
             )
