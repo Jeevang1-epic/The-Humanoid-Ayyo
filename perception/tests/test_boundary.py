@@ -144,7 +144,7 @@ class PerceptionTrustBoundaryTest(unittest.TestCase):
         valid = BodyPoseObservation(
             robot_id=AYYO_ROBOT_ID,
             sensor=POSE_SENSOR,
-            pose=Pose3D("map", "base_link", (1.0, 2.0, 3.0), (0.0, 0.0, 0.0, 1.0)),
+            pose=Pose3D("odom", "base_link", (1.0, 2.0, 3.0), (0.0, 0.0, 0.0, 1.0)),
             observed_at_ns=100,
             provenance=POSE_PROVENANCE,
             availability=SensorAvailability.AVAILABLE,
@@ -154,7 +154,7 @@ class PerceptionTrustBoundaryTest(unittest.TestCase):
         wrong_source = BodyPoseObservation(
             robot_id=AYYO_ROBOT_ID,
             sensor=POSE_SENSOR,
-            pose=Pose3D("odom", "base_link", (1.0, 2.0, 3.0), (0.0, 0.0, 0.0, 1.0)),
+            pose=Pose3D("map", "base_link", (1.0, 2.0, 3.0), (0.0, 0.0, 0.0, 1.0)),
             observed_at_ns=101,
             provenance=POSE_PROVENANCE,
             availability=SensorAvailability.AVAILABLE,

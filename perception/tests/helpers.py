@@ -59,7 +59,7 @@ def config(*, freshness=50, ttl=100, future=5) -> PerceptionTrustConfig:
         sources=(
             PerceptionSourceContract(JOINT_SENSOR, JOINT_PROVENANCE),
             PerceptionSourceContract(IMU_SENSOR, IMU_PROVENANCE),
-            PerceptionSourceContract(POSE_SENSOR, POSE_PROVENANCE, "map"),
+            PerceptionSourceContract(POSE_SENSOR, POSE_PROVENANCE, "odom"),
         ),
         freshness_ns=freshness,
         retention_ttl_ns=ttl,

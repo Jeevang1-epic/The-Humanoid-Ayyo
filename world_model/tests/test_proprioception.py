@@ -152,19 +152,19 @@ class ProprioceptionContractTest(unittest.TestCase):
         observation = BodyPoseObservation(
             robot_id=AYYO_ROBOT_ID,
             sensor=POSE_SENSOR,
-            pose=Pose3D("map", "base_link", (1.0, 2.0, 3.0), (0.0, 0.0, 0.0, 1.0)),
+            pose=Pose3D("odom", "base_link", (1.0, 2.0, 3.0), (0.0, 0.0, 0.0, 1.0)),
             covariance=covariance,
             observed_at_ns=100,
             provenance=TEST_PROVENANCE,
             availability=SensorAvailability.DEGRADED,
             quality=None,
         )
-        self.assertEqual("map", observation.pose.frame_id)
+        self.assertEqual("odom", observation.pose.frame_id)
         with self.assertRaises(WorldModelValidationError):
             BodyPoseObservation(
                 robot_id=AYYO_ROBOT_ID,
                 sensor=POSE_SENSOR,
-                pose=Pose3D("map", "pelvis_link", (0.0, 0.0, 0.0), (0.0, 0.0, 0.0, 1.0)),
+                pose=Pose3D("odom", "pelvis_link", (0.0, 0.0, 0.0), (0.0, 0.0, 0.0, 1.0)),
                 observed_at_ns=100,
                 provenance=TEST_PROVENANCE,
                 availability=SensorAvailability.AVAILABLE,

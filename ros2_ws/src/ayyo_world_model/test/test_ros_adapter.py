@@ -258,6 +258,28 @@ def test_exact_lookup_never_requests_latest_or_changes_frames() -> None:
     assert result is expected
 
 
+def test_exact_lookup_rejects_malformed_result_timestamp_as_typed_failure() -> None:
+    support = support_module()
+    malformed = support.odometry_transform(localization_message())
+    malformed.header.stamp.nanosec = 1_000_000_000
+
+    class Buffer:
+        def lookup_transform(self, target, source, stamp, *, timeout):
+            return malformed
+
+    try:
+        support.exact_lookup(
+            Buffer(),
+            observed_at_ns=2_000_000_005,
+            timeout_ns=20_000_000,
+        )
+    except support.LocalizationAdapterError as error:
+        assert error.failure.value == 'invalid_frame_request'
+        assert 'timestamp' in error.detail
+    else:
+        raise AssertionError('malformed TF2 result timestamp was accepted')
+
+
 def test_tf2_failures_are_typed_without_pose_fallback() -> None:
     support = support_module()
     expected = {
@@ -340,6 +362,24 @@ def test_unknown_diagnostic_is_ignored_but_identity_substitution_is_rejected() -
         assert 'hardware identity' in str(error)
     else:
         raise AssertionError('wrong diagnostic hardware identity was accepted')
+
+
+def test_unknown_diagnostic_payloads_remain_bounded_before_ignore() -> None:
+    adapter = adapter_module()
+    support = support_module()
+    provenance = adapter.DIAGNOSTIC_SOURCE_PROFILES[adapter.SIMULATION_SOURCE_PROFILE]
+    unknown = diagnostic_message(name='other/component', hardware_id='other.hardware')
+    unknown.status[0].values = [KeyValue(key=str(index), value='x') for index in range(17)]
+    try:
+        support.normalize_diagnostics(
+            unknown,
+            provenance,
+            adapter.DIAGNOSTIC_COMPONENTS,
+        )
+    except support.DiagnosticAdapterError as error:
+        assert 'exceeds its bound' in str(error)
+    else:
+        raise AssertionError('oversized unknown diagnostic bypassed input bounds')
 
 
 def test_conflicting_malformed_and_oversized_diagnostics_are_rejected() -> None:
@@ -634,6 +674,41 @@ def test_perception_smoke_proves_actual_imu_trust_path_and_lifecycle() -> None:
         assert expected in source
     assert 'ros2 topic pub' not in source
     assert path.stat().st_mode & 0o111
+
+
+def test_localization_diagnostics_smoke_uses_only_bounded_test_fixture() -> None:
+    smoke_path = REPOSITORY_ROOT / 'scripts' / 'smoke_localization_diagnostics.sh'
+    fixture_path = REPOSITORY_ROOT / 'scripts' / 'perception_test_fixture.py'
+    smoke = smoke_path.read_text(encoding='utf-8')
+    fixture = fixture_path.read_text(encoding='utf-8')
+    for expected in (
+        'enable_localization:=true',
+        'body_state_query.py',
+        'perception_test_fixture.py',
+        '--scenario unknown_diagnostic',
+        '--scenario wrong_localization_frame',
+        "'joint ok' 'imu warn' 'imu error' 'imu stale'",
+        '--verify-query',
+        'development_command.py --position 0.1',
+        'remaining_nodes',
+        'kill -INT',
+    ):
+        assert expected in smoke
+    for expected in (
+        'TEST-ONLY',
+        "DIAGNOSTICS_TOPIC = '/diagnostics'",
+        "LOCALIZATION_TOPIC = '/ayyo/localization/odometry'",
+        "QUERY_SERVICE = '/ayyo/world_model/get_robot_body_state'",
+        "choices=('imu', 'joint')",
+        'time.monotonic() + 12.0',
+    ):
+        assert expected in fixture
+    for forbidden in ('eval(', 'exec(', 'subprocess', 'ros2 topic pub'):
+        assert forbidden not in fixture
+    cmake = (PACKAGE_ROOT / 'CMakeLists.txt').read_text(encoding='utf-8')
+    assert 'perception_test_fixture.py' not in cmake
+    assert smoke_path.stat().st_mode & 0o111
+    assert fixture_path.stat().st_mode & 0o111
 
 
 def test_owned_sources_retain_project_copyright() -> None:
