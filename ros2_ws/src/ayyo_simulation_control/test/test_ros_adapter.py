@@ -40,7 +40,7 @@ def test_authoritative_description_drives_runtime_limit_catalog() -> None:
     assert result.returncode == 0, result.stderr
     catalog = UrdfJointLimitCatalog(result.stdout)
     assert catalog.allowlist == CONTROLLED_JOINT_ALLOWLIST == ('neck_yaw_joint',)
-    assert len(catalog.joints) == 34
+    assert len(catalog.joints) == 35
     neck = catalog.contract_for('neck_yaw_joint')
     assert neck is not None
     assert (neck.lower, neck.upper) == (-1.2, 1.2)
