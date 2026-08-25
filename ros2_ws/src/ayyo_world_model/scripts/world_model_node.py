@@ -68,9 +68,9 @@ from visual_camera import (
     CAMERA_INFO_TOPIC,
     HEAD_CAMERA_SENSOR,
     IMAGE_TOPIC,
-    VisualCameraAdapterError,
     message_time_ns,
     normalize_visual_pair,
+    VisualCameraAdapterError,
 )
 
 
