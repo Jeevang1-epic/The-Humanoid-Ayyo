@@ -89,6 +89,7 @@ def main() -> None:
             ),
             'base_pose_availability': response.base_pose_availability,
             'detail': response.detail,
+            'current_visual_count': response.current_visual_count,
             'environment_entity_count': response.environment_entity_count,
             'joint_confidence': list(response.joint_confidence),
             'joint_freshness': list(response.joint_freshness),
@@ -211,6 +212,34 @@ def main() -> None:
             'source_kind': response.source_kind,
             'source_transport': response.source_transport,
             'status': response.status,
+            'visual_frame': (
+                {
+                    'availability': response.visual_availability,
+                    'calibration_id': response.visual_calibration_id,
+                    'data_size_bytes': response.visual_data_size_bytes,
+                    'encoding': response.visual_encoding,
+                    'frame_id': response.visual_frame_id,
+                    'freshness': response.visual_freshness,
+                    'height': response.visual_height,
+                    'is_bigendian': response.visual_is_bigendian,
+                    'observation_fingerprint': (
+                        response.visual_observation_fingerprint
+                    ),
+                    'observation_id': response.visual_observation_id,
+                    'observed_at_ns': _nanoseconds(response.visual_observed_at),
+                    'sensor_id': response.visual_sensor_id,
+                    'source_clock': response.visual_source_clock,
+                    'source_id': response.visual_source_id,
+                    'source_interface': response.visual_source_interface,
+                    'source_kind': response.visual_source_kind,
+                    'source_transport': response.visual_source_transport,
+                    'step': response.visual_step,
+                    'width': response.visual_width,
+                }
+                if response.has_visual_frame
+                else None
+            ),
+            'visual_availability': response.visual_availability,
         }
         print(json.dumps(result, allow_nan=False, separators=(',', ':'), sort_keys=True))
         if response.status != GetRobotBodyState.Response.READY:

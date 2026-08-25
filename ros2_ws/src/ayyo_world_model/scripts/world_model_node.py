@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # Copyright 2026 Ayyo Project Authors
 
-"""Lifecycle-managed fixed proprioception, localization, and health adapter."""
+"""Lifecycle-managed fixed body, health, and compact visual adapter."""
 
 from __future__ import annotations
 
@@ -62,8 +62,16 @@ from rclpy.executors import ExternalShutdownException, SingleThreadedExecutor
 from rclpy.lifecycle import LifecycleNode, State, TransitionCallbackReturn
 from rclpy.qos import qos_profile_sensor_data
 from rclpy.signals import SignalHandlerOptions
-from sensor_msgs.msg import Imu, JointState
+from sensor_msgs.msg import CameraInfo, Image, Imu, JointState
 from tf2_ros import Buffer
+from visual_camera import (
+    CAMERA_INFO_TOPIC,
+    HEAD_CAMERA_SENSOR,
+    IMAGE_TOPIC,
+    VisualCameraAdapterError,
+    message_time_ns,
+    normalize_visual_pair,
+)
 
 
 JOINT_STATE_TOPIC = '/joint_states'
@@ -135,6 +143,22 @@ DIAGNOSTIC_SOURCE_PROFILES = {
         clock=ObservationClock.ROS_SYSTEM_TIME,
         transport=ObservationTransport.ROS2,
         interface='diagnostic-msgs.diagnostic-array.v1',
+    ),
+}
+CAMERA_SOURCE_PROFILES = {
+    SIMULATION_SOURCE_PROFILE: ObservationProvenance(
+        source_kind=ObservationSourceKind.SIMULATION,
+        source_id='ros.camera.head.simulation.gz-harmonic.v1',
+        clock=ObservationClock.ROS_SIMULATION_TIME,
+        transport=ObservationTransport.ROS2,
+        interface='sensor-msgs.image-camera-info.v1',
+    ),
+    PHYSICAL_SOURCE_PROFILE: ObservationProvenance(
+        source_kind=ObservationSourceKind.PHYSICAL_SENSOR,
+        source_id='ros.camera.head.physical.standard-driver.v1',
+        clock=ObservationClock.ROS_SYSTEM_TIME,
+        transport=ObservationTransport.ROS2,
+        interface='sensor-msgs.image-camera-info.v1',
     ),
 }
 JOINT_SENSOR = SensorIdentity(
@@ -317,10 +341,15 @@ class AyyoWorldModelNode(LifecycleNode):
         self._imu_provenance: ObservationProvenance | None = None
         self._pose_provenance: ObservationProvenance | None = None
         self._diagnostic_provenance: ObservationProvenance | None = None
+        self._camera_provenance: ObservationProvenance | None = None
         self._joint_subscription = None
         self._imu_subscription = None
         self._localization_subscription = None
         self._diagnostics_subscription = None
+        self._image_subscription = None
+        self._camera_info_subscription = None
+        self._pending_image: Image | None = None
+        self._pending_camera_info: CameraInfo | None = None
         self._pose_buffer: Buffer | None = None
         self._pose_lookup_timeout_ns = 0
         self._query_service = None
@@ -341,6 +370,14 @@ class AyyoWorldModelNode(LifecycleNode):
         if self._diagnostics_subscription is not None:
             self.destroy_subscription(self._diagnostics_subscription)
             self._diagnostics_subscription = None
+        if self._image_subscription is not None:
+            self.destroy_subscription(self._image_subscription)
+            self._image_subscription = None
+        if self._camera_info_subscription is not None:
+            self.destroy_subscription(self._camera_info_subscription)
+            self._camera_info_subscription = None
+        self._pending_image = None
+        self._pending_camera_info = None
         self._pose_buffer = None
         if self._query_service is not None:
             self.destroy_service(self._query_service)
@@ -354,11 +391,13 @@ class AyyoWorldModelNode(LifecycleNode):
             imu_provenance = IMU_SOURCE_PROFILES.get(profile_name)
             pose_provenance = POSE_SOURCE_PROFILES.get(profile_name)
             diagnostic_provenance = DIAGNOSTIC_SOURCE_PROFILES.get(profile_name)
+            camera_provenance = CAMERA_SOURCE_PROFILES.get(profile_name)
             if (
                 provenance is None
                 or imu_provenance is None
                 or pose_provenance is None
                 or diagnostic_provenance is None
+                or camera_provenance is None
             ):
                 raise WorkingMemoryConfigurationError(
                     'source_profile must select one reviewed observation profile'
@@ -397,10 +436,16 @@ class AyyoWorldModelNode(LifecycleNode):
                         imu_provenance,
                         pose_provenance,
                         diagnostic_provenance,
+                        camera_provenance,
                     ),
                     sensors=tuple(
                         sorted(
-                            (JOINT_SENSOR, IMU_SENSOR, BODY_POSE_SENSOR),
+                            (
+                                JOINT_SENSOR,
+                                IMU_SENSOR,
+                                BODY_POSE_SENSOR,
+                                HEAD_CAMERA_SENSOR,
+                            ),
                             key=lambda item: item.sensor_id,
                         )
                     ),
@@ -442,6 +487,10 @@ class AyyoWorldModelNode(LifecycleNode):
                             IMU_SENSOR,
                             diagnostic_provenance,
                         ),
+                        PerceptionSourceContract(
+                            HEAD_CAMERA_SENSOR,
+                            camera_provenance,
+                        ),
                     ),
                     freshness_ns=int(self.get_parameter('freshness_ms').value)
                     * 1_000_000,
@@ -459,6 +508,7 @@ class AyyoWorldModelNode(LifecycleNode):
             self._imu_provenance = imu_provenance
             self._pose_provenance = pose_provenance
             self._diagnostic_provenance = diagnostic_provenance
+            self._camera_provenance = camera_provenance
             self._query_service = self.create_service(
                 GetRobotBodyState,
                 QUERY_SERVICE,
@@ -479,6 +529,7 @@ class AyyoWorldModelNode(LifecycleNode):
             self._imu_provenance = None
             self._pose_provenance = None
             self._diagnostic_provenance = None
+            self._camera_provenance = None
             self._destroy_runtime_interfaces()
             return TransitionCallbackReturn.FAILURE
 
@@ -491,6 +542,7 @@ class AyyoWorldModelNode(LifecycleNode):
             or self._imu_provenance is None
             or self._pose_provenance is None
             or self._diagnostic_provenance is None
+            or self._camera_provenance is None
         ):
             return TransitionCallbackReturn.FAILURE
         self._joint_subscription = self.create_subscription(
@@ -522,6 +574,18 @@ class AyyoWorldModelNode(LifecycleNode):
             self._on_diagnostics,
             10,
         )
+        self._image_subscription = self.create_subscription(
+            Image,
+            IMAGE_TOPIC,
+            self._on_image,
+            qos_profile_sensor_data,
+        )
+        self._camera_info_subscription = self.create_subscription(
+            CameraInfo,
+            CAMERA_INFO_TOPIC,
+            self._on_camera_info,
+            qos_profile_sensor_data,
+        )
         self._active = True
         return TransitionCallbackReturn.SUCCESS
 
@@ -540,6 +604,14 @@ class AyyoWorldModelNode(LifecycleNode):
         if self._diagnostics_subscription is not None:
             self.destroy_subscription(self._diagnostics_subscription)
             self._diagnostics_subscription = None
+        if self._image_subscription is not None:
+            self.destroy_subscription(self._image_subscription)
+            self._image_subscription = None
+        if self._camera_info_subscription is not None:
+            self.destroy_subscription(self._camera_info_subscription)
+            self._camera_info_subscription = None
+        self._pending_image = None
+        self._pending_camera_info = None
         self._pose_buffer = None
         return TransitionCallbackReturn.SUCCESS
 
@@ -557,6 +629,7 @@ class AyyoWorldModelNode(LifecycleNode):
         self._imu_provenance = None
         self._pose_provenance = None
         self._diagnostic_provenance = None
+        self._camera_provenance = None
         return TransitionCallbackReturn.SUCCESS
 
     def on_shutdown(self, state: State) -> TransitionCallbackReturn:
@@ -573,6 +646,7 @@ class AyyoWorldModelNode(LifecycleNode):
         self._imu_provenance = None
         self._pose_provenance = None
         self._diagnostic_provenance = None
+        self._camera_provenance = None
         return TransitionCallbackReturn.SUCCESS
 
     def on_error(self, state: State) -> TransitionCallbackReturn:
@@ -673,6 +747,59 @@ class AyyoWorldModelNode(LifecycleNode):
         except (
             PerceptionConfigurationError,
             ValueError,
+            WorldModelValidationError,
+            WorkingMemoryConfigurationError,
+        ) as error:
+            self._warn_bounded('invalid', str(error))
+
+    def _on_image(self, message: Image) -> None:
+        if not self._active or self._camera_provenance is None:
+            return
+        self._pending_image = message
+        self._try_visual_pair()
+
+    def _on_camera_info(self, message: CameraInfo) -> None:
+        if not self._active or self._camera_provenance is None:
+            return
+        self._pending_camera_info = message
+        self._try_visual_pair()
+
+    def _try_visual_pair(self) -> None:
+        """Retain at most one raw image while matching exact acquisition time."""
+        if (
+            self._pending_image is None
+            or self._pending_camera_info is None
+            or self._camera_provenance is None
+        ):
+            return
+        try:
+            image_time = message_time_ns(self._pending_image)
+            info_time = message_time_ns(self._pending_camera_info)
+        except VisualCameraAdapterError as error:
+            self._pending_image = None
+            self._pending_camera_info = None
+            self._warn_bounded('invalid', str(error))
+            return
+        if image_time < info_time:
+            self._pending_image = None
+            return
+        if info_time < image_time:
+            self._pending_camera_info = None
+            return
+        image = self._pending_image
+        camera_info = self._pending_camera_info
+        self._pending_image = None
+        self._pending_camera_info = None
+        try:
+            observation = normalize_visual_pair(
+                image,
+                camera_info,
+                self._camera_provenance,
+            )
+            self._admit_and_retain(observation)
+        except (
+            PerceptionConfigurationError,
+            VisualCameraAdapterError,
             WorldModelValidationError,
             WorkingMemoryConfigurationError,
         ) as error:
@@ -817,6 +944,7 @@ class AyyoWorldModelNode(LifecycleNode):
         response.known_joint_count = len(snapshot.robot.known_joint_names)
         response.environment_entity_count = len(snapshot.entities)
         response.recent_evidence_count = stats.recent_evidence_count
+        response.current_visual_count = stats.current_visual_count
         response.perception_accepted_count = perception_stats.accepted_count
         response.perception_duplicate_count = perception_stats.duplicate_count
         response.perception_rejected_count = perception_stats.rejected_count
@@ -896,6 +1024,21 @@ class AyyoWorldModelNode(LifecycleNode):
             SensorAvailability.UNAVAILABLE
             if pose_sensor_state is None
             else pose_sensor_state.availability
+        )
+        visual_sensor_state = next(
+            (
+                state
+                for state in snapshot.robot.sensor_states
+                if state.sensor == HEAD_CAMERA_SENSOR
+            ),
+            None,
+        )
+        response.visual_sensor_id = HEAD_CAMERA_SENSOR.sensor_id
+        response.visual_frame_id = HEAD_CAMERA_SENSOR.frame_id
+        response.visual_availability = self._availability_code(
+            SensorAvailability.UNAVAILABLE
+            if visual_sensor_state is None
+            else visual_sensor_state.availability
         )
         if snapshot.robot.availability is RobotAvailability.UNAVAILABLE:
             return self._not_ready(response, 'no unexpired robot joint evidence is available')
@@ -1017,6 +1160,35 @@ class AyyoWorldModelNode(LifecycleNode):
             if pose.confidence is not None:
                 response.has_base_pose_quality = True
                 response.base_pose_quality = pose.confidence
+        if snapshot.robot.visual_states:
+            visual = snapshot.robot.visual_states[0]
+            observation = visual.observation
+            response.has_visual_frame = True
+            response.visual_sensor_id = observation.sensor.sensor_id
+            response.visual_frame_id = observation.sensor.frame_id
+            response.visual_availability = self._availability_code(
+                visual.availability
+            )
+            response.visual_freshness = (
+                GetRobotBodyState.Response.FRESH
+                if visual.freshness is FreshnessState.FRESH
+                else GetRobotBodyState.Response.STALE
+            )
+            _assign_time(response.visual_observed_at, observation.observed_at_ns)
+            response.visual_width = observation.width
+            response.visual_height = observation.height
+            response.visual_encoding = observation.encoding
+            response.visual_step = observation.step
+            response.visual_data_size_bytes = observation.data_size_bytes
+            response.visual_is_bigendian = observation.is_bigendian
+            response.visual_calibration_id = observation.calibration_id
+            response.visual_observation_id = observation.observation_id
+            response.visual_observation_fingerprint = str(observation.fingerprint)
+            response.visual_source_kind = observation.provenance.source_kind.value
+            response.visual_source_id = observation.provenance.source_id
+            response.visual_source_clock = observation.provenance.clock.value
+            response.visual_source_transport = observation.provenance.transport.value
+            response.visual_source_interface = observation.provenance.interface
         return response
 
 

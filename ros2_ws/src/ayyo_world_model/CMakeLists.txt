@@ -21,6 +21,7 @@ install(
   PROGRAMS
     scripts/body_state_query.py
     scripts/localization_diagnostics.py
+    scripts/visual_camera.py
     scripts/world_model_node.py
   DESTINATION lib/${PROJECT_NAME}
 )
@@ -35,6 +36,7 @@ if(BUILD_TESTING)
     EXCLUDE
       scripts/body_state_query.py
       scripts/localization_diagnostics.py
+      scripts/visual_camera.py
       scripts/world_model_node.py
       test/test_ros_adapter.py
   )
