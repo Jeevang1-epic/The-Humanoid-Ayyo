@@ -11,12 +11,14 @@ from ayyo_interfaces.srv import GetRobotBodyState
 from ayyo_perception import (
     AdmissionReason,
     AdmissionStatus,
+    DeterministicVisualReferenceAdapter,
     EvidenceFailureKind,
     PerceptionClockRegressionError,
     PerceptionConfigurationError,
     PerceptionSourceContract,
     PerceptionTrustBoundary,
     PerceptionTrustConfig,
+    REFERENCE_VISUAL_PRODUCER,
 )
 from ayyo_working_memory import (
     IngestionStatus,
@@ -335,6 +337,7 @@ class AyyoWorldModelNode(LifecycleNode):
         self.declare_parameter('recent_evidence_capacity', 256)
         self.declare_parameter('environment_entity_capacity', 128)
         self.declare_parameter('pose_lookup_timeout_ms', 20)
+        self.declare_parameter('enable_visual_reference_interpreter', False)
         self._memory: WorkingMemory | None = None
         self._trust_boundary: PerceptionTrustBoundary | None = None
         self._provenance: ObservationProvenance | None = None
@@ -342,6 +345,9 @@ class AyyoWorldModelNode(LifecycleNode):
         self._pose_provenance: ObservationProvenance | None = None
         self._diagnostic_provenance: ObservationProvenance | None = None
         self._camera_provenance: ObservationProvenance | None = None
+        self._visual_reference_adapter: (
+            DeterministicVisualReferenceAdapter | None
+        ) = None
         self._joint_subscription = None
         self._imu_subscription = None
         self._localization_subscription = None
@@ -426,6 +432,14 @@ class AyyoWorldModelNode(LifecycleNode):
                     'pose lookup timeout must be between zero and 100 milliseconds'
                 )
             self._pose_lookup_timeout_ns = pose_lookup_timeout_ms * 1_000_000
+            enable_visual_reference = bool(
+                self.get_parameter('enable_visual_reference_interpreter').value
+            )
+            visual_producers = (
+                (REFERENCE_VISUAL_PRODUCER,)
+                if enable_visual_reference
+                else ()
+            )
             self._memory = WorkingMemory(
                 catalog,
                 WorkingMemoryConfig(
@@ -465,6 +479,7 @@ class AyyoWorldModelNode(LifecycleNode):
                     environment_entity_capacity=int(
                         self.get_parameter('environment_entity_capacity').value
                     ),
+                    visual_interpretation_producers=visual_producers,
                 ),
             )
             self._trust_boundary = PerceptionTrustBoundary(
@@ -502,6 +517,7 @@ class AyyoWorldModelNode(LifecycleNode):
                         self.get_parameter('permitted_future_skew_ms').value
                     )
                     * 1_000_000,
+                    visual_interpretation_producers=visual_producers,
                 )
             )
             self._provenance = provenance
@@ -509,6 +525,11 @@ class AyyoWorldModelNode(LifecycleNode):
             self._pose_provenance = pose_provenance
             self._diagnostic_provenance = diagnostic_provenance
             self._camera_provenance = camera_provenance
+            self._visual_reference_adapter = (
+                DeterministicVisualReferenceAdapter()
+                if enable_visual_reference
+                else None
+            )
             self._query_service = self.create_service(
                 GetRobotBodyState,
                 QUERY_SERVICE,
@@ -530,6 +551,7 @@ class AyyoWorldModelNode(LifecycleNode):
             self._pose_provenance = None
             self._diagnostic_provenance = None
             self._camera_provenance = None
+            self._visual_reference_adapter = None
             self._destroy_runtime_interfaces()
             return TransitionCallbackReturn.FAILURE
 
@@ -630,6 +652,7 @@ class AyyoWorldModelNode(LifecycleNode):
         self._pose_provenance = None
         self._diagnostic_provenance = None
         self._camera_provenance = None
+        self._visual_reference_adapter = None
         return TransitionCallbackReturn.SUCCESS
 
     def on_shutdown(self, state: State) -> TransitionCallbackReturn:
@@ -647,6 +670,7 @@ class AyyoWorldModelNode(LifecycleNode):
         self._pose_provenance = None
         self._diagnostic_provenance = None
         self._camera_provenance = None
+        self._visual_reference_adapter = None
         return TransitionCallbackReturn.SUCCESS
 
     def on_error(self, state: State) -> TransitionCallbackReturn:
@@ -796,7 +820,20 @@ class AyyoWorldModelNode(LifecycleNode):
                 camera_info,
                 self._camera_provenance,
             )
-            self._admit_and_retain(observation)
+            admission = self._admit_and_retain(observation)
+            if (
+                self._visual_reference_adapter is not None
+                and admission is not None
+                and admission.status is AdmissionStatus.ACCEPTED
+            ):
+                interpretation = self._visual_reference_adapter.interpret(
+                    admission.observation,
+                    result_at_ns=max(
+                        observation.observed_at_ns,
+                        self.get_clock().now().nanoseconds,
+                    ),
+                )
+                self._admit_and_retain(interpretation)
         except (
             PerceptionConfigurationError,
             VisualCameraAdapterError,
@@ -945,6 +982,9 @@ class AyyoWorldModelNode(LifecycleNode):
         response.environment_entity_count = len(snapshot.entities)
         response.recent_evidence_count = stats.recent_evidence_count
         response.current_visual_count = stats.current_visual_count
+        response.current_visual_interpretation_count = (
+            stats.current_visual_interpretation_count
+        )
         response.perception_accepted_count = perception_stats.accepted_count
         response.perception_duplicate_count = perception_stats.duplicate_count
         response.perception_rejected_count = perception_stats.rejected_count
@@ -1189,6 +1229,90 @@ class AyyoWorldModelNode(LifecycleNode):
             response.visual_source_clock = observation.provenance.clock.value
             response.visual_source_transport = observation.provenance.transport.value
             response.visual_source_interface = observation.provenance.interface
+        if snapshot.robot.visual_interpretation_states:
+            interpretation = snapshot.robot.visual_interpretation_states[0]
+            observation = interpretation.observation
+            response.has_visual_interpretation = True
+            response.visual_interpretation_sensor_id = observation.sensor.sensor_id
+            response.visual_interpretation_reference_frame_id = (
+                observation.reference_frame_id
+            )
+            response.visual_interpretation_availability = self._availability_code(
+                interpretation.availability
+            )
+            response.visual_interpretation_freshness = (
+                GetRobotBodyState.Response.FRESH
+                if interpretation.freshness is FreshnessState.FRESH
+                else GetRobotBodyState.Response.STALE
+            )
+            _assign_time(
+                response.visual_interpretation_source_observed_at,
+                observation.observed_at_ns,
+            )
+            _assign_time(
+                response.visual_interpretation_result_at,
+                observation.result_at_ns,
+            )
+            response.visual_interpretation_observation_id = (
+                observation.observation_id
+            )
+            response.visual_interpretation_observation_fingerprint = str(
+                observation.fingerprint
+            )
+            response.visual_interpretation_source_visual_observation_id = (
+                observation.source_visual_observation_id
+            )
+            response.visual_interpretation_source_visual_fingerprint = str(
+                observation.source_visual_fingerprint
+            )
+            response.visual_interpretation_producer_id = (
+                observation.producer.producer_id
+            )
+            response.visual_interpretation_producer_kind = (
+                observation.producer.kind.value
+            )
+            response.visual_interpretation_model_id = observation.producer.model_id
+            response.visual_interpretation_adapter_id = (
+                observation.producer.adapter_id
+            )
+            response.visual_interpretation_interface = (
+                observation.producer.interface
+            )
+            response.visual_interpretation_source_kind = (
+                observation.provenance.source_kind.value
+            )
+            response.visual_interpretation_source_id = (
+                observation.provenance.source_id
+            )
+            response.visual_interpretation_source_clock = (
+                observation.provenance.clock.value
+            )
+            response.visual_interpretation_source_transport = (
+                observation.provenance.transport.value
+            )
+            response.visual_interpretation_source_interface = (
+                observation.provenance.interface
+            )
+            response.visual_detection_count = len(observation.detections)
+            for detection in observation.detections:
+                response.visual_detection_ids.append(detection.detection_id)
+                response.visual_detection_categories.append(
+                    detection.category.value
+                )
+                response.visual_detection_labels.append(detection.label)
+                response.visual_detection_coordinate_spaces.append(
+                    detection.region.coordinate_space.value
+                )
+                response.visual_detection_x_min.append(detection.region.x_min)
+                response.visual_detection_y_min.append(detection.region.y_min)
+                response.visual_detection_x_max.append(detection.region.x_max)
+                response.visual_detection_y_max.append(detection.region.y_max)
+                response.visual_detection_has_confidence.append(
+                    detection.confidence is not None
+                )
+                response.visual_detection_confidence.append(
+                    0.0 if detection.confidence is None else detection.confidence
+                )
         return response
 
 

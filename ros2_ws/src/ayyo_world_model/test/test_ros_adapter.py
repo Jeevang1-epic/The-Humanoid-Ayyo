@@ -90,6 +90,12 @@ def test_read_only_service_contract_is_bounded_and_typed() -> None:
         'bool has_visual_frame',
         'string visual_calibration_id',
         'string visual_observation_fingerprint',
+        'uint32 current_visual_interpretation_count',
+        'bool has_visual_interpretation',
+        'string visual_interpretation_source_visual_observation_id',
+        'string visual_interpretation_producer_kind',
+        'uint32 visual_detection_count',
+        'bool[] visual_detection_has_confidence',
     ):
         assert field in interface
     assert interface.count('---') == 1
@@ -777,7 +783,11 @@ def test_simulation_launch_keeps_adapter_opt_in_and_pins_simulation_profile() ->
     assert "enable_world_model = LaunchConfiguration('enable_world_model')" in source
     assert "'enable_world_model',\n                default_value='false'" in source
     assert "package='ayyo_world_model'" in source
-    assert "{'source_profile': 'simulation_ros2_control_v1'}" in source
+    assert "'source_profile': 'simulation_ros2_control_v1'" in source
+    assert (
+        "'enable_visual_reference_interpreter',\n                default_value='false'"
+        in source
+    )
     assert 'condition=IfCondition(enable_world_model)' in source
 
 
@@ -793,8 +803,9 @@ def test_integration_smoke_proves_feedback_identity_and_clean_shutdown() -> None
         'development_command.py --position 0.1',
         'joint_observation_ids',
         'snapshot_id',
-        'kill -INT',
-        'shut down cleanly',
+        'smoke_processes.sh',
+        'ayyo_smoke_shutdown_owned_launch',
+        'owned-process set is empty',
     ):
         assert expected in source
     assert 'ros2 topic pub' not in source
@@ -814,7 +825,7 @@ def test_perception_smoke_proves_actual_imu_trust_path_and_lifecycle() -> None:
         'base_pose_availability',
         'ros2 lifecycle set /ayyo_world_model deactivate',
         'ros2 lifecycle set /ayyo_world_model activate',
-        'kill -INT',
+        'ayyo_smoke_shutdown_owned_launch',
     ):
         assert expected in source
     assert 'ros2 topic pub' not in source
@@ -836,7 +847,8 @@ def test_localization_diagnostics_smoke_uses_only_bounded_test_fixture() -> None
         '--verify-query',
         'development_command.py --position 0.1',
         'remaining_nodes',
-        'kill -INT',
+        '200 + ($$ % 20)',
+        'ayyo_smoke_shutdown_owned_launch',
     ):
         assert expected in smoke
     for expected in (
@@ -874,7 +886,7 @@ def test_visual_smoke_proves_real_fixed_trust_path_and_bounded_fixture() -> None
         'ros2 lifecycle set /ayyo_world_model deactivate',
         'current_visual_count',
         'remaining_nodes',
-        'kill -INT',
+        'ayyo_smoke_shutdown_owned_launch',
     ):
         assert expected in smoke
     for expected in (
@@ -889,6 +901,40 @@ def test_visual_smoke_proves_real_fixed_trust_path_and_bounded_fixture() -> None
         assert forbidden not in fixture
     cmake = (PACKAGE_ROOT / 'CMakeLists.txt').read_text(encoding='utf-8')
     assert 'visual_test_fixture.py' not in cmake
+    assert smoke_path.stat().st_mode & 0o111
+    assert fixture_path.stat().st_mode & 0o111
+
+
+def test_interpreted_visual_smoke_is_synthetic_bounded_and_process_owned() -> None:
+    smoke_path = REPOSITORY_ROOT / 'scripts' / 'smoke_visual_perception.sh'
+    fixture_path = (
+        REPOSITORY_ROOT / 'scripts' / 'visual_interpretation_test_fixture.py'
+    )
+    smoke = smoke_path.read_text(encoding='utf-8')
+    fixture = fixture_path.read_text(encoding='utf-8')
+    for expected in (
+        'enable_visual_reference_interpreter:=true',
+        'visual_interpretation',
+        'synthetic.test-pattern.v1',
+        'confidence"] is None',
+        'tracked_visual_source_count',
+        'ros2 lifecycle set /ayyo_world_model deactivate',
+        'ayyo_smoke_shutdown_owned_launch',
+        'remaining_nodes',
+    ):
+        assert expected in smoke
+    for expected in (
+        'TEST-ONLY',
+        'DeterministicVisualReferenceAdapter',
+        'range(3, 1003)',
+        'recent_evidence_capacity=16',
+        "'pixels' not in state_text",
+    ):
+        assert expected in fixture
+    for forbidden in ('rclpy', 'sensor_msgs', 'subprocess', 'ayyo_memory'):
+        assert forbidden not in fixture
+    cmake = (PACKAGE_ROOT / 'CMakeLists.txt').read_text(encoding='utf-8')
+    assert 'visual_interpretation_test_fixture.py' not in cmake
     assert smoke_path.stat().st_mode & 0o111
     assert fixture_path.stat().st_mode & 0o111
 

@@ -90,6 +90,9 @@ def main() -> None:
             'base_pose_availability': response.base_pose_availability,
             'detail': response.detail,
             'current_visual_count': response.current_visual_count,
+            'current_visual_interpretation_count': (
+                response.current_visual_interpretation_count
+            ),
             'environment_entity_count': response.environment_entity_count,
             'joint_confidence': list(response.joint_confidence),
             'joint_freshness': list(response.joint_freshness),
@@ -240,6 +243,89 @@ def main() -> None:
                 else None
             ),
             'visual_availability': response.visual_availability,
+            'visual_interpretation': (
+                {
+                    'adapter_id': response.visual_interpretation_adapter_id,
+                    'availability': response.visual_interpretation_availability,
+                    'detections': [
+                        {
+                            'category': category,
+                            'confidence': confidence if has_confidence else None,
+                            'coordinate_space': coordinate_space,
+                            'detection_id': detection_id,
+                            'label': label,
+                            'region': {
+                                'x_max': x_max,
+                                'x_min': x_min,
+                                'y_max': y_max,
+                                'y_min': y_min,
+                            },
+                        }
+                        for (
+                            detection_id,
+                            category,
+                            label,
+                            coordinate_space,
+                            x_min,
+                            y_min,
+                            x_max,
+                            y_max,
+                            has_confidence,
+                            confidence,
+                        ) in zip(
+                            response.visual_detection_ids,
+                            response.visual_detection_categories,
+                            response.visual_detection_labels,
+                            response.visual_detection_coordinate_spaces,
+                            response.visual_detection_x_min,
+                            response.visual_detection_y_min,
+                            response.visual_detection_x_max,
+                            response.visual_detection_y_max,
+                            response.visual_detection_has_confidence,
+                            response.visual_detection_confidence,
+                            strict=True,
+                        )
+                    ],
+                    'freshness': response.visual_interpretation_freshness,
+                    'interface': response.visual_interpretation_interface,
+                    'model_id': response.visual_interpretation_model_id,
+                    'observation_fingerprint': (
+                        response.visual_interpretation_observation_fingerprint
+                    ),
+                    'observation_id': (
+                        response.visual_interpretation_observation_id
+                    ),
+                    'producer_id': response.visual_interpretation_producer_id,
+                    'producer_kind': response.visual_interpretation_producer_kind,
+                    'reference_frame_id': (
+                        response.visual_interpretation_reference_frame_id
+                    ),
+                    'result_at_ns': _nanoseconds(
+                        response.visual_interpretation_result_at
+                    ),
+                    'sensor_id': response.visual_interpretation_sensor_id,
+                    'source_clock': response.visual_interpretation_source_clock,
+                    'source_id': response.visual_interpretation_source_id,
+                    'source_interface': (
+                        response.visual_interpretation_source_interface
+                    ),
+                    'source_kind': response.visual_interpretation_source_kind,
+                    'source_observed_at_ns': _nanoseconds(
+                        response.visual_interpretation_source_observed_at
+                    ),
+                    'source_transport': (
+                        response.visual_interpretation_source_transport
+                    ),
+                    'source_visual_fingerprint': (
+                        response.visual_interpretation_source_visual_fingerprint
+                    ),
+                    'source_visual_observation_id': (
+                        response.visual_interpretation_source_visual_observation_id
+                    ),
+                }
+                if response.has_visual_interpretation
+                else None
+            ),
         }
         print(json.dumps(result, allow_nan=False, separators=(',', ':'), sort_keys=True))
         if response.status != GetRobotBodyState.Response.READY:

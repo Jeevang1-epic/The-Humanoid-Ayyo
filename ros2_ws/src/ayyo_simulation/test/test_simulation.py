@@ -355,6 +355,7 @@ def test_launch_defaults_to_headless_proxy_ground_contact() -> None:
     assert defaults['enable_world_model'] == 'false'
     assert defaults['enable_localization'] == 'false'
     assert defaults['enable_camera'] == 'false'
+    assert defaults['enable_visual_reference_interpreter'] == 'false'
     assert defaults['use_meshes'] == 'false'
     assert defaults['spawn_z'] == '0.95'
 
@@ -441,6 +442,19 @@ def test_camera_bridges_are_one_way_fixed_and_default_off() -> None:
         PACKAGE_ROOT / 'config' / 'ros_gz_camera_bridge.yaml'
     ).read_text(encoding='utf-8')
     assert 'ROS_TO_GZ' not in source
+
+
+def test_synthetic_visual_interpreter_is_explicit_and_default_off() -> None:
+    source = (PACKAGE_ROOT / 'launch' / 'simulation.launch.py').read_text(
+        encoding='utf-8'
+    )
+    assert (
+        'enable_visual_reference_interpreter = LaunchConfiguration('
+        in source
+    )
+    assert "'enable_visual_reference_interpreter'" in source
+    assert "default_value='false'" in source
+    assert "'enable_visual_reference_interpreter': (" in source
 
 
 def test_simulation_installs_only_owned_resources() -> None:

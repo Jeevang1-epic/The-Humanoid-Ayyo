@@ -32,6 +32,9 @@ def generate_launch_description() -> LaunchDescription:
     enable_world_model = LaunchConfiguration('enable_world_model')
     enable_localization = LaunchConfiguration('enable_localization')
     enable_camera = LaunchConfiguration('enable_camera')
+    enable_visual_reference_interpreter = LaunchConfiguration(
+        'enable_visual_reference_interpreter'
+    )
     use_meshes = LaunchConfiguration('use_meshes')
     spawn_x = LaunchConfiguration('spawn_x')
     spawn_y = LaunchConfiguration('spawn_y')
@@ -186,7 +189,12 @@ def generate_launch_description() -> LaunchDescription:
         output='screen',
         parameters=[
             description_parameters,
-            {'source_profile': 'simulation_ros2_control_v1'},
+            {
+                'source_profile': 'simulation_ros2_control_v1',
+                'enable_visual_reference_interpreter': (
+                    enable_visual_reference_interpreter
+                ),
+            },
         ],
         condition=IfCondition(enable_world_model),
     )
@@ -236,6 +244,13 @@ def generate_launch_description() -> LaunchDescription:
                 default_value='false',
                 description=(
                     'Expose the simulation-only head RGB observation source.'
+                ),
+            ),
+            DeclareLaunchArgument(
+                'enable_visual_reference_interpreter',
+                default_value='false',
+                description=(
+                    'Enable the deterministic synthetic visual-result test adapter.'
                 ),
             ),
             DeclareLaunchArgument('spawn_x', default_value='0.0'),
