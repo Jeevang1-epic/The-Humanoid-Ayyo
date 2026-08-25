@@ -11,23 +11,27 @@ instruction.
 
 The supported live evidence is deliberately narrow:
 
-- existing standard `/joint_states` feedback; and
+- existing standard `/joint_states` feedback;
 - one standard `sensor_msgs/Imu` body-IMU stream on `/ayyo/imu/data`;
 - one exact-frame standard `nav_msgs/Odometry` localization stream on
   `/ayyo/localization/odometry`; and
 - two reviewed standard `DiagnosticArray` component identities on
-  `/diagnostics`.
+  `/diagnostics`; and
+- one paired standard `sensor_msgs/Image` and `sensor_msgs/CameraInfo` RGB
+  stream on fixed head-camera topics.
 
 Body pose, sensor health, and covariance remain transport-neutral standalone
 contracts. The live localization and diagnostics seams are documented in
 [BODY_LOCALIZATION_SENSOR_DIAGNOSTICS.md](BODY_LOCALIZATION_SENSOR_DIAGNOSTICS.md).
-Camera, depth, audio, detection, fusion, navigation, motion authority, and
-durable sensor logging are not implemented.
+Camera detection/recognition/tracking, depth, audio, fusion, navigation, motion
+authority, and durable sensor logging are not implemented. The RGB transport
+and compact pixel-free visual-state boundary are documented in
+[Visual Camera Foundation](VISUAL_CAMERA_FOUNDATION.md).
 
 ## Architecture
 
 ```text
-Gazebo Harmonic body IMU / localization / simulated ros2_control today
+Gazebo Harmonic body IMU / localization / RGB camera / simulated ros2_control
         ↓
 fixed standard ROS sensor topics
         ↓
@@ -45,7 +49,7 @@ fixed read-only body-state query
 The intended physical path is the same above the driver:
 
 ```text
-physical IMU / encoders / future localization
+physical IMU / encoders / future localization and standard RGB camera
         ↓
 vendor driver exposing standard ROS sensor messages
         ↓
@@ -68,9 +72,10 @@ network, persistence, or subprocess import.
   duplicate/order policy, and deterministic disappearance.
 - `ros2_ws/src/ayyo_world_model` composes those three cores and owns ROS
   decoding, lifecycle, fixed subscriptions, and the read-only query.
-- `ayyo_description` single-owns `imu_link` and its fixed pelvis mount.
+- `ayyo_description` single-owns `imu_link`, the head camera mount, and the
+  fixed ROS optical frame.
 - `ayyo_simulation` owns the Harmonic observation sources, fixed one-way ROS
-  bridges, opt-in localization flag, and development proof composition.
+  bridges, opt-in localization/camera flags, and development proof composition.
 
 No perception package imports Memory OS, cognition, Safety, Skill Manager,
 Runtime Bridge, Simulation Control, or a controller command interface.
@@ -85,6 +90,8 @@ Model constructor before admission. It then checks:
 - one exact source identity, source kind, interface, transport, and clock;
 - source-profile/clock compatibility;
 - finite values, vector dimensions, quaternion and covariance invariants;
+- exact paired image/calibration timestamp, optical frame, dimensions,
+  encoding, step/byte count, and calibration invariants;
 - reviewed body-pose source and target frames;
 - source time against future-skew and retention bounds;
 - monotonic receipt ordering;
@@ -108,11 +115,20 @@ The live simulation profile registers these immutable semantic identities:
 | Joint state | `ayyo.joint-state.body.v1` | `base_link` | `/joint_states` `sensor_msgs/JointState` |
 | IMU | `ayyo.imu.body.v1` | `imu_link` | `/ayyo/imu/data` `sensor_msgs/Imu` |
 | Body pose | `ayyo.body-pose.localization.v1` | `odom` → `base_link` | `/ayyo/localization/odometry` `nav_msgs/Odometry` |
+| RGB camera | `ayyo.camera.head.rgb.v1` | `head_camera_optical_frame` | `/ayyo/camera/head/image_raw` `sensor_msgs/Image` + `/ayyo/camera/head/camera_info` `sensor_msgs/CameraInfo` |
 
 The body-pose contract permits only source frame `odom` and body frame
 `base_link`. The adapter performs one bounded exact-source-timestamp TF2 lookup;
 it never requests latest TF, aliases frames, publishes a competing public TF,
 or fabricates a pose.
+
+The visual adapter accepts only a nonzero exact-timestamp pair with identical
+optical frame and dimensions. It currently accepts `rgb8`, positive bounded
+dimensions, exact `step >= width*3`, and exactly `step*height` non-empty bytes.
+It validates finite bounded calibration arrays and derives their identity
+deterministically. Only compact metadata crosses into the transport-neutral
+observation; pixel bytes are never hashed into or stored by trust, Working
+Memory, World Model, the body-state query, or Memory OS.
 
 ## IMU semantics
 
@@ -209,6 +225,7 @@ Simulation and physical profiles use different immutable provenance:
 | IMU | `ros.imu.simulation.gz-harmonic.v1` | `ros.imu.physical.standard-driver.v1` | simulation / system |
 | Body pose | `ros.body-pose.simulation.localization.v1` | `ros.body-pose.physical.localization.v1` | simulation / system |
 | Diagnostics | `ros.diagnostics.simulation.test-fixture.v1` | `ros.diagnostics.physical.standard.v1` | simulation / system |
+| RGB camera | `ros.camera.head.simulation.gz-harmonic.v1` | `ros.camera.head.physical.standard-driver.v1` | simulation / system |
 
 Simulation requires `ROS_SIMULATION_TIME` and `use_sim_time=true`. Physical
 sensors require `ROS_SYSTEM_TIME` and `use_sim_time=false`. Recorded and test
@@ -229,8 +246,8 @@ Default source-time policy remains:
 - future skew allowed through 50 ms; and
 - older/future evidence outside those bounds rejected.
 
-At the freshness crossing, retained IMU, pose, or explicit health evidence
-becomes `STALE`; the snapshot identity changes once. After TTL it is removed
+At the freshness crossing, retained IMU, visual, pose, or explicit health
+evidence becomes `STALE`; the snapshot identity changes once. After TTL it is removed
 and the known measurement sensor becomes `UNAVAILABLE`, while absent explicit
 health returns `null`; the snapshot identity changes again. Query times within
 one discrete freshness state do not change semantic identity. Duplicates
@@ -239,20 +256,23 @@ cannot refresh either boundary.
 There are no background timers. Query/ingestion time deterministically advances
 freshness and expiry. Source-clock regression resets both trust-boundary and
 Working-Memory state before a new epoch. Adapter restart and lifecycle cleanup
-start empty. Deactivation destroys all four subscriptions and the TF2 buffer,
-and makes the read-only query not ready.
+start empty. Deactivation destroys all six subscriptions, clears the two
+single-message camera pending slots, drops the TF2 buffer, and makes the
+read-only query not ready.
 
 ## Working Memory and World Model
 
-Working Memory retains at most one current IMU observation, one current body-
-pose observation per reviewed v1 source, one health observation per sensor, the
-catalog-bounded current joints, and the configured recent-evidence window.
+Working Memory retains at most one current IMU observation, one current visual
+observation, one current body-pose observation per reviewed v1 source, one
+health observation per sensor, the catalog-bounded current joints, and the
+configured recent-evidence window.
 High-frequency samples replace current state and are pruned by TTL/capacity.
 
 World Model `RobotBodyState` now contains:
 
 - unchanged catalog-bounded joint state;
 - zero or more immutable current IMU states;
+- zero or more immutable compact visual states without pixels;
 - optional evidence-backed base pose; and
 - a canonical availability summary for every expected sensor.
 
@@ -277,13 +297,15 @@ Raw high-rate IMU telemetry must not bypass that path.
 ## ROS adapter and read-only API
 
 `AyyoWorldModelNode` remains a `LifecycleNode` using a single-threaded executor
-and no timer. On activation it creates exactly four fixed subscriptions:
+and no timer. On activation it creates exactly six fixed subscriptions:
 
 ```text
 /joint_states       sensor_msgs/JointState
 /ayyo/imu/data      sensor_msgs/Imu
 /ayyo/localization/odometry  nav_msgs/Odometry
 /diagnostics        diagnostic_msgs/DiagnosticArray
+/ayyo/camera/head/image_raw  sensor_msgs/Image
+/ayyo/camera/head/camera_info  sensor_msgs/CameraInfo
 ```
 
 It exposes only the existing fixed read-only service:
@@ -295,8 +317,9 @@ ayyo_interfaces/srv/GetRobotBodyState
 
 The additive response reports sensor summaries, IMU estimates and explicit
 presence flags, covariance/quality presence, pose availability, provenance,
-freshness, fingerprints, and bounded counters while preserving all existing
-joint fields. Requests cannot select topics, frames, graph endpoints, filters,
+freshness, fingerprints, compact visual metadata/calibration identity, and
+bounded counters while preserving all existing joint fields. Requests cannot
+select topics, frames, graph endpoints, filters,
 expressions, services, actions, or robot identities other than canonical Ayyo.
 
 ## Gazebo Harmonic proof
@@ -311,6 +334,8 @@ The world adds only Harmonic's IMU system. The explicit bridge allowlist is now:
 | `/clock` `gz.msgs.Clock` | `/clock` `rosgraph_msgs/Clock` | Gazebo → ROS |
 | `/ayyo/imu/data` `gz.msgs.IMU` | `/ayyo/imu/data` `sensor_msgs/Imu` | Gazebo → ROS |
 | `/ayyo/localization/ground_truth/odometry` `gz.msgs.Odometry` | `/ayyo/localization/odometry` `nav_msgs/Odometry` | Gazebo → ROS |
+| `/ayyo/camera/head/image_raw` camera image | same topic `sensor_msgs/Image` | Gazebo → ROS via `ros_gz_image` when enabled |
+| `/ayyo/camera/head/camera_info` `gz.msgs.CameraInfo` | same topic `sensor_msgs/CameraInfo` | Gazebo → ROS when enabled |
 
 `scripts/smoke_perception.sh` proved actual fresh IMU evidence—not merely topic
 existence—through Gazebo → ROS → trust boundary → Working Memory → World Model
@@ -323,6 +348,13 @@ test fixture supplies reviewed diagnostics because there is no production
 health producer. `scripts/smoke_localization_diagnostics.sh` proves actual pose,
 all four ROS health mappings, unknown/wrong-frame fail-closed behavior, expiry,
 motion independence, and clean shutdown.
+
+With `enable_camera:=true`, the fixed optical-frame Harmonic camera supplies
+10 Hz 320x240 `rgb8` images and matching calibration. The default remains off.
+`scripts/smoke_visual_camera.sh` proves the real non-empty image path through
+admission and the pixel-free query, simulation provenance, wrong-frame and
+malformed rejection, valid recovery, expiry/health disappearance, lifecycle,
+existing neck motion independence, and clean shutdown.
 
 ## Resource bounds and measurement
 
@@ -344,6 +376,12 @@ current health observation, 32 recent observations, and at most 34 unique
 observations/references while enforcing current traced memory below 2 MB and
 peak below 8 MB.
 
+A 5,000-frame visual regression at a simulated 10 Hz retains one trust key,
+one current visual item, 21 recent/unique observations, and 22 references.
+`tracemalloc` reported 110,275 current bytes and a 113,999-byte peak. This
+excludes image transport buffers, ROS middleware, Gazebo, and the interpreter;
+it is not a Raspberry Pi or Jetson compatibility claim.
+
 ## Automated validation
 
 ```bash
@@ -361,13 +399,17 @@ python3 ros2_ws/src/ayyo_description/scripts/validate_description.py
 ./scripts/smoke_world_model.sh
 ./scripts/smoke_perception.sh
 ./scripts/smoke_localization_diagnostics.sh
+./scripts/smoke_visual_camera.sh
 ```
 
 Tests cover malformed values and shapes, ROS unavailable/unknown semantics,
 quaternion tolerance, covariance structure and positive-semidefiniteness,
 wrong sensor/robot/frame/provenance/clock, time ordering, duplicates, health,
 disappearance, reset, immutable identities, lifecycle, high-rate bounds, and
-all prior contracts.
+all prior contracts. Visual cases include empty/malformed/oversized payload
+metadata, wrong optical frame, mismatched calibration/time/dimensions,
+non-finite intrinsics, source substitution, duplicate/out-of-order/future/stale
+input, fixed pending slots, and pixel-free state/query surfaces.
 
 ## Exact human validation
 
@@ -379,7 +421,8 @@ source ros2_ws/install/setup.bash
 export ROS_DOMAIN_ID=123
 export GZ_PARTITION=ayyo_perception_manual_123
 ros2 launch ayyo_simulation simulation.launch.py \
-  headless:=false enable_world_model:=true enable_localization:=true
+  headless:=false enable_world_model:=true enable_localization:=true \
+  enable_camera:=true
 ```
 
 In a second identically configured terminal:
@@ -393,7 +436,9 @@ ros2 lifecycle get /ayyo_world_model
 ros2 topic info /ayyo/imu/data --verbose
 ros2 topic echo --once /ayyo/imu/data sensor_msgs/msg/Imu
 ros2 topic echo --once /ayyo/localization/odometry nav_msgs/msg/Odometry
+ros2 topic echo --once /ayyo/camera/head/camera_info sensor_msgs/msg/CameraInfo
 ros2 run ayyo_world_model body_state_query.py
+ros2 run rqt_image_view rqt_image_view /ayyo/camera/head/image_raw
 ```
 
 Confirm the lifecycle is active, the IMU has one publisher and exact
@@ -401,19 +446,22 @@ Confirm the lifecycle is active, the IMU has one publisher and exact
 simulation provenance, and the base pose reports exact `odom` to `base_link`
 frames with simulation localization provenance. Diagnostics remain absent
 until an explicit reviewed producer supplies them. This validates development
-plumbing only, not physical calibration, dynamics, final geometry, hardware,
-or safety. Press `Ctrl-C` and verify the isolated graph and Gazebo processes
-terminate.
+plumbing only. Confirm the camera optical frame, non-empty RGB image, matching
+calibration, and compact visual query state containing no pixels. This
+graphical camera check was not executed in this milestone. It does not validate
+physical calibration, dynamics, final geometry, hardware, or safety. Press
+`Ctrl-C` and verify the isolated graph and Gazebo processes terminate.
 
 ## Known limitations
 
-- No physical IMU, localization estimator, diagnostics producer, or physical
-  source profile has been exercised.
+- No physical IMU/camera, localization estimator, diagnostics producer, or
+  physical source profile has been exercised.
 - Gazebo covariance is unknown and quality is absent; neither is fabricated.
 - No SLAM, sensor calibration, clock-sync, cross-sensor consistency, or fusion
   adapter exists.
 - There is no physical pose estimate, bias estimate, gravity compensation, EKF,
-  SLAM, contact state, force/torque, tactile, camera, depth, audio, or detection.
+  SLAM, contact state, force/torque, tactile, depth, audio, detection,
+  recognition, tracking, scene understanding, or visual localization.
 - Sensor health text is inert evidence; no production ROS diagnostics source is
   implemented.
 - Working Memory remains in-process and non-durable.
@@ -422,7 +470,7 @@ terminate.
 
 ## Future work
 
-Physical estimator/driver validation, production diagnostic producers,
-calibration, bias estimation, SLAM/fusion, visual localization, camera/audio
-perception, navigation, durable telemetry policy, and production execution
-authority remain separate reviewed milestones.
+Physical estimator/driver/camera validation, production diagnostic producers,
+calibration refinement, bias estimation, SLAM/fusion, visual localization,
+semantic camera/audio perception, navigation, durable telemetry policy, and
+production execution authority remain separate reviewed milestones.

@@ -181,9 +181,12 @@ development-machine regression ceilings, not edge-hardware certification.
 
 ## Lifecycle, authority, and durable-memory boundaries
 
-Activation creates four fixed observation subscriptions: joint state, IMU,
-localization odometry, and diagnostics. Deactivation destroys all four and
-drops the TF2 buffer. Cleanup, shutdown, error, or source-clock regression
+This subsystem owns four of the adapter's six fixed observation subscriptions:
+joint state, IMU, localization odometry, and diagnostics. The other two are the
+paired head-camera `Image`/`CameraInfo` boundary documented in
+[Visual Camera Foundation](VISUAL_CAMERA_FOUNDATION.md). Deactivation destroys
+all six subscriptions and drops the TF2 buffer. Cleanup, shutdown, error, or
+source-clock regression
 discard temporary evidence. All waits and shutdown escalation are bounded;
 there are no workers, abandoned futures, dynamic plugins, or arbitrary ROS
 names in the production adapter.

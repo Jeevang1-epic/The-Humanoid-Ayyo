@@ -58,14 +58,20 @@ pose/health seams: exact timestamped `odom` to `base_link` lookup, an opt-in
 standard simulated odometry source, explicit typed failure health, and a
 bounded two-component standard ROS diagnostics allowlist. These are
 observation foundations, not SLAM, fusion, navigation, or authority.
+Head RGB Camera and Visual Observation Foundation v1 now adds an exact optical
+frame, a default-off standard `Image`/`CameraInfo` simulation source, fixed
+calibration-aware admission, and bounded pixel-free visual state. It does not
+implement detection, recognition, tracking, scene understanding, visual
+localization, or a physical camera driver.
 
 Final Ayyo assets, graphical controlled-design validation, additional joints,
 trajectory/whole-body controllers, validated dynamics/contact behavior,
 authenticated identity, permissions, approval verification, live backend
 attestation, production typed ROS services, audit persistence,
 timeout/resource enforcement, runtime skill implementations, and
-physical-safety integration remain future work. Live camera/audio/depth/
-force/touch perception, physical IMU/localization validation, production
+physical-safety integration remain future work. Camera perception processing
+and live audio/depth/force/touch perception, physical camera/IMU/localization
+validation, production
 diagnostic producers, SLAM, sensor fusion, environment entity production, and
 reviewed Working-Memory-to-Memory-Validation consolidation also remain future
 work. Executive proposals, Safety

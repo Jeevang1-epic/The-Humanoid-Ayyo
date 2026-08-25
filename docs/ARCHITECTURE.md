@@ -36,6 +36,10 @@ and two allowlisted standard diagnostic components. The dedicated
 [Body Localization and Sensor Diagnostics Foundation](BODY_LOCALIZATION_SENSOR_DIAGNOSTICS.md)
 defines the fixed APIs, bounded TF2 behavior, simulation/physical provenance,
 health mapping, and opt-in Harmonic source. The deterministic
+[Head RGB Camera and Visual Observation Foundation](VISUAL_CAMERA_FOUNDATION.md)
+adds a fixed standard Image/CameraInfo boundary, an exact optical frame,
+deterministic calibration identity, and bounded pixel-free source state. It
+does not infer scene semantics or retain video. The deterministic
 [World Model and Working Memory Foundation](WORLD_MODEL_WORKING_MEMORY.md)
 implements immutable current embodied/environment evidence, deterministic
 snapshots, freshness, and bounded temporary retention ahead of durable memory.
@@ -99,6 +103,11 @@ replace proxy geometry without duplicating or bypassing frame semantics.
   latest TF, publishes duplicate public TF, aliases frames, or fabricates a
   pose. The diagnostics adapter owns an exact two-component name/hardware
   allowlist and treats bounded message/key/value text as inert evidence only.
+- The visual adapter owns fixed head Image and CameraInfo topics, exact optical
+  frame and acquisition-time pairing, bounded standard calibration validation,
+  image-shape validation, and immediate reduction to compact pixel-free
+  metadata. Frame receipt establishes availability, not camera health or scene
+  understanding. Pixel buffers cannot enter snapshots or durable memory.
 - World Model owns transport-neutral provenance-bound current robot/environment
   observations, authoritative body-value validation, IMU/pose/covariance/
   availability contracts, discrete freshness, and canonical immutable
@@ -145,8 +154,8 @@ replace proxy geometry without duplicating or bypassing frame semantics.
   consume that same source; simulation does not maintain a duplicate Ayyo
   model, import cognition, or create an authorization bypass. Control mode has
   one command interface, while the body IMU is observation-only in both static
-  and controlled simulation. Opt-in Harmonic localization is a replaceable
-  simulation observation source with distinct provenance, not motion authority
-  or a physical localization claim.
+  and controlled simulation. Opt-in Harmonic localization and head RGB camera
+  are replaceable simulation observation sources with distinct provenance, not
+  motion authority or physical localization/calibration claims.
 - Learning updates remain candidates until evaluation and controlled promotion;
   consolidation does not bypass safety or permissions.

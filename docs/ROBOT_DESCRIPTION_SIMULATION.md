@@ -17,9 +17,10 @@ gains, contact properties, and actuator selections remain design-dependent.
 
 The automated headless smokes have exercised Xacro expansion, URDF validation,
 installed packages, ROS node startup, TF, Gazebo server launch, entity spawn,
-the clock/IMU bridge, controller/hardware lifecycle, sole joint-state ownership,
-opt-in localization/odometry bridge, one bounded neck command, feedback,
-invalid rejection, and shutdown. Controlled Gazebo graphical inspection has
+the clock/IMU and opt-in camera bridges, controller/hardware lifecycle, sole
+joint-state ownership, opt-in localization/odometry bridge, one bounded neck
+command, feedback, invalid rejection, and shutdown. Controlled Gazebo
+graphical inspection has
 not been executed and is not claimed as passed.
 
 ## Package ownership
@@ -29,7 +30,7 @@ not been executed and is not claimed as passed.
   macro, RViz configuration, RViz-only launch, and description validator.
 - `ayyo_simulation` owns the Gazebo Harmonic world, static entity-spawn
   default, opt-in control composition, controller configuration, and explicit
-  ROS-Gazebo clock/body-IMU/localization bridge configuration.
+  ROS-Gazebo clock/body-IMU/localization/camera bridge configuration.
 - `ayyo_simulation_control` owns deterministic command/limit/result policy and
   the typed development ROS-to-controller adapter. See
   [SIMULATION_CONTROL.md](SIMULATION_CONTROL.md).
@@ -72,6 +73,7 @@ base_link
     │       ├── neck_link
     │       │   └── head_link
     │       │       └── head_camera_frame
+    │       │           └── head_camera_optical_frame
     │       ├── left_shoulder_mount_link
     │       │   └── left_shoulder_yaw_link
     │       │       └── left_upper_arm_link
@@ -102,10 +104,12 @@ base_link
                             └── right_foot_link
 ```
 
-The camera frame is a mounting datum only. No camera, camera sensor plugin,
-or camera perception behavior exists. `imu_link` is a fixed pelvis-mounted
-body-IMU datum; the frame exists for physical transfer, while its sensor exists
-only in simulation expansion and is consumed through the independent
+`head_camera_frame` remains the mechanical mounting datum. Its fixed
+`head_camera_optical_frame` child applies roll `-pi/2`, pitch `0`, yaw `-pi/2`
+at zero translation, giving ROS optical semantics: `+z` forward, `+x` right,
+and `+y` down. The default description contains the frames but no camera
+sensor; only opt-in simulation expansion adds the RGB source. `imu_link` is a
+fixed pelvis-mounted body-IMU datum and is consumed through the independent
 perception trust boundary.
 
 ## Joint contract
@@ -125,6 +129,7 @@ velocity, range, and safety limits require reviewed Ayyo hardware data.
 | `neck_yaw_joint` | `chest_link` → `neck_link` | `0 0 0.20` | `0 0 1` | revolute | `-1.2 / 1.2` | `8 / 1.5` | Provisional neck-yaw actuator |
 | `head_pitch_joint` | `neck_link` → `head_link` | `0 0 0.10` | `0 1 0` | revolute | `-0.6 / 0.6` | `8 / 1.2` | Provisional head-pitch actuator |
 | `head_camera_mount_joint` | `head_link` → `head_camera_frame` | `0.105 0 0.13` | — | fixed | — | — | Reviewed future sensor mount |
+| `head_camera_optical_joint` | `head_camera_frame` → `head_camera_optical_frame` | `0 0 0`, `rpy=-pi/2 0 -pi/2` | — | fixed | — | — | ROS camera optical datum |
 | `left_shoulder_mount_joint` | `chest_link` → `left_shoulder_mount_link` | `0 0.14 0.13` | — | fixed | — | — | Left shoulder datum |
 | `left_shoulder_yaw_joint` | `left_shoulder_mount_link` → `left_shoulder_yaw_link` | `0 0.05 0` | `0 0 1` | revolute | `-1.2 / 1.2` | `20 / 1.2` | Provisional shoulder-yaw actuator |
 | `left_shoulder_pitch_joint` | `left_shoulder_yaw_link` → `left_upper_arm_link` | `0 0 0` | `0 1 0` | revolute | `-1.8 / 1.8` | `20 / 1.2` | Provisional shoulder-pitch actuator |
@@ -224,14 +229,22 @@ A third independent default-off observation flag is
 ground-truth odometry publisher and its reviewed one-way standard ROS bridge.
 It does not enable control, publish public TF, or claim physical localization.
 
+A fourth independent default-off observation flag is `enable_camera:=true`.
+It conditionally adds one 10 Hz 320x240 RGB camera on
+`head_camera_optical_frame`, the `ros_gz_image` image bridge, and one explicit
+camera-info bridge. It does not enable control, recognition, recording, or a
+physical camera profile. See
+[Visual Camera Foundation](VISUAL_CAMERA_FOUNDATION.md).
+
 When control is enabled, `joint_state_publisher` is disabled so it cannot
 compete with controller-derived `/joint_states`.
 
 ## Gazebo and ros_gz boundary
 
 `ayyo_foundation.sdf` owns only a controlled ground plane, directional light,
-physics configuration, and the Harmonic Physics, UserCommands, and
-SceneBroadcaster systems. It contains no duplicate Ayyo model.
+physics configuration, and the Harmonic Physics, UserCommands,
+SceneBroadcaster, IMU, and Ogre2 Sensors systems. It contains no duplicate Ayyo
+model.
 
 `ros_gz_bridge.yaml` has three one-way allowlisted interfaces:
 
@@ -240,6 +253,13 @@ SceneBroadcaster systems. It contains no duplicate Ayyo model.
 | `/clock` `gz.msgs.Clock` | `/clock` `rosgraph_msgs/msg/Clock` | Gazebo → ROS | Drive `use_sim_time` for description nodes |
 | `/ayyo/imu/data` `gz.msgs.IMU` | `/ayyo/imu/data` `sensor_msgs/msg/Imu` | Gazebo → ROS | Standard observation-only body IMU |
 | `/ayyo/localization/ground_truth/odometry` `gz.msgs.Odometry` | `/ayyo/localization/odometry` `nav_msgs/msg/Odometry` | Gazebo → ROS | Opt-in simulation-only body localization evidence |
+
+When and only when `enable_camera:=true`, `ros_gz_image` bridges
+`/ayyo/camera/head/image_raw` to standard `sensor_msgs/msg/Image`, and the
+separate `ros_gz_camera_bridge.yaml` allowlists
+`/ayyo/camera/head/camera_info` as `sensor_msgs/msg/CameraInfo` with queue depth
+two. The Xacro camera contract is fixed at 10 Hz, 320x240, `R8G8B8`/`rgb8`,
+60-degree horizontal field of view, and 0.1-to-30 m clipping.
 
 There is no wildcard bridge, command bridge, joint command, service, or action.
 The IMU and opt-in localization are observation-only streams. No Gazebo Classic
@@ -320,6 +340,7 @@ After building, run the complete headless lifecycle smoke:
 ./scripts/smoke_simulation.sh
 ./scripts/smoke_simulation_control.sh
 ./scripts/smoke_localization_diagnostics.sh
+./scripts/smoke_visual_camera.sh
 ```
 
 The first smoke verifies installed package lookup, description validation,
@@ -329,7 +350,10 @@ claimed command interface, exactly one `/joint_states` publisher, typed bounded
 motion with correlated feedback, out-of-range rejection, and clean adapter
 shutdown. The localization/diagnostics smoke enables the optional Harmonic
 odometry source and proves its exact frames/provenance through the read-only
-World Model query. None starts a graphical desktop.
+World Model query. The visual smoke proves actual non-empty image and matching
+calibration transport, optical frame/timestamp/provenance, bounded pixel-free
+admission, malformed/wrong-frame rejection and recovery, lifecycle behavior,
+motion independence, and shutdown. None starts a graphical desktop.
 
 ## Manual graphical validation
 
@@ -358,13 +382,24 @@ Gazebo Harmonic graphical smoke test:
 
 ```bash
 ros2 launch ayyo_simulation simulation.launch.py \
-  headless:=false use_meshes:=false spawn_z:=0.95
+  headless:=false use_meshes:=false spawn_z:=0.95 enable_camera:=true
 ```
 
 Inspect world orientation, ground contact, robot scale, link continuity,
 left/right symmetry, clipping, proxy collision alignment, and entity pose. The
 entity is intentionally static; this test cannot validate dynamics, controller
 behavior, joint actuation, walking, or physical stability.
+
+In a second sourced terminal, inspect the transport and rendered view with:
+
+```bash
+ros2 topic echo --once /ayyo/camera/head/camera_info sensor_msgs/msg/CameraInfo
+ros2 run rqt_image_view rqt_image_view /ayyo/camera/head/image_raw
+```
+
+Confirm `head_camera_optical_frame`, non-empty 320x240 `rgb8` images, matching
+nonzero source timestamps, and a stable view while moving the graphical camera.
+This manual graphical check was not executed in this milestone run.
 
 For the exact controlled graphical launch, controller/interface inspection,
 bounded motion, invalid rejection, and shutdown procedure, follow
@@ -385,9 +420,10 @@ pass from successful launch.
   its proxy dynamics and contacts are not validated.
 - Only `neck_yaw_joint` is commandable, through development injection. There is
   no trajectory, whole-body, walking, manipulation, or navigation controller.
-- Joint-state, simulated body-IMU, and opt-in simulation ground-truth
-  localization observation are live. No physical sensor/localization
-  validation, production diagnostics producer, SLAM/fusion, general
+- Joint-state, simulated body-IMU, opt-in RGB camera, and opt-in simulation
+  ground-truth localization observations are live. No physical
+  sensor/localization/camera validation, production diagnostics producer,
+  semantic visual processing, SLAM/fusion, general
   perception, autonomous walking, physical hardware driver, physical
   communication, production runtime motion service, or physical-safety system
   exists.

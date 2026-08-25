@@ -19,8 +19,10 @@ state still starts empty and remains empty unless a caller supplies actual typed
 evidence. The reviewed localization and diagnostics adapters now supply exact
 pose and explicit health evidence through the same path; see
 [BODY_LOCALIZATION_SENSOR_DIAGNOSTICS.md](BODY_LOCALIZATION_SENSOR_DIAGNOSTICS.md).
-No camera, microphone, person tracking, object detector, or missing pose/health
-is fabricated.
+The [Visual Camera Foundation](VISUAL_CAMERA_FOUNDATION.md) now admits compact
+calibrated RGB-frame metadata from paired standard `Image`/`CameraInfo`
+messages. Pixels, microphone data, people, objects, scene meaning, and missing
+pose/health are not fabricated or retained in semantic state.
 
 Gazebo is a replaceable development body backend. It is not the final project
 goal. The final objective is the physical Ayyo humanoid, and the observation
@@ -33,7 +35,7 @@ semantics.
 ```text
 future physical sensors / current simulation feedback
         ↓
-fixed typed ROS observation adapter
+fixed standard ROS decoding adapter; raw image payload ends here
         ↓ normalized immutable evidence
 Perception Trust Boundary
         ↓ admitted evidence
@@ -118,6 +120,13 @@ unavailable evidence; diagnostic text is data only and grants no authority.
 Both now have narrow live adapters without changing these transport-neutral
 contracts.
 
+`CameraCalibration` validates exact image dimensions, bounded finite `D/K/R/P`
+parameters, distortion model, binning, and ROI before deriving a deterministic
+identity. `VisualFrameObservation` retains only robot/sensor identity, optical
+frame, dimensions, `rgb8` encoding, step, byte count, calibration identity,
+source timestamp, availability, provenance, and canonical identity. It has no
+pixel field and cannot represent detected entities or scene knowledge.
+
 ## Provenance
 
 Every meaningful observation retains source kind, canonical source identity,
@@ -128,7 +137,7 @@ and test evidence use their own explicit clocks. Recorded evidence must also use
 the recorded transport.
 
 The ROS boundary exposes two reviewed embodiment profiles. Each pins distinct
-joint, IMU, and future body-pose provenance:
+joint, IMU, body-pose, and head-camera provenance:
 
 | Profile | Source kind | Clock | Source identity |
 | --- | --- | --- | --- |
@@ -139,6 +148,10 @@ The corresponding IMU sources are
 `ros.imu.simulation.gz-harmonic.v1` and
 `ros.imu.physical.standard-driver.v1`. Only the simulation profile has been
 exercised; the physical profile is a reviewed seam, not a hardware claim.
+The corresponding RGB camera sources are
+`ros.camera.head.simulation.gz-harmonic.v1` and
+`ros.camera.head.physical.standard-driver.v1`, both using the transport-neutral
+`sensor-msgs.image-camera-info.v1` interface identity.
 
 The adapter rejects a simulation profile with wall/system ROS time and a
 physical profile with simulation time. Profile selection never changes the
@@ -166,9 +179,9 @@ ros2_control limits remain unchanged.
 by Working Memory. It creates an immutable `WorldSnapshot` containing:
 
 - `RobotBodyState` with canonical identity, all known movable joint names,
-  observed joint states, zero or more current IMU states, optional base pose,
-  per-sensor availability, and explicit unavailable/partial/available joint
-  coverage;
+  observed joint states, zero or more current IMU and compact visual states,
+  optional base pose, per-sensor availability, and explicit
+  unavailable/partial/available joint coverage;
 - zero or more canonically ordered `WorldEntity` records; and
 - a typed canonical snapshot version and derived snapshot ID.
 
@@ -197,8 +210,8 @@ window. It has no database, filesystem writes, timer, worker thread, polling
 loop, or autonomous refresh. Time is supplied explicitly to every ingest/query
 operation so deterministic tests and ROS adapters control the correct clock.
 
-Current robot state is keyed per joint, IMU sensor, body-pose source, and sensor
-health source. Partial newer
+Current robot state is keyed per joint, IMU sensor, visual sensor, body-pose
+source, and sensor health source. Partial newer
 messages update only the joints they contain and do not clear other unexpired
 state. A same-key message with an older timestamp is rejected. Different
 evidence for the same key and exact timestamp is rejected as a temporal
@@ -239,7 +252,9 @@ epoch; impossible ordering is rejected rather than hidden.
 Publisher disappearance requires no timer: the next read evaluates source time,
 marks retained evidence stale after freshness, and reports its known sensor as
 unavailable after TTL. Adapter restart begins empty. Deactivate destroys both
-fixed subscriptions; cleanup removes/reset temporary state.
+fixed proprioceptive subscriptions as part of destroying all six observation
+subscriptions; cleanup removes/reset temporary state and unmatched camera
+message references.
 
 ## Resource bounds
 
@@ -259,9 +274,12 @@ Defaults and hard maxima are explicit:
 | Integer width | 1,024 bits | 1,024 bits |
 
 Current robot-joint entries are additionally bounded by the immutable joint
-catalog (18 movable joints presently). IMU, pose, and health current entries are
-bounded by the immutable sensor catalog (three identities presently). Counters
-use constant storage. No
+catalog (18 movable joints presently). IMU, visual, pose, and health current
+entries are bounded by the immutable sensor catalog (four identities presently).
+The camera adapter keeps at most one pending `Image` and one pending
+`CameraInfo`, clearing both after an exact pair; pixels never enter trust,
+Working Memory, World Model, fingerprints, or Memory OS. Counters use constant
+storage. No
 all-time observation-ID set is retained. At query time, shared multi-joint batch
 evidence is reconstructed once and referenced by each current joint, avoiding
 repeated whole-batch hashing/copies.
@@ -289,6 +307,12 @@ cycles with one current pose, one current health item, 32 recent observations,
 at most 34 unique observations/references, current traced memory below 2 MB,
 and peak below 8 MB.
 
+The visual regression admitted 5,000 compact frames at a simulated 10 Hz. It
+retained one trust key, one current visual observation, 21 recent/unique
+observations, and 22 total references; `tracemalloc` reported 110,275 current
+and 113,999 peak bytes. This excludes raw ROS/Gazebo buffers, middleware, the
+interpreter, and is not an edge-hardware claim.
+
 ## Read-only query surfaces
 
 The core exposes immutable typed `current_snapshot`, `get_robot_state`,
@@ -306,8 +330,10 @@ ayyo_interfaces/srv/GetRobotBodyState
 It reports ready/not-ready, canonical robot/snapshot identities, source profile,
 expected and observed joints, IMU values with explicit presence flags,
 covariance/quality presence, exact pose frames/values/provenance, independent
-explicit health presence/detail/provenance, sensor summaries, timestamps,
-freshness, evidence IDs/fingerprints, and bounded retention counts. A query for
+explicit health presence/detail/provenance, compact visual dimensions/encoding/
+step/byte-count/calibration identity/provenance, sensor summaries, timestamps,
+freshness, evidence IDs/fingerprints, and bounded retention counts. No image
+bytes are serialized by this service. A query for
 another robot identity fails closed.
 
 ## ROS lifecycle and restart behavior
@@ -318,8 +344,9 @@ configure/activate transitions through the reviewed executable.
 - Configure selects one reviewed profile, verifies ROS clock compatibility,
   parses `robot_description`, creates Working Memory, and creates the query.
 - Activate creates fixed `/joint_states`, `/ayyo/imu/data`,
-  `/ayyo/localization/odometry`, and `/diagnostics` subscriptions plus one
-  retention-bounded TF2 buffer.
+  `/ayyo/localization/odometry`, `/diagnostics`,
+  `/ayyo/camera/head/image_raw`, and `/ayyo/camera/head/camera_info`
+  subscriptions plus one retention-bounded TF2 buffer.
 - Deactivate destroys all subscriptions and the TF2 buffer and makes queries
   not ready.
 - Cleanup/shutdown destroy interfaces and discard temporary state.
@@ -335,16 +362,16 @@ The verified development path is:
 
 ```text
 World Model ← Working Memory ← Perception Trust Boundary
-← fixed standard joint/IMU adapter (simulation profile)
-← ros2_control feedback + ros_gz sensor bridge ← Gazebo Harmonic
+← fixed standard joint/IMU/camera adapter (simulation profile)
+← ros2_control feedback + ros_gz sensor/image bridges ← Gazebo Harmonic
 ```
 
 The intended physical path is:
 
 ```text
 World Model ← Working Memory ← Perception Trust Boundary
-← fixed standard joint/IMU adapter (physical profile)
-← joint_state_broadcaster + future standard IMU driver
+← fixed standard joint/IMU/camera adapter (physical profile)
+← joint_state_broadcaster + future standard IMU and camera drivers
 ← future Ayyo hardware interfaces, encoders, and sensors
 ```
 
@@ -412,6 +439,7 @@ python3 -m unittest discover -s perception/tests -v
 ./scripts/smoke_world_model.sh
 ./scripts/smoke_perception.sh
 ./scripts/smoke_localization_diagnostics.sh
+./scripts/smoke_visual_camera.sh
 ```
 
 The smoke starts controlled headless simulation, requires the lifecycle/query
@@ -423,18 +451,19 @@ Shutdown must be clean.
 ## Current limitations
 
 - ROS joint-state, simulated body-IMU, exact-frame localization, and reviewed
-  joint/IMU diagnostic ingestion are live.
-- Environment entities, force/torque, touch, camera, depth, audio, navigation,
-  manipulation, and human tracking have typed or architectural space but no
-  live adapter.
+  joint/IMU diagnostic ingestion are live; opt-in simulated RGB frame metadata
+  is live without retaining pixels.
+- Environment entities, force/torque, touch, depth, audio, navigation,
+  manipulation, human tracking, and semantic visual processing have typed or
+  architectural space but no live adapter.
 - Covariance and optional quality are preserved when supplied; v1 has no sensor
   fusion, calibration/bias estimation, trust scoring, probabilistic estimation,
   or cross-sensor conflict resolution.
 - Expected proprioceptive sensors have explicit query-time disappearance;
   environment entities still expire by TTL without a tombstone observation.
 - Working Memory is in-process/non-durable; node restart loses temporary state.
-- The ROS query exposes joint, IMU, pose, sensor-summary, and explicit health
-  state only.
+- The ROS query exposes joint, IMU, pose, sensor-summary, explicit health, and
+  compact pixel-free visual state only.
 - No automatic Memory Validation candidate selection or learning consolidation
   exists.
 - No edge-hardware benchmark or Raspberry Pi/Jetson compatibility claim exists.
@@ -451,7 +480,7 @@ export ROS_DOMAIN_ID=122
 export GZ_PARTITION=ayyo_world_model_manual_122
 ros2 launch ayyo_simulation simulation.launch.py \
   headless:=false enable_control:=true enable_development_control:=true \
-  enable_world_model:=true
+  enable_world_model:=true enable_camera:=true
 ```
 
 In another identically configured terminal:
@@ -459,6 +488,7 @@ In another identically configured terminal:
 ```bash
 ros2 lifecycle get /ayyo_world_model
 ros2 run ayyo_world_model body_state_query.py
+ros2 run rqt_image_view rqt_image_view /ayyo/camera/head/image_raw
 ros2 run ayyo_simulation_control development_command.py --position 0.1
 ros2 run ayyo_world_model body_state_query.py
 ```
@@ -466,4 +496,7 @@ ros2 run ayyo_world_model body_state_query.py
 Confirm lifecycle is active, the first query reports 18 fresh joints with
 simulation provenance, the head visibly turns, and the later query reports
 `neck_yaw_joint` within `0.01` rad of `0.1` with later evidence and changed
-snapshot IDs. Press `Ctrl-C` and verify the isolated graph/processes terminate.
+snapshot IDs. The query also reports compact visual state while `rqt_image_view`
+shows the raw transport; the query must contain no pixels. This graphical check
+was not executed in this milestone. Press `Ctrl-C` and verify the isolated
+graph/processes terminate.

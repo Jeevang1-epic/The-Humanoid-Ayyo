@@ -16,9 +16,10 @@ but grants no authority.
 - Learned behavior cannot rewrite immutable safety rules.
 - A physical emergency stop remains independent of software cognition.
 - Text or audio observed in the environment does not grant authority.
-- Perception admission, sensor availability, freshness, covariance, quality,
-  pose, and diagnostic text are evidence only. They cannot grant identity,
-  permission, approval, safety clearance, runtime eligibility, or motion.
+- Perception admission, visual-frame availability/calibration metadata, sensor
+  availability, freshness, covariance, quality, pose, and diagnostic text are
+  evidence only. Pixels and observed text cannot grant identity, permission,
+  approval, safety clearance, runtime eligibility, or motion.
 - Identity and permissions are explicit.
 - Personal Context Twin state is context, not identity proof, permission, or
   action authorization; conflicted or unknown context cannot be promoted into

@@ -84,8 +84,8 @@
 - Narrow transport protocol with an unavailable-by-default ROS service sentinel;
   the deterministic in-memory implementation exists only in tests
 - Authoritative modular `ayyo_description` Xacro with a canonical `base_link`
-  root, 36 links, 35 joints, 18 provisional movable joints, an explicit head
-  camera mounting frame without a sensor, and one fixed pelvis body-IMU datum
+  root, 37 links, 36 joints, 18 provisional movable joints, an explicit head
+  camera mount and ROS optical frame, and one fixed pelvis body-IMU datum
 - Development proxy visual/collision primitives isolated from a normalized,
   machine-readable 33-part contract for absent final visual and collision
   meshes
@@ -98,9 +98,9 @@
 - Dedicated `ayyo_simulation` package with an SDF 1.10 Gazebo Harmonic world,
   static non-actuating default spawn from the authoritative Xacro, opt-in
   controlled dynamic spawn, and no duplicate robot model
-- Explicit one-way Gazebo-to-ROS allowlist for `/clock` and the observation-only
-  `/ayyo/imu/data` standard IMU, with no commands, services, actions, or
-  wildcard bridging
+- Explicit one-way Gazebo-to-ROS allowlist for `/clock`, observation-only IMU,
+  opt-in camera info and localization, plus an opt-in `ros_gz_image` image
+  bridge, with no commands, services, actions, or wildcard bridging
 - Opt-in Jazzy/Harmonic `gz_ros2_control` system with position/velocity/effort
   state for all 18 movable joints and exactly one claimed position command
   interface for `neck_yaw_joint`
@@ -180,6 +180,17 @@
   actual localization, all four diagnostic levels, unknown/wrong-frame
   rejection, expiry, existing 0.1 rad development motion independence, and
   bounded clean shutdown
+- Fixed `head_camera_optical_frame` with ROS optical-axis semantics under the
+  existing head camera mount, preserving the mount as a mechanical datum
+- Default-off 10 Hz 320x240 `rgb8` Harmonic camera with standard
+  `sensor_msgs/Image` and `sensor_msgs/CameraInfo` transport and bounded bridge
+  queues
+- Immutable calibration and pixel-free visual-observation contracts, exact
+  simulation/physical provenance profiles, fixed paired-message admission, and
+  bounded Working Memory/World Model visibility without durable telemetry
+- Headless visual smoke proving the real Gazebo image path, optical frame,
+  source timestamp, calibration, simulation provenance, rejection/recovery,
+  bounds, lifecycle, motion independence, and clean shutdown
 
 ## Planned, but not implemented
 
@@ -188,9 +199,9 @@
   mass, and inertia tensors
 - Ayyo-specific RViz and Gazebo graphical review of orientation, scale, pivots,
   symmetry, clipping, collision alignment, and joint direction
-- Physical joint, IMU, localization, and diagnostic-source validation
-- Force/torque, touch, camera, depth, audio, object, person, navigation, and
-  manipulation observation adapters
+- Physical joint, camera, IMU, localization, and diagnostic-source validation
+- Force/torque, touch, depth, audio, object, person, navigation, manipulation,
+  and semantic visual-processing observation adapters
 - Production diagnostic producers, SLAM, visual localization, sensor fusion,
   calibration/bias estimation, trust scoring, clock
   synchronization, and environment-state ROS query transport
@@ -224,8 +235,9 @@ controlled ROS Runtime Bridge compatibility boundary. The downstream
 Simulation Control Foundation can actuate one bounded simulated neck joint only
 through explicit development injection and can prove the result from
 controller-derived feedback. The independent perception boundary admits
-standard joint/IMU, exact body-localization, and allowlisted diagnostic
-evidence but grants no authority. The project does not
+standard joint/IMU, exact body-localization, allowlisted diagnostic, and
+compact calibrated visual-frame evidence but grants no authority. The project
+does not
 provide inferred personality, natural-language understanding, model reasoning,
 general perception, physical sensor validation, authenticated
 authorization, live backend attestation, physical-safety certification,

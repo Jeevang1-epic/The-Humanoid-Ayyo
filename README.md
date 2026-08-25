@@ -7,7 +7,7 @@ can mature behind stable boundaries before physical hardware is introduced.
 
 ## Current status
 
-Ayyo has reached the Body Localization and Sensor Diagnostics Foundation v1
+Ayyo has reached the Head RGB Camera and Visual Observation Foundation v1
 review stage.
 
 Implemented:
@@ -38,8 +38,9 @@ Implemented:
   validates an exact service-only endpoint allowlist, emits deterministic
   dispatch-eligibility decisions, and models an unavailable-by-default
   transport boundary without a concrete ROS client or robot execution
-- A modular 36-link, 35-joint canonical Ayyo humanoid frame tree with 18
-  provisional movable joints, one fixed body-IMU mount frame, deterministic
+- A modular 37-link, 36-joint canonical Ayyo humanoid frame tree with 18
+  provisional movable joints, fixed body-IMU and head-camera optical frames,
+  deterministic
   Xacro/URDF validation, isolated proxy geometry, and a machine-readable
   33-part final-mesh contract
 - Separate RViz-only and Gazebo Harmonic launch paths using the same
@@ -79,6 +80,15 @@ Implemented:
   detail, explicit expiry, and no health inferred from measurement arrival
 - A headless end-to-end smoke proving localization, diagnostics, adversarial
   rejection, existing bounded development motion, and clean shutdown
+- A default-off 10 Hz 320×240 Harmonic head RGB camera with standard
+  `sensor_msgs/Image` and `sensor_msgs/CameraInfo`, image-transport-based
+  bridging, one exact optical frame, and no camera-control channel
+- Immutable calibration identity and pixel-free visual-frame metadata admitted
+  through the existing trust boundary into one bounded current visual source
+  state, with explicit disappearance and absent health semantics
+- A headless visual smoke proving real nonempty pixels at transport ingress,
+  matching CameraInfo, simulation provenance, adversarial rejection, bounded
+  retention, lifecycle behavior, independent neck motion, and clean shutdown
 
 Planned, but not implemented:
 
@@ -86,9 +96,9 @@ Planned, but not implemented:
 - Graphical Ayyo mesh/frame/collision validation
 - Additional commandable joints, trajectory/whole-body control, and validated
   dynamics/contact behavior
-- Physical localization and sensor validation, real diagnostic producers,
-  SLAM/fusion/calibration, and perception beyond the reviewed proprioceptive
-  observation sources
+- Physical localization/camera/sensor validation, real diagnostic producers,
+  SLAM/fusion/physical calibration, and perception processing beyond reviewed
+  body and visual-source observations
 - Natural-language/model integration and authenticated identity/approval
 - Runtime skill implementations, manipulation, and navigation
 - Production-authorized typed ROS services, runtime scheduling, and resource
@@ -114,6 +124,7 @@ independent of cognition and learned policies. See
 [docs/WORLD_MODEL_WORKING_MEMORY.md](docs/WORLD_MODEL_WORKING_MEMORY.md),
 [docs/PERCEPTION_TRUST_PROPRIOCEPTION.md](docs/PERCEPTION_TRUST_PROPRIOCEPTION.md),
 [docs/BODY_LOCALIZATION_SENSOR_DIAGNOSTICS.md](docs/BODY_LOCALIZATION_SENSOR_DIAGNOSTICS.md),
+[docs/VISUAL_CAMERA_FOUNDATION.md](docs/VISUAL_CAMERA_FOUNDATION.md),
 [docs/AYYO_MESH_IMPORT.md](docs/AYYO_MESH_IMPORT.md), and
 [docs/SAFETY.md](docs/SAFETY.md).
 
@@ -253,6 +264,12 @@ Run the body localization and sensor diagnostics integration smoke:
 ./scripts/smoke_localization_diagnostics.sh
 ```
 
+Run the head RGB camera and visual-observation integration smoke:
+
+```bash
+./scripts/smoke_visual_camera.sh
+```
+
 ## Repository layout
 
 ```text
@@ -280,7 +297,8 @@ Robot Description & Simulation Foundation v1, and the one-joint Simulation
 Control & Actuation Foundation v1, Embodied World Model and Working Memory
 Foundation v1, and Perception Trust Boundary and Proprioceptive Observation
 Foundation v1, plus Body Localization and Sensor Diagnostics Foundation v1,
-are implemented. Production motion remains
+and Head RGB Camera and Visual Observation Foundation v1 are implemented.
+Production motion remains
 closed because Safety v1 defers physical movement; only explicit development
 injection can exercise the simulated neck joint. The perception path adds
 evidence only and grants no execution authority. Final Ayyo assets,
