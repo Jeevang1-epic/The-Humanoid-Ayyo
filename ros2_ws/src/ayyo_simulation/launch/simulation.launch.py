@@ -5,13 +5,13 @@
 from launch import LaunchDescription
 from launch.actions import (
     DeclareLaunchArgument,
-    IncludeLaunchDescription,
+    ExecuteProcess,
     RegisterEventHandler,
+    Shutdown,
     TimerAction,
 )
 from launch.conditions import IfCondition, UnlessCondition
 from launch.event_handlers import OnProcessExit
-from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import (
     AndSubstitution,
     Command,
@@ -82,24 +82,38 @@ def generate_launch_description() -> LaunchDescription:
         'robot_description': robot_description,
         'use_sim_time': True,
     }
-    gazebo_launch = PathJoinSubstitution(
-        [FindPackageShare('ros_gz_sim'), 'launch', 'gz_sim.launch.py']
-    )
-
-    gazebo_server = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource(gazebo_launch),
-        launch_arguments={
-            'gz_args': ['-r -s ', world_file],
-            'on_exit_shutdown': 'true',
-        }.items(),
+    # ros_gz_sim's generic Jazzy launcher uses a shell, which leaves the
+    # Ruby `gz sim` child outside launch's signal ownership. Invoke the fixed
+    # executable directly so launch owns and reaps the actual Gazebo process.
+    gazebo_server = ExecuteProcess(
+        cmd=[
+            FindExecutable(name='gz'),
+            'sim',
+            '-r',
+            '-s',
+            world_file,
+            '--force-version',
+            '8',
+        ],
+        name='ayyo_gazebo_server',
+        output='screen',
+        shell=False,
+        on_exit=Shutdown(),
         condition=IfCondition(headless),
     )
-    gazebo_graphical = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource(gazebo_launch),
-        launch_arguments={
-            'gz_args': ['-r ', world_file],
-            'on_exit_shutdown': 'true',
-        }.items(),
+    gazebo_graphical = ExecuteProcess(
+        cmd=[
+            FindExecutable(name='gz'),
+            'sim',
+            '-r',
+            world_file,
+            '--force-version',
+            '8',
+        ],
+        name='ayyo_gazebo_graphical',
+        output='screen',
+        shell=False,
+        on_exit=Shutdown(),
         condition=UnlessCondition(headless),
     )
     spawn_ayyo = Node(

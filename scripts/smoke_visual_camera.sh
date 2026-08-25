@@ -4,6 +4,7 @@ set -euo pipefail
 
 readonly repository_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 readonly workspace_root="$repository_root/ros2_ws"
+readonly process_helper="$repository_root/scripts/smoke_processes.sh"
 readonly smoke_root="$(mktemp -d -t ayyo-visual-camera-smoke.XXXXXX)"
 readonly launch_log="$smoke_root/visual_camera.log"
 readonly default_domain_id="$((220 + ($$ % 10)))"
@@ -11,28 +12,25 @@ readonly smoke_domain_id="${AYYO_VISUAL_SMOKE_DOMAIN_ID:-$default_domain_id}"
 readonly smoke_partition="ayyo_visual_camera_smoke_$$"
 launch_pid=""
 
+# shellcheck source=scripts/smoke_processes.sh
+source "$process_helper"
+
 cleanup() {
   local exit_status="$?"
-  if [[ -n "$launch_pid" ]] && kill -0 "$launch_pid" 2>/dev/null; then
-    kill -INT "$launch_pid" 2>/dev/null || true
-    for _ in {1..50}; do
-      if ! kill -0 "$launch_pid" 2>/dev/null; then
-        break
-      fi
-      sleep 0.1
-    done
-    if kill -0 "$launch_pid" 2>/dev/null; then
-      kill -TERM "$launch_pid" 2>/dev/null || true
-    fi
-    wait "$launch_pid" 2>/dev/null || true
+  trap - EXIT INT TERM
+  if ! ayyo_smoke_shutdown_owned_launch; then
+    exit_status=1
   fi
   if [[ "$exit_status" -ne 0 && "${AYYO_KEEP_FAILED_SMOKE:-0}" == "1" ]]; then
     printf 'DEBUG: retained failed smoke artifacts at %s\n' "$smoke_root" >&2
   else
     rm -rf "$smoke_root"
   fi
+  exit "$exit_status"
 }
-trap cleanup EXIT INT TERM
+trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 if [[ ! -f "$workspace_root/install/setup.bash" ]]; then
   printf 'Workspace is not built; run scripts/build_workspace.sh first.\n' >&2
@@ -53,10 +51,10 @@ mkdir -p "$ROS_LOG_DIR" "$GZ_HOMEDIR"
 
 ros2 pkg prefix ayyo_world_model >/dev/null
 ros2 pkg prefix ros_gz_image >/dev/null
-ros2 launch ayyo_simulation simulation.launch.py \
+ayyo_smoke_start_owned_launch "$launch_log" \
+  ros2 launch ayyo_simulation simulation.launch.py \
   headless:=true enable_control:=true enable_development_control:=true \
-  enable_world_model:=true enable_camera:=true >"$launch_log" 2>&1 &
-launch_pid=$!
+  enable_world_model:=true enable_camera:=true
 
 wait_until() {
   local description="$1"
@@ -107,31 +105,6 @@ raise SystemExit(
 
 wrong_frame_logged() {
   grep -Eq 'Image frame does not match|CameraInfo frame does not match' "$launch_log"
-}
-
-wait_for_launch_exit() {
-  for _ in {1..100}; do
-    if ! kill -0 "$launch_pid" 2>/dev/null; then
-      wait "$launch_pid" 2>/dev/null || true
-      launch_pid=""
-      return 0
-    fi
-    sleep 0.1
-  done
-  return 1
-}
-
-shutdown_launch() {
-  kill -INT "$launch_pid"
-  if wait_for_launch_exit; then
-    return 0
-  fi
-  kill -TERM "$launch_pid"
-  if wait_for_launch_exit; then
-    return 0
-  fi
-  printf 'FAIL: visual camera launch survived bounded SIGINT and SIGTERM\n' >&2
-  return 1
 }
 
 wait_until 'visual adapter lifecycle is active' world_model_active
@@ -252,7 +225,7 @@ ros2 lifecycle set /ayyo_world_model activate >/dev/null
 wait_until 'reactivated adapter admits new visual evidence' trusted_visual_ready 60
 printf 'PASS: camera subscriptions obey lifecycle deactivate/reactivate boundaries\n'
 
-shutdown_launch
+ayyo_smoke_shutdown_owned_launch
 if grep -Eq 'Traceback|exception was never retrieved|World Model configure failed' "$launch_log"; then
   printf 'FAIL: visual camera adapter reported an unclean lifecycle\n' >&2
   sed -n '1,500p' "$launch_log" >&2
@@ -271,5 +244,5 @@ if [[ -n "$remaining_nodes" ]]; then
   printf '%s\n' "$remaining_nodes" >&2
   exit 1
 fi
-printf 'PASS: visual camera ROS and Gazebo resources shut down cleanly\n'
+printf 'PASS: visual-camera owned-process set is empty after bounded shutdown\n'
 printf 'PASS: Head RGB Camera and Visual Observation Foundation v1 smoke completed\n'

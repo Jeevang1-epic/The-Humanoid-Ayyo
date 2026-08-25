@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import ast
+import os
 from pathlib import Path
+import signal
 import subprocess
 import xml.etree.ElementTree as ET
 
@@ -12,6 +14,8 @@ import yaml
 
 PACKAGE_ROOT = Path(__file__).resolve().parents[1]
 REPOSITORY_ROOT = Path(__file__).resolve().parents[4]
+PROCESS_HELPER = REPOSITORY_ROOT / 'scripts' / 'smoke_processes.sh'
+SESSION_LAUNCHER = REPOSITORY_ROOT / 'scripts' / 'smoke_session.py'
 
 
 def launch_tree() -> ast.AST:
@@ -40,6 +44,137 @@ def production_source_text() -> str:
         for path in production_paths
         if path.is_file() and '__pycache__' not in path.parts
     )
+
+
+def run_process_helper(script: str) -> subprocess.CompletedProcess[str]:
+    environment = os.environ.copy()
+    environment.update(
+        {
+            'AYYO_SMOKE_SHUTDOWN_ATTEMPTS': '10',
+            'AYYO_SMOKE_SHUTDOWN_DELAY_SECONDS': '0.02',
+        }
+    )
+    return subprocess.run(
+        ['bash', '-c', script],
+        check=False,
+        capture_output=True,
+        text=True,
+        timeout=10,
+        env=environment,
+    )
+
+
+def test_smoke_process_helper_requires_exact_dedicated_ownership() -> None:
+    source = PROCESS_HELPER.read_text(encoding='utf-8')
+    launcher_source = SESSION_LAUNCHER.read_text(encoding='utf-8')
+    assert 'AYYO_SMOKE_RUN_ID' in source
+    assert 'smoke_session.py' in source
+    assert 'os.setsid()' in launcher_source
+    assert 'signal.SIGINT, signal.SIG_DFL' in launcher_source
+    assert 'pkill' not in source
+    assert 'killall' not in source
+    assert '/proc/[0-9]*/environ' in source
+
+
+def test_owned_graceful_shutdown_does_not_touch_unrelated_process() -> None:
+    unrelated = subprocess.Popen(['sleep', '30'])
+    try:
+        result = run_process_helper(
+            f"""
+set -euo pipefail
+launch_pid=""
+source "{PROCESS_HELPER}"
+ayyo_smoke_start_owned_launch /dev/null python3 -c '
+import signal
+import sys
+import time
+signal.signal(signal.SIGINT, lambda *_: sys.exit(0))
+time.sleep(30)
+'
+ayyo_smoke_shutdown_owned_launch
+[[ "$ayyo_smoke_shutdown_escalated" -eq 0 ]]
+[[ -z "$(ayyo_smoke_owned_pids)" ]]
+kill -0 {unrelated.pid}
+"""
+        )
+        assert result.returncode == 0, result.stderr
+        assert unrelated.poll() is None
+    finally:
+        unrelated.send_signal(signal.SIGTERM)
+        unrelated.wait(timeout=5)
+
+
+def test_owned_shutdown_uses_scoped_term_escalation() -> None:
+    result = run_process_helper(
+        f"""
+set -euo pipefail
+launch_pid=""
+source "{PROCESS_HELPER}"
+ayyo_smoke_start_owned_launch /dev/null python3 -c '
+import signal
+import time
+signal.signal(signal.SIGINT, signal.SIG_IGN)
+time.sleep(30)
+'
+ayyo_smoke_shutdown_owned_launch
+[[ "$ayyo_smoke_shutdown_escalated" -eq 1 ]]
+[[ -z "$(ayyo_smoke_owned_pids)" ]]
+"""
+    )
+    assert result.returncode == 0, result.stderr
+    assert 'graceful launch shutdown left these owned processes' in result.stderr
+
+
+def test_owned_shutdown_fails_after_scoped_forced_cleanup() -> None:
+    result = run_process_helper(
+        f"""
+set -euo pipefail
+launch_pid=""
+source "{PROCESS_HELPER}"
+ayyo_smoke_start_owned_launch /dev/null python3 -c '
+import signal
+import time
+signal.signal(signal.SIGINT, signal.SIG_IGN)
+signal.signal(signal.SIGTERM, signal.SIG_IGN)
+time.sleep(30)
+'
+owned_pid="$launch_pid"
+set +e
+ayyo_smoke_shutdown_owned_launch
+shutdown_status="$?"
+set -e
+[[ "$shutdown_status" -ne 0 ]]
+! kill -0 "$owned_pid" 2>/dev/null
+"""
+    )
+    assert result.returncode == 0, result.stderr
+    assert 'smoke must fail' in result.stderr
+
+
+def test_early_failure_trap_still_removes_owned_processes() -> None:
+    result = run_process_helper(
+        f"""
+set -euo pipefail
+launch_pid=""
+source "{PROCESS_HELPER}"
+cleanup() {{
+  status="$?"
+  trap - EXIT
+  ayyo_smoke_shutdown_owned_launch || status=1
+  exit "$status"
+}}
+trap cleanup EXIT
+ayyo_smoke_start_owned_launch /dev/null python3 -c '
+import signal
+import time
+signal.signal(signal.SIGINT, signal.SIG_IGN)
+time.sleep(30)
+'
+exit 7
+"""
+    )
+    assert result.returncode == 7, result.stderr
+    assert 'graceful launch shutdown left these owned processes' in result.stderr
 
 
 def test_world_is_valid_sdformat() -> None:
@@ -166,6 +301,20 @@ def test_launch_uses_bounded_simulation_nodes() -> None:
     )
     assert 'rviz2' not in source
     assert 'condition=UnlessCondition(enable_control)' in source
+
+
+def test_launch_owns_gazebo_without_shell_child_or_generic_wrapper() -> None:
+    source = (PACKAGE_ROOT / 'launch' / 'simulation.launch.py').read_text(
+        encoding='utf-8'
+    )
+    assert source.count('gazebo_server = ExecuteProcess(') == 1
+    assert source.count('gazebo_graphical = ExecuteProcess(') == 1
+    assert source.count('shell=False') == 2
+    assert source.count('on_exit=Shutdown()') == 2
+    assert "FindExecutable(name='gz')" in source
+    assert 'IncludeLaunchDescription' not in source
+    assert 'gz_sim.launch.py' not in source
+    assert 'shell=True' not in source
 
 
 def test_launch_spawns_authoritative_description_as_static() -> None:
@@ -320,8 +469,10 @@ def test_headless_smoke_script_checks_complete_lifecycle() -> None:
         'ros2 topic echo --once /tf',
         'ros2 topic echo --once /clock',
         'gz model --list',
-        'kill -INT',
-        'simulation processes shut down cleanly',
+        'smoke_processes.sh',
+        'ayyo_smoke_shutdown_owned_launch',
+        'owned-process set is empty after bounded shutdown',
+        'unable to convert call argument',
     ):
         assert expected in script
     assert 'headless:=true' in script
@@ -341,7 +492,8 @@ def test_controlled_smoke_uses_only_typed_motion_path() -> None:
         'development_command.py --position 1.3',
         'has_state_feedback',
         'above_maximum',
-        'kill -INT',
+        'smoke_processes.sh',
+        'ayyo_smoke_shutdown_owned_launch',
         'exception was never retrieved',
     ):
         assert expected in script

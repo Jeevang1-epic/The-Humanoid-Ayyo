@@ -4,6 +4,7 @@ set -euo pipefail
 
 readonly repository_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 readonly workspace_root="$repository_root/ros2_ws"
+readonly process_helper="$repository_root/scripts/smoke_processes.sh"
 readonly smoke_root="$(mktemp -d -t ayyo-control-smoke.XXXXXX)"
 readonly launch_log="$smoke_root/simulation_control.log"
 readonly invalid_error="$smoke_root/invalid_command.err"
@@ -12,23 +13,21 @@ readonly smoke_domain_id="${AYYO_CONTROL_SMOKE_DOMAIN_ID:-$default_domain_id}"
 readonly smoke_partition="ayyo_control_smoke_$$"
 launch_pid=""
 
+# shellcheck source=scripts/smoke_processes.sh
+source "$process_helper"
+
 cleanup() {
-  if [[ -n "$launch_pid" ]] && kill -0 "$launch_pid" 2>/dev/null; then
-    kill -INT "$launch_pid" 2>/dev/null || true
-    for _ in {1..50}; do
-      if ! kill -0 "$launch_pid" 2>/dev/null; then
-        break
-      fi
-      sleep 0.1
-    done
-    if kill -0 "$launch_pid" 2>/dev/null; then
-      kill -TERM "$launch_pid" 2>/dev/null || true
-    fi
-    wait "$launch_pid" 2>/dev/null || true
+  local exit_status="$?"
+  trap - EXIT INT TERM
+  if ! ayyo_smoke_shutdown_owned_launch; then
+    exit_status=1
   fi
   rm -rf "$smoke_root"
+  exit "$exit_status"
 }
-trap cleanup EXIT INT TERM
+trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 if [[ ! -f "$workspace_root/install/setup.bash" ]]; then
   printf 'Workspace is not built; run scripts/build_workspace.sh first.\n' >&2
@@ -48,10 +47,9 @@ export GZ_HOMEDIR="$smoke_root/gz_home"
 mkdir -p "$ROS_LOG_DIR" "$GZ_HOMEDIR"
 
 ros2 pkg prefix ayyo_simulation_control >/dev/null
-ros2 launch ayyo_simulation simulation.launch.py \
-  headless:=true enable_control:=true enable_development_control:=true \
-  >"$launch_log" 2>&1 &
-launch_pid=$!
+ayyo_smoke_start_owned_launch "$launch_log" \
+  ros2 launch ayyo_simulation simulation.launch.py \
+  headless:=true enable_control:=true enable_development_control:=true
 
 wait_until() {
   local description="$1"
@@ -135,31 +133,6 @@ development_service_ready() {
   [[ "$service_type" == 'ayyo_interfaces/srv/SetDevelopmentJointPosition' ]]
 }
 
-wait_for_launch_exit() {
-  for _ in {1..100}; do
-    if ! kill -0 "$launch_pid" 2>/dev/null; then
-      wait "$launch_pid" 2>/dev/null || true
-      launch_pid=""
-      return 0
-    fi
-    sleep 0.1
-  done
-  return 1
-}
-
-shutdown_launch() {
-  kill -INT "$launch_pid"
-  if wait_for_launch_exit; then
-    return 0
-  fi
-  kill -TERM "$launch_pid"
-  if wait_for_launch_exit; then
-    return 0
-  fi
-  printf 'FAIL: controlled launch survived bounded SIGINT and SIGTERM\n' >&2
-  return 1
-}
-
 wait_until 'controlled ROS nodes are running without the development state publisher' \
   controlled_nodes_ready
 wait_until 'joint-state and position controllers are active' controllers_ready
@@ -216,11 +189,11 @@ assert result["result_id"].startswith("control-result-")
 ' "$invalid_output"
 printf 'PASS: out-of-range typed command was rejected before dispatch\n'
 
-shutdown_launch
+ayyo_smoke_shutdown_owned_launch
 if grep -Eq 'Traceback|exception was never retrieved' "$launch_log"; then
   printf 'FAIL: typed adapter reported an unclean shutdown\n' >&2
   sed -n '1,300p' "$launch_log" >&2
   exit 1
 fi
-printf 'PASS: controlled simulation processes shut down cleanly\n'
+printf 'PASS: controlled simulation owned-process set is empty after bounded shutdown\n'
 printf 'PASS: headless simulation control smoke validation completed\n'

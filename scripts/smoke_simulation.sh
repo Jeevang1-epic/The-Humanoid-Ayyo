@@ -4,29 +4,28 @@ set -euo pipefail
 
 readonly repository_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 readonly workspace_root="$repository_root/ros2_ws"
+readonly process_helper="$repository_root/scripts/smoke_processes.sh"
 readonly smoke_root="$(mktemp -d -t ayyo-simulation-smoke.XXXXXX)"
 readonly launch_log="$smoke_root/simulation.log"
 readonly smoke_domain_id="${AYYO_SMOKE_DOMAIN_ID:-97}"
 readonly smoke_partition="ayyo_simulation_smoke_$$"
 launch_pid=""
 
+# shellcheck source=scripts/smoke_processes.sh
+source "$process_helper"
+
 cleanup() {
-  if [[ -n "$launch_pid" ]] && kill -0 "$launch_pid" 2>/dev/null; then
-    kill -INT "$launch_pid" 2>/dev/null || true
-    for _ in {1..50}; do
-      if ! kill -0 "$launch_pid" 2>/dev/null; then
-        break
-      fi
-      sleep 0.1
-    done
-    if kill -0 "$launch_pid" 2>/dev/null; then
-      kill -TERM "$launch_pid" 2>/dev/null || true
-    fi
-    wait "$launch_pid" 2>/dev/null || true
+  local exit_status="$?"
+  trap - EXIT INT TERM
+  if ! ayyo_smoke_shutdown_owned_launch; then
+    exit_status=1
   fi
   rm -rf "$smoke_root"
+  exit "$exit_status"
 }
-trap cleanup EXIT INT TERM
+trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 if [[ ! -f "$workspace_root/install/setup.bash" ]]; then
   printf 'Workspace is not built; run scripts/build_workspace.sh first.\n' >&2
@@ -49,9 +48,8 @@ ros2 pkg prefix ayyo_description >/dev/null
 ros2 pkg prefix ayyo_simulation >/dev/null
 ros2 run ayyo_description validate_description.py
 
-ros2 launch ayyo_simulation simulation.launch.py headless:=true \
-  >"$launch_log" 2>&1 &
-launch_pid=$!
+ayyo_smoke_start_owned_launch "$launch_log" \
+  ros2 launch ayyo_simulation simulation.launch.py headless:=true
 
 wait_until() {
   local description="$1"
@@ -97,36 +95,17 @@ model_ready() {
   grep -qw 'ayyo' <<<"$models" && grep -qw 'ground_plane' <<<"$models"
 }
 
-wait_for_launch_exit() {
-  for _ in {1..100}; do
-    if ! kill -0 "$launch_pid" 2>/dev/null; then
-      wait "$launch_pid" 2>/dev/null || true
-      launch_pid=""
-      return 0
-    fi
-    sleep 0.1
-  done
-  return 1
-}
-
-shutdown_launch() {
-  kill -INT "$launch_pid"
-  if wait_for_launch_exit; then
-    return 0
-  fi
-  kill -TERM "$launch_pid"
-  if wait_for_launch_exit; then
-    return 0
-  fi
-  printf 'FAIL: simulation launch survived bounded SIGINT and SIGTERM\n' >&2
-  return 1
-}
-
 wait_until 'ROS simulation nodes are running' simulation_nodes_ready
 wait_until 'TF is available' tf_ready
 wait_until 'ROS-Gazebo clock bridge is healthy' clock_ready
 wait_until 'Ayyo entity is spawned in Gazebo' model_ready
-shutdown_launch
-printf 'PASS: simulation processes shut down cleanly\n'
+ayyo_smoke_shutdown_owned_launch
+if grep -Eq 'Traceback|unable to convert call argument|Unable to convert call argument' \
+  "$launch_log"; then
+  printf 'FAIL: simulation reported an unclean joint-state or launch shutdown\n' >&2
+  sed -n '1,300p' "$launch_log" >&2
+  exit 1
+fi
+printf 'PASS: simulation owned-process set is empty after bounded shutdown\n'
 
 printf 'PASS: headless simulation smoke validation completed\n'
