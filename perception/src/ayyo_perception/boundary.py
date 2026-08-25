@@ -14,7 +14,8 @@ from ayyo_world_model import (
     SensorHealthObservation,
     SensorKind,
     VisualFrameObservation,
-    WorldModelFailureCode,
+    VisualInterpretationObservation,
+    MAX_VISUAL_SOURCE_REFERENCES,
     WorldModelValidationError,
     rebuild_observation,
 )
@@ -44,6 +45,7 @@ class PerceptionTrustBoundary:
         "_last_receipt_monotonic_ns",
         "_lock",
         "_rejected_count",
+        "_visual_sources",
     )
 
     def __init__(self, config: PerceptionTrustConfig) -> None:
@@ -56,6 +58,7 @@ class PerceptionTrustBoundary:
         self._accepted_count = 0
         self._duplicate_count = 0
         self._rejected_count = 0
+        self._visual_sources: dict[str, VisualFrameObservation] = {}
         self._lock = RLock()
 
     @property
@@ -70,6 +73,7 @@ class PerceptionTrustBoundary:
             self._accepted_count = 0
             self._duplicate_count = 0
             self._rejected_count = 0
+            self._visual_sources.clear()
 
     def _reject(
         self,
@@ -98,6 +102,7 @@ class PerceptionTrustBoundary:
             ImuObservation,
             BodyPoseObservation,
             VisualFrameObservation,
+            VisualInterpretationObservation,
             SensorHealthObservation,
         }:
             matches = tuple(
@@ -114,7 +119,34 @@ class PerceptionTrustBoundary:
     def _state_key(observation, source: PerceptionSourceContract) -> tuple[str, str]:
         if type(observation) is SensorHealthObservation:
             return (f"health:{source.sensor.kind.value}", source.sensor.sensor_id)
+        if type(observation) is VisualInterpretationObservation:
+            return (
+                f"visual_interpretation:{source.sensor.sensor_id}",
+                observation.producer.producer_id,
+            )
         return (source.sensor.kind.value, source.sensor.sensor_id)
+
+    def _purge_visual_sources(self, *, now_ns: int) -> None:
+        cutoff = now_ns - self._config.retention_ttl_ns
+        expired = tuple(
+            observation_id
+            for observation_id, frame in self._visual_sources.items()
+            if frame.observed_at_ns < cutoff
+        )
+        for observation_id in expired:
+            del self._visual_sources[observation_id]
+
+    def _remember_visual_source(self, frame: VisualFrameObservation) -> None:
+        self._visual_sources[frame.observation_id] = frame
+        while len(self._visual_sources) > MAX_VISUAL_SOURCE_REFERENCES:
+            oldest_id = min(
+                self._visual_sources,
+                key=lambda observation_id: (
+                    self._visual_sources[observation_id].observed_at_ns,
+                    observation_id,
+                ),
+            )
+            del self._visual_sources[oldest_id]
 
     def admit(
         self,
@@ -193,6 +225,49 @@ class PerceptionTrustBoundary:
                     "observation does not match one exact reviewed source contract",
                     rebuilt.observation_id,
                 )
+            if type(rebuilt) is VisualInterpretationObservation:
+                producer = next(
+                    (
+                        configured
+                        for configured in self._config.visual_interpretation_producers
+                        if configured.producer_id == rebuilt.producer.producer_id
+                    ),
+                    None,
+                )
+                if producer is None or producer != rebuilt.producer:
+                    return self._reject(
+                        AdmissionReason.UNKNOWN_PRODUCER,
+                        "visual result producer is not one exact reviewed producer",
+                        rebuilt.observation_id,
+                    )
+                source_frame = self._visual_sources.get(
+                    rebuilt.source_visual_observation_id
+                )
+                if source_frame is None:
+                    return self._reject(
+                        AdmissionReason.SOURCE_FRAME_NOT_ADMITTED,
+                        "visual result does not reference a retained admitted frame",
+                        rebuilt.observation_id,
+                    )
+                if (
+                    source_frame.robot_id != rebuilt.robot_id
+                    or source_frame.sensor != rebuilt.sensor
+                    or source_frame.sensor.frame_id != rebuilt.reference_frame_id
+                    or source_frame.observed_at_ns != rebuilt.observed_at_ns
+                    or source_frame.provenance != rebuilt.provenance
+                    or source_frame.fingerprint != rebuilt.source_visual_fingerprint
+                ):
+                    return self._reject(
+                        AdmissionReason.SOURCE_FRAME_MISMATCH,
+                        "visual result source metadata differs from its admitted frame",
+                        rebuilt.observation_id,
+                    )
+                if rebuilt.result_at_ns > now + self._config.permitted_future_skew_ns:
+                    return self._reject(
+                        AdmissionReason.RESULT_TIME_INVALID,
+                        "visual result time is beyond permitted future skew",
+                        rebuilt.observation_id,
+                    )
             if type(rebuilt) is BodyPoseObservation and (
                 rebuilt.pose.frame_id != source.pose_source_frame_id
                 or rebuilt.pose.child_frame_id != source.sensor.frame_id
@@ -216,6 +291,11 @@ class PerceptionTrustBoundary:
                 )
             key = self._state_key(rebuilt, source)
             current = self._last_by_key.get(key)
+            ordering_time = (
+                rebuilt.result_at_ns
+                if type(rebuilt) is VisualInterpretationObservation
+                else rebuilt.observed_at_ns
+            )
             if current is not None:
                 current_time, current_id = current
                 if rebuilt.observation_id == current_id:
@@ -227,19 +307,22 @@ class PerceptionTrustBoundary:
                         observation=None,
                         detail="equivalent evidence is already admitted",
                     )
-                if rebuilt.observed_at_ns < current_time:
+                if ordering_time < current_time:
                     return self._reject(
                         AdmissionReason.OUT_OF_ORDER,
                         "newer evidence for this source key is already admitted",
                         rebuilt.observation_id,
                     )
-                if rebuilt.observed_at_ns == current_time:
+                if ordering_time == current_time:
                     return self._reject(
                         AdmissionReason.TEMPORAL_CONFLICT,
                         "same source key and time carry conflicting evidence",
                         rebuilt.observation_id,
                     )
-            self._last_by_key[key] = (rebuilt.observed_at_ns, rebuilt.observation_id)
+            self._last_by_key[key] = (ordering_time, rebuilt.observation_id)
+            self._purge_visual_sources(now_ns=now)
+            if type(rebuilt) is VisualFrameObservation:
+                self._remember_visual_source(rebuilt)
             self._accepted_count += 1
             return AdmissionResult(
                 status=AdmissionStatus.ACCEPTED,
@@ -316,4 +399,5 @@ class PerceptionTrustBoundary:
                 rejected_count=self._rejected_count,
                 tracked_source_key_count=len(self._last_by_key),
                 configured_source_count=len(self._config.sources),
+                tracked_visual_source_count=len(self._visual_sources),
             )

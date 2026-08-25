@@ -14,6 +14,7 @@ from ayyo_world_model import (
     SensorHealthObservation,
     SensorIdentity,
     VisualFrameObservation,
+    VisualInterpretationObservation,
     WorldEntity,
     WorldModelFailureCode,
     WorldModelProjector,
@@ -66,6 +67,7 @@ class WorkingMemory:
         "_imu_evidence",
         "_joint_evidence",
         "_visual_evidence",
+        "_visual_interpretation_evidence",
         "_last_now_ns",
         "_last_receipt_monotonic_ns",
         "_lock",
@@ -93,6 +95,9 @@ class WorkingMemory:
         self._pose_evidence: RobotStateObservation | None = None
         self._imu_evidence: dict[str, ImuObservation] = {}
         self._visual_evidence: dict[str, VisualFrameObservation] = {}
+        self._visual_interpretation_evidence: dict[
+            tuple[str, str], VisualInterpretationObservation
+        ] = {}
         self._body_pose_evidence: dict[str, BodyPoseObservation] = {}
         self._health_evidence: dict[str, SensorHealthObservation] = {}
         self._entity_evidence: dict[str, EnvironmentEntityObservation] = {}
@@ -116,6 +121,7 @@ class WorkingMemory:
             self._pose_evidence = None
             self._imu_evidence.clear()
             self._visual_evidence.clear()
+            self._visual_interpretation_evidence.clear()
             self._body_pose_evidence.clear()
             self._health_evidence.clear()
             self._entity_evidence.clear()
@@ -166,6 +172,11 @@ class WorkingMemory:
             for sensor_id, observation in self._visual_evidence.items()
             if observation.observed_at_ns >= threshold
         }
+        self._visual_interpretation_evidence = {
+            key: observation
+            for key, observation in self._visual_interpretation_evidence.items()
+            if observation.observed_at_ns >= threshold
+        }
         self._body_pose_evidence = {
             sensor_id: observation
             for sensor_id, observation in self._body_pose_evidence.items()
@@ -197,6 +208,10 @@ class WorkingMemory:
         identities.update(item.observation_id for item in self._imu_evidence.values())
         identities.update(
             item.observation_id for item in self._visual_evidence.values()
+        )
+        identities.update(
+            item.observation_id
+            for item in self._visual_interpretation_evidence.values()
         )
         identities.update(
             item.observation_id for item in self._body_pose_evidence.values()
@@ -259,6 +274,7 @@ class WorkingMemory:
                 ImuObservation,
                 BodyPoseObservation,
                 VisualFrameObservation,
+                VisualInterpretationObservation,
                 SensorHealthObservation,
             }:
                 known_sensors = {
@@ -275,6 +291,16 @@ class WorkingMemory:
                     rebuilt.observation_id,
                     IngestionReason.FUTURE_OBSERVATION,
                     "observation source time is beyond permitted future skew",
+                )
+            if (
+                type(rebuilt) is VisualInterpretationObservation
+                and rebuilt.result_at_ns
+                > now_ns + self._config.permitted_future_skew_ns
+            ):
+                return self._reject(
+                    rebuilt.observation_id,
+                    IngestionReason.FUTURE_OBSERVATION,
+                    "visual result time is beyond permitted future skew",
                 )
             if rebuilt.observed_at_ns < now_ns - self._config.retention_ttl_ns:
                 return self._reject(
@@ -310,6 +336,7 @@ class WorkingMemory:
                 BodyPoseObservation,
                 VisualFrameObservation,
                 SensorHealthObservation,
+                VisualInterpretationObservation,
             }:
                 return self._ingest_sensor(rebuilt, envelope)
             assert type(rebuilt) is EnvironmentEntityObservation
@@ -412,6 +439,7 @@ class WorkingMemory:
             ImuObservation
             | BodyPoseObservation
             | VisualFrameObservation
+            | VisualInterpretationObservation
             | SensorHealthObservation
         ),
         envelope: EvidenceEnvelope,
@@ -423,13 +451,77 @@ class WorkingMemory:
         elif type(observation) is VisualFrameObservation:
             collection = self._visual_evidence
             key = StateKey(StateKeyKind.ROBOT_VISUAL, sensor_id)
+        elif type(observation) is VisualInterpretationObservation:
+            producer = next(
+                (
+                    candidate
+                    for candidate in self._config.visual_interpretation_producers
+                    if candidate.producer_id == observation.producer.producer_id
+                ),
+                None,
+            )
+            if producer is None or producer != observation.producer:
+                return self._reject(
+                    observation.observation_id,
+                    IngestionReason.UNKNOWN_PRODUCER,
+                    "visual result producer is outside the reviewed producer catalog",
+                )
+            source_frames = tuple(
+                frame
+                for frame in (
+                    tuple(self._visual_evidence.values())
+                    + tuple(
+                        item.observation
+                        for item in self._recent
+                        if type(item.observation) is VisualFrameObservation
+                    )
+                )
+                if frame.observation_id
+                == observation.source_visual_observation_id
+            )
+            if not source_frames or any(
+                frame.robot_id != observation.robot_id
+                or frame.sensor != observation.sensor
+                or frame.observed_at_ns != observation.observed_at_ns
+                or frame.provenance != observation.provenance
+                or frame.fingerprint != observation.source_visual_fingerprint
+                for frame in source_frames
+            ):
+                return self._reject(
+                    observation.observation_id,
+                    IngestionReason.SOURCE_OBSERVATION_MISMATCH,
+                    "visual result does not match retained trusted frame metadata",
+                )
+            interpretation_key = (
+                sensor_id,
+                observation.producer.producer_id,
+            )
+            collection = self._visual_interpretation_evidence
+            key = StateKey(
+                StateKeyKind.ROBOT_VISUAL_INTERPRETATION,
+                "|".join(interpretation_key),
+            )
         elif type(observation) is BodyPoseObservation:
             collection = self._body_pose_evidence
             key = StateKey(StateKeyKind.ROBOT_BASE_POSE, sensor_id)
         else:
             collection = self._health_evidence
             key = StateKey(StateKeyKind.SENSOR_HEALTH, sensor_id)
-        decision = self._compare_current(collection.get(sensor_id), observation)
+        collection_key = (
+            interpretation_key
+            if type(observation) is VisualInterpretationObservation
+            else sensor_id
+        )
+        current = collection.get(collection_key)
+        if type(observation) is VisualInterpretationObservation and current is not None:
+            if observation.result_at_ns < current.result_at_ns:
+                decision = "older"
+            elif observation.result_at_ns == current.result_at_ns:
+                decision = "same_time_conflict"
+            else:
+                decision = "newer"
+        else:
+            decision = self._compare_current(current, observation)
         if decision == "same_time_conflict":
             return self._reject(
                 observation.observation_id,
@@ -442,7 +534,7 @@ class WorkingMemory:
                 IngestionReason.OLDER_OBSERVATION,
                 "newer evidence for this sensor state key is already current",
             )
-        collection[sensor_id] = observation
+        collection[collection_key] = observation
         return self._accept(
             observation,
             envelope,
@@ -510,6 +602,9 @@ class WorkingMemory:
                 body_pose_evidence=dict(self._body_pose_evidence),
                 health_evidence=dict(self._health_evidence),
                 visual_evidence=dict(self._visual_evidence),
+                visual_interpretation_evidence=dict(
+                    self._visual_interpretation_evidence
+                ),
             )
 
     def get_robot_state(self, *, now_ns: int):
@@ -543,6 +638,13 @@ class WorkingMemory:
                 observation = self._imu_evidence.get(key.identity)
             elif key.kind is StateKeyKind.ROBOT_VISUAL:
                 observation = self._visual_evidence.get(key.identity)
+            elif key.kind is StateKeyKind.ROBOT_VISUAL_INTERPRETATION:
+                parts = key.identity.split("|", 1)
+                observation = (
+                    self._visual_interpretation_evidence.get((parts[0], parts[1]))
+                    if len(parts) == 2
+                    else None
+                )
             elif key.kind is StateKeyKind.SENSOR_HEALTH:
                 observation = self._health_evidence.get(key.identity)
             else:
@@ -578,6 +680,7 @@ class WorkingMemory:
                 + int(self._pose_evidence is not None)
                 + len(self._imu_evidence)
                 + len(self._visual_evidence)
+                + len(self._visual_interpretation_evidence)
                 + len(self._body_pose_evidence)
                 + len(self._health_evidence)
                 + len(self._entity_evidence)
@@ -598,4 +701,7 @@ class WorkingMemory:
                 current_body_pose_count=len(self._body_pose_evidence),
                 current_sensor_health_count=len(self._health_evidence),
                 current_visual_count=len(self._visual_evidence),
+                current_visual_interpretation_count=len(
+                    self._visual_interpretation_evidence
+                ),
             )

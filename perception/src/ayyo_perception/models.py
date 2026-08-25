@@ -13,6 +13,9 @@ from ayyo_world_model import (
     ObservationProvenance,
     SensorIdentity,
     SensorKind,
+    VisualInterpretationProducer,
+    MAX_VISUAL_INTERPRETATION_PRODUCERS,
+    MAX_VISUAL_SOURCE_REFERENCES,
     rebuild_observation,
 )
 
@@ -57,6 +60,10 @@ class AdmissionReason(StrEnum):
     INVALID_COVARIANCE = "invalid_covariance"
     SOURCE_UNAVAILABLE = "source_unavailable"
     ADAPTER_RESTARTED = "adapter_restarted"
+    UNKNOWN_PRODUCER = "unknown_producer"
+    SOURCE_FRAME_NOT_ADMITTED = "source_frame_not_admitted"
+    SOURCE_FRAME_MISMATCH = "source_frame_mismatch"
+    RESULT_TIME_INVALID = "result_time_invalid"
 
 
 class EvidenceFailureKind(StrEnum):
@@ -112,6 +119,9 @@ class PerceptionTrustConfig:
     freshness_ns: int = 500_000_000
     retention_ttl_ns: int = 2_000_000_000
     permitted_future_skew_ns: int = 50_000_000
+    visual_interpretation_producers: tuple[
+        VisualInterpretationProducer, ...
+    ] = ()
 
     def __post_init__(self) -> None:
         if (
@@ -160,6 +170,26 @@ class PerceptionTrustConfig:
             or not 0 <= self.permitted_future_skew_ns <= 1_000_000_000
         ):
             raise PerceptionConfigurationError("future skew is outside its bound")
+        if (
+            type(self.visual_interpretation_producers) is not tuple
+            or len(self.visual_interpretation_producers)
+            > MAX_VISUAL_INTERPRETATION_PRODUCERS
+            or any(
+                type(producer) is not VisualInterpretationProducer
+                for producer in self.visual_interpretation_producers
+            )
+        ):
+            raise PerceptionConfigurationError(
+                "visual interpretation producers must be a bounded typed tuple"
+            )
+        producer_ids = tuple(
+            producer.producer_id
+            for producer in self.visual_interpretation_producers
+        )
+        if len(producer_ids) != len(set(producer_ids)):
+            raise PerceptionConfigurationError(
+                "visual interpretation producer identities must be unique"
+            )
 
 
 @dataclass(frozen=True, slots=True)
@@ -199,6 +229,7 @@ class PerceptionStats:
     rejected_count: int
     tracked_source_key_count: int
     configured_source_count: int
+    tracked_visual_source_count: int = 0
 
     def __post_init__(self) -> None:
         values = (
@@ -207,13 +238,20 @@ class PerceptionStats:
             self.rejected_count,
             self.tracked_source_key_count,
             self.configured_source_count,
+            self.tracked_visual_source_count,
         )
         if any(type(value) is not int or value < 0 for value in values):
             raise PerceptionConfigurationError("perception statistics are invalid")
         if self.configured_source_count > MAX_PERCEPTION_SOURCES:
             raise PerceptionConfigurationError("configured source count exceeds its bound")
-        if self.tracked_source_key_count > self.configured_source_count * 2:
+        if self.tracked_source_key_count > self.configured_source_count * (
+            2 + MAX_VISUAL_INTERPRETATION_PRODUCERS
+        ):
             raise PerceptionConfigurationError("tracked source keys exceed their hard bound")
+        if self.tracked_visual_source_count > MAX_VISUAL_SOURCE_REFERENCES:
+            raise PerceptionConfigurationError(
+                "tracked visual source references exceed their hard bound"
+            )
 
 
 def validate_time(value: object, field_name: str) -> int:

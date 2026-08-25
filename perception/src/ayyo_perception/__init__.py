@@ -17,6 +17,10 @@ from .models import (
     PerceptionStats,
     PerceptionTrustConfig,
 )
+from .visual_reference import (
+    DeterministicVisualReferenceAdapter,
+    REFERENCE_VISUAL_PRODUCER,
+)
 
 __all__ = [
     "AdmissionReason",
@@ -32,4 +36,6 @@ __all__ = [
     "PerceptionStats",
     "PerceptionTrustBoundary",
     "PerceptionTrustConfig",
+    "DeterministicVisualReferenceAdapter",
+    "REFERENCE_VISUAL_PRODUCER",
 ]

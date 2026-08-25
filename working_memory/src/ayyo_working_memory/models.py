@@ -10,6 +10,8 @@ from ayyo_world_model import (
     ObservationClock,
     ObservationProvenance,
     SensorIdentity,
+    VisualInterpretationProducer,
+    MAX_VISUAL_INTERPRETATION_PRODUCERS,
     rebuild_observation,
 )
 
@@ -44,6 +46,8 @@ class IngestionReason(StrEnum):
     INVALID_JOINT_VALUE = "invalid_joint_value"
     MALFORMED_OBSERVATION = "malformed_observation"
     UNKNOWN_SENSOR = "unknown_sensor"
+    UNKNOWN_PRODUCER = "unknown_producer"
+    SOURCE_OBSERVATION_MISMATCH = "source_observation_mismatch"
 
 
 class WorkingMemoryFreshness(StrEnum):
@@ -57,6 +61,7 @@ class StateKeyKind(StrEnum):
     ROBOT_BASE_POSE = "robot_base_pose"
     ROBOT_IMU = "robot_imu"
     ROBOT_VISUAL = "robot_visual"
+    ROBOT_VISUAL_INTERPRETATION = "robot_visual_interpretation"
     SENSOR_HEALTH = "sensor_health"
     ENVIRONMENT_ENTITY = "environment_entity"
 
@@ -84,6 +89,9 @@ class WorkingMemoryConfig:
     permitted_future_skew_ns: int = 50_000_000
     recent_evidence_capacity: int = 256
     environment_entity_capacity: int = 128
+    visual_interpretation_producers: tuple[
+        VisualInterpretationProducer, ...
+    ] = ()
 
     def __post_init__(self) -> None:
         if type(self.robot_id) is not str or not self.robot_id or self.robot_id != self.robot_id.strip():
@@ -141,6 +149,26 @@ class WorkingMemoryConfig:
             or not 1 <= self.environment_entity_capacity <= MAX_ENTITY_CAPACITY
         ):
             raise WorkingMemoryConfigurationError("environment entity capacity is invalid")
+        if (
+            type(self.visual_interpretation_producers) is not tuple
+            or len(self.visual_interpretation_producers)
+            > MAX_VISUAL_INTERPRETATION_PRODUCERS
+            or any(
+                type(producer) is not VisualInterpretationProducer
+                for producer in self.visual_interpretation_producers
+            )
+        ):
+            raise WorkingMemoryConfigurationError(
+                "visual interpretation producers must be a bounded typed tuple"
+            )
+        producer_ids = tuple(
+            producer.producer_id
+            for producer in self.visual_interpretation_producers
+        )
+        if len(producer_ids) != len(set(producer_ids)):
+            raise WorkingMemoryConfigurationError(
+                "visual interpretation producer identities must be unique"
+            )
 
 
 @dataclass(frozen=True, slots=True)
@@ -218,6 +246,7 @@ class WorkingMemoryStats:
     current_body_pose_count: int = 0
     current_sensor_health_count: int = 0
     current_visual_count: int = 0
+    current_visual_interpretation_count: int = 0
 
     def __post_init__(self) -> None:
         numeric = (
@@ -234,6 +263,7 @@ class WorkingMemoryStats:
             self.current_body_pose_count,
             self.current_sensor_health_count,
             self.current_visual_count,
+            self.current_visual_interpretation_count,
         )
         if any(type(item) is not int or item < 0 for item in numeric):
             raise WorkingMemoryConfigurationError("Working Memory statistics are invalid")

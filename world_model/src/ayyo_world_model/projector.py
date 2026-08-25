@@ -15,6 +15,7 @@ from .models import (
     ObservedJointState,
     ObservedPoseState,
     ObservedSensorHealthState,
+    ObservedVisualInterpretationState,
     ObservedVisualState,
     RobotAvailability,
     RobotBodyState,
@@ -27,6 +28,7 @@ from .models import (
     WorldEntity,
     WorldSnapshot,
     VisualFrameObservation,
+    VisualInterpretationObservation,
     rebuild_observation,
 )
 
@@ -88,6 +90,10 @@ class WorldModelProjector:
         body_pose_evidence: Mapping[str, BodyPoseObservation] | None = None,
         health_evidence: Mapping[str, SensorHealthObservation] | None = None,
         visual_evidence: Mapping[str, VisualFrameObservation] | None = None,
+        visual_interpretation_evidence: Mapping[
+            tuple[str, str], VisualInterpretationObservation
+        ]
+        | None = None,
     ) -> WorldSnapshot:
         imu_sources = {} if imu_evidence is None else dict(imu_evidence)
         body_pose_sources = (
@@ -95,12 +101,18 @@ class WorldModelProjector:
         )
         health_sources = {} if health_evidence is None else dict(health_evidence)
         visual_sources = {} if visual_evidence is None else dict(visual_evidence)
+        interpretation_sources = (
+            {}
+            if visual_interpretation_evidence is None
+            else dict(visual_interpretation_evidence)
+        )
         known_sensor_ids = {sensor.sensor_id for sensor in self._sensors}
         supplied_sensor_ids = (
             set(imu_sources)
             | set(body_pose_sources)
             | set(health_sources)
             | set(visual_sources)
+            | {key[0] for key in interpretation_sources}
         )
         if not supplied_sensor_ids <= known_sensor_ids:
             raise WorldModelValidationError(
@@ -276,6 +288,36 @@ class WorldModelProjector:
                 )
             )
 
+        visual_interpretation_states: list[ObservedVisualInterpretationState] = []
+        for key in sorted(interpretation_sources):
+            sensor_id, producer_id = key
+            rebuilt = rebuild_observation(interpretation_sources[key])
+            assert type(rebuilt) is VisualInterpretationObservation
+            if (
+                rebuilt.sensor.sensor_id != sensor_id
+                or rebuilt.producer.producer_id != producer_id
+            ):
+                raise WorldModelValidationError(
+                    WorldModelFailureCode.SNAPSHOT_INVARIANT,
+                    "visual interpretation evidence key and identity disagree",
+                )
+            interpretation_freshness = freshness_for(
+                observed_at_ns=rebuilt.observed_at_ns,
+                now_ns=now_ns,
+                fresh_for_ns=fresh_for_ns,
+            )
+            visual_interpretation_states.append(
+                ObservedVisualInterpretationState(
+                    observation=rebuilt,
+                    freshness=interpretation_freshness,
+                    availability=(
+                        SensorAvailability.STALE
+                        if interpretation_freshness is FreshnessState.STALE
+                        else rebuilt.availability
+                    ),
+                )
+            )
+
         sensor_health_states: list[ObservedSensorHealthState] = []
         for sensor_id in sorted(health_sources):
             rebuilt = rebuild_observation(health_sources[sensor_id])
@@ -353,6 +395,7 @@ class WorldModelProjector:
             availability=availability,
             imu_states=tuple(imu_states),
             visual_states=tuple(visual_states),
+            visual_interpretation_states=tuple(visual_interpretation_states),
             sensor_states=tuple(sensor_states),
             sensor_health_states=tuple(sensor_health_states),
         )

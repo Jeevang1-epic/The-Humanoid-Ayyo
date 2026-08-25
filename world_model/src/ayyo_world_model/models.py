@@ -26,12 +26,18 @@ MAX_SENSOR_IDENTITIES = 32
 MAX_CAMERA_DIMENSION = 4_096
 MAX_CAMERA_PIXELS = 16_777_216
 MAX_IMAGE_DATA_BYTES = 64 * 1_024 * 1_024
+MAX_VISUAL_DETECTIONS = 32
+MAX_VISUAL_INTERPRETATION_PRODUCERS = 16
+MAX_VISUAL_LABEL_LENGTH = 64
+MAX_VISUAL_PRODUCER_ID_LENGTH = 128
+MAX_VISUAL_SOURCE_REFERENCES = 64
 QUATERNION_NORM_TOLERANCE = 1e-6
 
 _IDENTIFIER = re.compile(r"^[a-z0-9]+(?:[._-][a-z0-9]+)*$")
 _FRAME = re.compile(r"^[A-Za-z][A-Za-z0-9_/-]*$")
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
 _CALIBRATION_ID = re.compile(r"^camera-calibration-sha256-[0-9a-f]{64}$")
+_OBSERVATION_ID = re.compile(r"^world-observation-[0-9a-f]{64}$")
 
 
 def _invalid(code: WorldModelFailureCode, detail: str) -> None:
@@ -76,7 +82,8 @@ def _finite(value: object, field_name: str) -> float:
             WorldModelFailureCode.MALFORMED_OBSERVATION,
             f"{field_name} must be a finite real number",
         )
-    return float(value)
+    result = float(value)
+    return 0.0 if result == 0.0 else result
 
 
 def _vector(
@@ -157,6 +164,27 @@ class SensorAvailability(StrEnum):
     ERROR = "error"
     STALE = "stale"
     UNAVAILABLE = "unavailable"
+
+
+class VisualCoordinateSpace(StrEnum):
+    NORMALIZED_IMAGE = "normalized_image"
+
+
+class VisualSemanticCategory(StrEnum):
+    TEST_PATTERN = "test_pattern"
+    OBJECT = "object"
+    PERSON = "person"
+    SURFACE = "surface"
+    LANDMARK = "landmark"
+    OBSTACLE = "obstacle"
+    UNKNOWN = "unknown"
+
+
+class VisualProducerKind(StrEnum):
+    TEST_FIXTURE = "test_fixture"
+    SIMULATION_PROCESSOR = "simulation_processor"
+    PHYSICAL_PROCESSOR = "physical_processor"
+    RECORDED_PROCESSOR = "recorded_processor"
 
 
 _CLOCK_BY_SOURCE = {
@@ -243,6 +271,178 @@ class SensorIdentity:
             "frame_id": self.frame_id,
             "kind": self.kind.value,
             "sensor_id": self.sensor_id,
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class VisualInterpretationProducer:
+    """Exact identity of one bounded visual-result producer and adapter."""
+
+    producer_id: str
+    kind: VisualProducerKind
+    model_id: str
+    adapter_id: str
+    interface: str
+
+    def __post_init__(self) -> None:
+        canonical_identifier(
+            self.producer_id,
+            "visual producer_id",
+            maximum=MAX_VISUAL_PRODUCER_ID_LENGTH,
+        )
+        if not isinstance(self.kind, VisualProducerKind):
+            _invalid(
+                WorldModelFailureCode.MALFORMED_OBSERVATION,
+                "visual producer kind must be typed",
+            )
+        for value, field_name in (
+            (self.model_id, "visual model_id"),
+            (self.adapter_id, "visual adapter_id"),
+            (self.interface, "visual producer interface"),
+        ):
+            canonical_identifier(
+                value,
+                field_name,
+                maximum=MAX_VISUAL_PRODUCER_ID_LENGTH,
+            )
+
+    def document(self) -> dict[str, JSONValue]:
+        return {
+            "adapter_id": self.adapter_id,
+            "interface": self.interface,
+            "kind": self.kind.value,
+            "model_id": self.model_id,
+            "producer_id": self.producer_id,
+        }
+
+
+@dataclass(frozen=True, slots=True, init=False)
+class ImageRegion2D:
+    """Canonical normalized image-space region: left/top inclusive, right/bottom exclusive."""
+
+    x_min: float
+    y_min: float
+    x_max: float
+    y_max: float
+    coordinate_space: VisualCoordinateSpace
+
+    def __init__(
+        self,
+        *,
+        x_min: float,
+        y_min: float,
+        x_max: float,
+        y_max: float,
+        coordinate_space: VisualCoordinateSpace = VisualCoordinateSpace.NORMALIZED_IMAGE,
+    ) -> None:
+        if coordinate_space is not VisualCoordinateSpace.NORMALIZED_IMAGE:
+            _invalid(
+                WorldModelFailureCode.MALFORMED_OBSERVATION,
+                "v1 visual regions require normalized image coordinates",
+            )
+        left = _finite(x_min, "visual region x_min")
+        top = _finite(y_min, "visual region y_min")
+        right = _finite(x_max, "visual region x_max")
+        bottom = _finite(y_max, "visual region y_max")
+        if not (0.0 <= left < right <= 1.0 and 0.0 <= top < bottom <= 1.0):
+            _invalid(
+                WorldModelFailureCode.MALFORMED_OBSERVATION,
+                "visual region must be a positive normalized in-image rectangle",
+            )
+        object.__setattr__(self, "x_min", left)
+        object.__setattr__(self, "y_min", top)
+        object.__setattr__(self, "x_max", right)
+        object.__setattr__(self, "y_max", bottom)
+        object.__setattr__(self, "coordinate_space", coordinate_space)
+
+    def document(self) -> dict[str, JSONValue]:
+        return {
+            "coordinate_space": self.coordinate_space.value,
+            "x_max": self.x_max,
+            "x_min": self.x_min,
+            "y_max": self.y_max,
+            "y_min": self.y_min,
+        }
+
+
+@dataclass(frozen=True, slots=True, init=False)
+class VisualDetection:
+    """One bounded interpretation result tied to an exact admitted source frame."""
+
+    source_visual_observation_id: str
+    category: VisualSemanticCategory
+    label: str
+    region: ImageRegion2D
+    confidence: float | None
+    detection_id: str
+
+    def __init__(
+        self,
+        *,
+        source_visual_observation_id: str,
+        category: VisualSemanticCategory,
+        label: str,
+        region: ImageRegion2D,
+        confidence: float | None = None,
+        detection_id: str | None = None,
+    ) -> None:
+        if (
+            type(source_visual_observation_id) is not str
+            or _OBSERVATION_ID.fullmatch(source_visual_observation_id) is None
+        ):
+            _invalid(
+                WorldModelFailureCode.MALFORMED_OBSERVATION,
+                "visual detection source-frame identity is malformed",
+            )
+        if not isinstance(category, VisualSemanticCategory):
+            _invalid(
+                WorldModelFailureCode.MALFORMED_OBSERVATION,
+                "visual detection category must be typed",
+            )
+        canonical_identifier(
+            label,
+            "visual detection label",
+            maximum=MAX_VISUAL_LABEL_LENGTH,
+        )
+        if type(region) is not ImageRegion2D:
+            _invalid(
+                WorldModelFailureCode.MALFORMED_OBSERVATION,
+                "visual detection region must be typed",
+            )
+        confidence_value = None if confidence is None else _confidence(confidence)
+        document: dict[str, JSONValue] = {
+            "category": category.value,
+            "confidence": confidence_value,
+            "label": label,
+            "region": region.document(),
+            "schema": "ayyo.visual-detection.v1",
+            "source_visual_observation_id": source_visual_observation_id,
+        }
+        derived_id = f"visual-detection-sha256-{sha256_document(document)}"
+        if detection_id is not None and detection_id != derived_id:
+            raise ObservationIdentityError(
+                WorldModelFailureCode.IDENTITY_MISMATCH,
+                "visual detection identity does not match its content",
+            )
+        object.__setattr__(
+            self,
+            "source_visual_observation_id",
+            source_visual_observation_id,
+        )
+        object.__setattr__(self, "category", category)
+        object.__setattr__(self, "label", label)
+        object.__setattr__(self, "region", region)
+        object.__setattr__(self, "confidence", confidence_value)
+        object.__setattr__(self, "detection_id", derived_id)
+
+    def document(self) -> dict[str, JSONValue]:
+        return {
+            "category": self.category.value,
+            "confidence": self.confidence,
+            "detection_id": self.detection_id,
+            "label": self.label,
+            "region": self.region.document(),
+            "source_visual_observation_id": self.source_visual_observation_id,
         }
 
 
@@ -566,6 +766,7 @@ class ObservationFingerprintKind(StrEnum):
     BODY_POSE = "body_pose"
     SENSOR_HEALTH = "sensor_health"
     VISUAL_FRAME = "visual_frame"
+    VISUAL_INTERPRETATION = "visual_interpretation"
     ENVIRONMENT_ENTITY = "environment_entity"
 
 
@@ -1094,6 +1295,189 @@ class VisualFrameObservation:
 
 
 @dataclass(frozen=True, slots=True, init=False)
+class VisualInterpretationObservation:
+    """Bounded semantic evidence derived from one exact admitted visual frame."""
+
+    robot_id: str
+    sensor: SensorIdentity
+    reference_frame_id: str
+    source_visual_observation_id: str
+    source_visual_fingerprint: ObservationFingerprint
+    observed_at_ns: int
+    result_at_ns: int
+    producer: VisualInterpretationProducer
+    detections: tuple[VisualDetection, ...]
+    provenance: ObservationProvenance
+    availability: SensorAvailability
+    observation_id: str
+    fingerprint: ObservationFingerprint
+
+    def __init__(
+        self,
+        *,
+        robot_id: str,
+        sensor: SensorIdentity,
+        reference_frame_id: str,
+        source_visual_observation_id: str,
+        source_visual_fingerprint: ObservationFingerprint,
+        observed_at_ns: int,
+        result_at_ns: int,
+        producer: VisualInterpretationProducer,
+        detections: tuple[VisualDetection, ...],
+        provenance: ObservationProvenance,
+        availability: SensorAvailability,
+        observation_id: str | None = None,
+        fingerprint: ObservationFingerprint | None = None,
+    ) -> None:
+        canonical_identifier(robot_id, "robot_id")
+        if (
+            type(sensor) is not SensorIdentity
+            or sensor.kind is not SensorKind.RGB_CAMERA
+        ):
+            _invalid(
+                WorldModelFailureCode.MALFORMED_OBSERVATION,
+                "visual interpretation requires a typed RGB camera identity",
+            )
+        frame = _frame_id(reference_frame_id, "visual interpretation frame")
+        if frame != sensor.frame_id:
+            _invalid(
+                WorldModelFailureCode.MALFORMED_OBSERVATION,
+                "visual interpretation frame must match its camera optical frame",
+            )
+        if (
+            type(source_visual_observation_id) is not str
+            or _OBSERVATION_ID.fullmatch(source_visual_observation_id) is None
+            or type(source_visual_fingerprint) is not ObservationFingerprint
+            or source_visual_fingerprint.kind
+            is not ObservationFingerprintKind.VISUAL_FRAME
+            or source_visual_observation_id
+            != f"world-observation-{source_visual_fingerprint.digest}"
+        ):
+            _invalid(
+                WorldModelFailureCode.MALFORMED_OBSERVATION,
+                "visual interpretation source-frame identity is inconsistent",
+            )
+        if (
+            type(observed_at_ns) is not int
+            or type(result_at_ns) is not int
+            or not 0 <= observed_at_ns <= result_at_ns <= MAX_OBSERVATION_TIME_NS
+        ):
+            _invalid(
+                WorldModelFailureCode.MALFORMED_OBSERVATION,
+                "visual source/result timestamps are malformed or reversed",
+            )
+        if type(producer) is not VisualInterpretationProducer:
+            _invalid(
+                WorldModelFailureCode.MALFORMED_OBSERVATION,
+                "visual interpretation producer must be typed",
+            )
+        if (
+            type(detections) is not tuple
+            or len(detections) > MAX_VISUAL_DETECTIONS
+            or any(type(item) is not VisualDetection for item in detections)
+        ):
+            _invalid(
+                WorldModelFailureCode.MALFORMED_OBSERVATION,
+                "visual interpretation detections are invalid or oversized",
+            )
+        canonical_detections = tuple(
+            sorted(detections, key=lambda item: item.detection_id)
+        )
+        detection_ids = tuple(item.detection_id for item in canonical_detections)
+        if (
+            len(detection_ids) != len(set(detection_ids))
+            or any(
+                item.source_visual_observation_id
+                != source_visual_observation_id
+                for item in canonical_detections
+            )
+        ):
+            _invalid(
+                WorldModelFailureCode.MALFORMED_OBSERVATION,
+                "visual detections must be unique and reference the same source frame",
+            )
+        if type(provenance) is not ObservationProvenance:
+            _invalid(
+                WorldModelFailureCode.MALFORMED_PROVENANCE,
+                "visual interpretation source provenance is required",
+            )
+        if availability not in {
+            SensorAvailability.AVAILABLE,
+            SensorAvailability.DEGRADED,
+        }:
+            _invalid(
+                WorldModelFailureCode.MALFORMED_OBSERVATION,
+                "visual interpretation must be available or degraded",
+            )
+        payload: dict[str, JSONValue] = {
+            "availability": availability.value,
+            "detections": [item.document() for item in canonical_detections],
+            "producer": producer.document(),
+            "reference_frame_id": frame,
+            "result_at_ns": result_at_ns,
+            "sensor": sensor.document(),
+            "source_visual_fingerprint": str(source_visual_fingerprint),
+            "source_visual_observation_id": source_visual_observation_id,
+        }
+        document = _observation_document(
+            kind=ObservationFingerprintKind.VISUAL_INTERPRETATION,
+            robot_id=robot_id,
+            observed_at_ns=observed_at_ns,
+            provenance=provenance,
+            confidence=None,
+            payload=payload,
+        )
+        derived = ObservationFingerprint(
+            kind=ObservationFingerprintKind.VISUAL_INTERPRETATION,
+            digest=sha256_document(document),
+        )
+        derived_id = f"world-observation-{derived.digest}"
+        if fingerprint is not None and fingerprint != derived:
+            raise ObservationIdentityError(
+                WorldModelFailureCode.IDENTITY_MISMATCH,
+                "visual interpretation fingerprint does not match its content",
+            )
+        if observation_id is not None and observation_id != derived_id:
+            raise ObservationIdentityError(
+                WorldModelFailureCode.IDENTITY_MISMATCH,
+                "visual interpretation ID does not match its content",
+            )
+        object.__setattr__(self, "robot_id", robot_id)
+        object.__setattr__(self, "sensor", sensor)
+        object.__setattr__(self, "reference_frame_id", frame)
+        object.__setattr__(
+            self,
+            "source_visual_observation_id",
+            source_visual_observation_id,
+        )
+        object.__setattr__(
+            self,
+            "source_visual_fingerprint",
+            source_visual_fingerprint,
+        )
+        object.__setattr__(self, "observed_at_ns", observed_at_ns)
+        object.__setattr__(self, "result_at_ns", result_at_ns)
+        object.__setattr__(self, "producer", producer)
+        object.__setattr__(self, "detections", canonical_detections)
+        object.__setattr__(self, "provenance", provenance)
+        object.__setattr__(self, "availability", availability)
+        object.__setattr__(self, "observation_id", derived_id)
+        object.__setattr__(self, "fingerprint", derived)
+
+    def payload_document(self) -> dict[str, JSONValue]:
+        return {
+            "availability": self.availability.value,
+            "detections": [item.document() for item in self.detections],
+            "producer": self.producer.document(),
+            "reference_frame_id": self.reference_frame_id,
+            "result_at_ns": self.result_at_ns,
+            "sensor": self.sensor.document(),
+            "source_visual_fingerprint": str(self.source_visual_fingerprint),
+            "source_visual_observation_id": self.source_visual_observation_id,
+        }
+
+
+@dataclass(frozen=True, slots=True, init=False)
 class BodyPoseObservation:
     robot_id: str
     sensor: SensorIdentity
@@ -1391,6 +1775,7 @@ Observation: TypeAlias = (
     RobotStateObservation
     | ImuObservation
     | VisualFrameObservation
+    | VisualInterpretationObservation
     | BodyPoseObservation
     | SensorHealthObservation
     | EnvironmentEntityObservation
@@ -1450,6 +1835,24 @@ def rebuild_observation(observation: Observation) -> Observation:
             is_bigendian=observation.is_bigendian,
             calibration_id=observation.calibration_id,
             observed_at_ns=observation.observed_at_ns,
+            provenance=observation.provenance,
+            availability=observation.availability,
+            observation_id=observation.observation_id,
+            fingerprint=observation.fingerprint,
+        )
+    if type(observation) is VisualInterpretationObservation:
+        return VisualInterpretationObservation(
+            robot_id=observation.robot_id,
+            sensor=observation.sensor,
+            reference_frame_id=observation.reference_frame_id,
+            source_visual_observation_id=(
+                observation.source_visual_observation_id
+            ),
+            source_visual_fingerprint=observation.source_visual_fingerprint,
+            observed_at_ns=observation.observed_at_ns,
+            result_at_ns=observation.result_at_ns,
+            producer=observation.producer,
+            detections=observation.detections,
             provenance=observation.provenance,
             availability=observation.availability,
             observation_id=observation.observation_id,
@@ -1700,6 +2103,49 @@ class ObservedVisualState:
 
 
 @dataclass(frozen=True, slots=True)
+class ObservedVisualInterpretationState:
+    observation: VisualInterpretationObservation
+    freshness: FreshnessState
+    availability: SensorAvailability
+
+    def __post_init__(self) -> None:
+        if type(self.observation) is not VisualInterpretationObservation:
+            _invalid(
+                WorldModelFailureCode.SNAPSHOT_INVARIANT,
+                "visual interpretation state is untyped",
+            )
+        if not isinstance(self.freshness, FreshnessState):
+            _invalid(
+                WorldModelFailureCode.SNAPSHOT_INVARIANT,
+                "visual interpretation freshness is invalid",
+            )
+        if not isinstance(self.availability, SensorAvailability):
+            _invalid(
+                WorldModelFailureCode.SNAPSHOT_INVARIANT,
+                "visual interpretation availability is invalid",
+            )
+        if (
+            self.freshness is FreshnessState.STALE
+            and self.availability is not SensorAvailability.STALE
+        ):
+            _invalid(
+                WorldModelFailureCode.SNAPSHOT_INVARIANT,
+                "stale visual interpretation must be explicitly marked stale",
+            )
+
+    def document(self) -> dict[str, JSONValue]:
+        return {
+            "availability": self.availability.value,
+            "fingerprint": str(self.observation.fingerprint),
+            "freshness": self.freshness.value,
+            "observation_id": self.observation.observation_id,
+            "observed_at_ns": self.observation.observed_at_ns,
+            "payload": self.observation.payload_document(),
+            "provenance": self.observation.provenance.document(),
+        }
+
+
+@dataclass(frozen=True, slots=True)
 class ObservedSensorHealthState:
     observation: SensorHealthObservation
     freshness: FreshnessState
@@ -1786,6 +2232,9 @@ class RobotBodyState:
     availability: RobotAvailability
     imu_states: tuple[ObservedImuState, ...] = ()
     visual_states: tuple[ObservedVisualState, ...] = ()
+    visual_interpretation_states: tuple[
+        ObservedVisualInterpretationState, ...
+    ] = ()
     sensor_states: tuple[SensorAvailabilityState, ...] = ()
     sensor_health_states: tuple[ObservedSensorHealthState, ...] = ()
 
@@ -1845,6 +2294,26 @@ class RobotBodyState:
                 WorldModelFailureCode.SNAPSHOT_INVARIANT,
                 "visual states must be unique and sorted",
             )
+        if any(
+            type(item) is not ObservedVisualInterpretationState
+            for item in self.visual_interpretation_states
+        ):
+            _invalid(
+                WorldModelFailureCode.SNAPSHOT_INVARIANT,
+                "visual interpretation states must be typed",
+            )
+        interpretation_keys = tuple(
+            (
+                item.observation.sensor.sensor_id,
+                item.observation.producer.producer_id,
+            )
+            for item in self.visual_interpretation_states
+        )
+        if interpretation_keys != tuple(sorted(set(interpretation_keys))):
+            _invalid(
+                WorldModelFailureCode.SNAPSHOT_INVARIANT,
+                "visual interpretation states must be unique and sorted",
+            )
         if any(type(item) is not SensorAvailabilityState for item in self.sensor_states):
             _invalid(WorldModelFailureCode.SNAPSHOT_INVARIANT, "sensor states must be typed")
         sensor_ids = tuple(item.sensor.sensor_id for item in self.sensor_states)
@@ -1878,6 +2347,9 @@ class RobotBodyState:
             "robot_id": self.robot_id,
             "imu_states": [item.document() for item in self.imu_states],
             "visual_states": [item.document() for item in self.visual_states],
+            "visual_interpretation_states": [
+                item.document() for item in self.visual_interpretation_states
+            ],
             "sensor_states": [item.document() for item in self.sensor_states],
             "sensor_health_states": [
                 item.document() for item in self.sensor_health_states
