@@ -31,6 +31,7 @@ def generate_launch_description() -> LaunchDescription:
     enable_development_control = LaunchConfiguration('enable_development_control')
     enable_world_model = LaunchConfiguration('enable_world_model')
     enable_localization = LaunchConfiguration('enable_localization')
+    enable_camera = LaunchConfiguration('enable_camera')
     use_meshes = LaunchConfiguration('use_meshes')
     spawn_x = LaunchConfiguration('spawn_x')
     spawn_y = LaunchConfiguration('spawn_y')
@@ -42,6 +43,13 @@ def generate_launch_description() -> LaunchDescription:
     )
     bridge_config = PathJoinSubstitution(
         [FindPackageShare('ayyo_simulation'), 'config', 'ros_gz_bridge.yaml']
+    )
+    camera_bridge_config = PathJoinSubstitution(
+        [
+            FindPackageShare('ayyo_simulation'),
+            'config',
+            'ros_gz_camera_bridge.yaml',
+        ]
     )
     controller_config = PathJoinSubstitution(
         [FindPackageShare('ayyo_simulation'), 'config', 'controllers.yaml']
@@ -62,6 +70,8 @@ def generate_launch_description() -> LaunchDescription:
                 enable_control,
                 ' simulation_localization:=',
                 enable_localization,
+                ' simulation_camera:=',
+                enable_camera,
                 ' simulation_controller_config:=',
                 controller_config,
             ]
@@ -207,6 +217,13 @@ def generate_launch_description() -> LaunchDescription:
                     'Expose simulation-only ground-truth odom to base_link evidence.'
                 ),
             ),
+            DeclareLaunchArgument(
+                'enable_camera',
+                default_value='false',
+                description=(
+                    'Expose the simulation-only head RGB observation source.'
+                ),
+            ),
             DeclareLaunchArgument('spawn_x', default_value='0.0'),
             DeclareLaunchArgument('spawn_y', default_value='0.0'),
             DeclareLaunchArgument(
@@ -239,6 +256,23 @@ def generate_launch_description() -> LaunchDescription:
                 name='ayyo_clock_bridge',
                 output='screen',
                 parameters=[{'config_file': bridge_config}],
+            ),
+            Node(
+                package='ros_gz_image',
+                executable='image_bridge',
+                name='ayyo_head_camera_image_bridge',
+                output='screen',
+                arguments=['/ayyo/camera/head/image_raw'],
+                parameters=[{'use_sim_time': True}],
+                condition=IfCondition(enable_camera),
+            ),
+            Node(
+                package='ros_gz_bridge',
+                executable='parameter_bridge',
+                name='ayyo_head_camera_info_bridge',
+                output='screen',
+                parameters=[{'config_file': camera_bridge_config}],
+                condition=IfCondition(enable_camera),
             ),
             TimerAction(period=2.0, actions=[spawn_ayyo]),
             RegisterEventHandler(

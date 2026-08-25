@@ -1,0 +1,8 @@
+- ros_topic_name: /ayyo/camera/head/camera_info
+  gz_topic_name: /ayyo/camera/head/camera_info
+  ros_type_name: sensor_msgs/msg/CameraInfo
+  gz_type_name: gz.msgs.CameraInfo
+  direction: GZ_TO_ROS
+  lazy: false
+  publisher_queue: 2
+  subscriber_queue: 2

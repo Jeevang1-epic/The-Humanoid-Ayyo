@@ -310,6 +310,44 @@ def validate_package(package_root: Path) -> tuple[int, int, int, int]:
         or imu.findtext('update_rate') != '100'
     ):
         raise DescriptionValidationError('simulation IMU contract is incomplete')
+    if simulation_robot.find("./gazebo/sensor[@type='camera']") is not None:
+        raise DescriptionValidationError('simulation camera must default off')
+
+    camera_robot = parse_robot(
+        expand_xacro(
+            xacro_path,
+            'simulation_mode:=true',
+            'simulation_static:=true',
+            'simulation_camera:=true',
+        )
+    )
+    validate_tree(camera_robot)
+    cameras = camera_robot.findall("./gazebo/sensor[@type='camera']")
+    if len(cameras) != 1:
+        raise DescriptionValidationError(
+            'camera mode must contain exactly one head RGB camera'
+        )
+    camera = cameras[0]
+    expected_camera = {
+        'always_on': 'true',
+        'update_rate': '10',
+        'visualize': 'false',
+        'topic': '/ayyo/camera/head/image_raw',
+        'gz_frame_id': 'head_camera_optical_frame',
+        'camera/horizontal_fov': '1.0471975511965976',
+        'camera/image/width': '320',
+        'camera/image/height': '240',
+        'camera/image/format': 'R8G8B8',
+        'camera/clip/near': '0.1',
+        'camera/clip/far': '30.0',
+        'camera/optical_frame_id': 'head_camera_optical_frame',
+        'camera/camera_info_topic': '/ayyo/camera/head/camera_info',
+    }
+    if (
+        camera.get('name') != 'head_rgb_camera'
+        or any(camera.findtext(key) != value for key, value in expected_camera.items())
+    ):
+        raise DescriptionValidationError('simulation camera contract is incomplete')
 
     localized_robot = parse_robot(
         expand_xacro(
