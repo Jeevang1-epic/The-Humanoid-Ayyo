@@ -2,6 +2,8 @@
 
 """Spawn the authoritative Ayyo description in Gazebo Harmonic."""
 
+import os
+
 from launch import LaunchDescription
 from launch.actions import (
     DeclareLaunchArgument,
@@ -85,6 +87,19 @@ def generate_launch_description() -> LaunchDescription:
         'robot_description': robot_description,
         'use_sim_time': True,
     }
+    # Preserve the system-plugin search environment assembled by the ROS
+    # installation while avoiding ros_gz_sim's shell wrapper. Gazebo does not
+    # consult LD_LIBRARY_PATH when resolving an SDF system-plugin filename.
+    gazebo_environment = {
+        'GZ_SIM_SYSTEM_PLUGIN_PATH': os.pathsep.join(
+            path
+            for path in (
+                os.environ.get('GZ_SIM_SYSTEM_PLUGIN_PATH', ''),
+                os.environ.get('LD_LIBRARY_PATH', ''),
+            )
+            if path
+        )
+    }
     # ros_gz_sim's generic Jazzy launcher uses a shell, which leaves the
     # Ruby `gz sim` child outside launch's signal ownership. Invoke the fixed
     # executable directly so launch owns and reaps the actual Gazebo process.
@@ -100,6 +115,7 @@ def generate_launch_description() -> LaunchDescription:
         ],
         name='ayyo_gazebo_server',
         output='screen',
+        additional_env=gazebo_environment,
         shell=False,
         on_exit=Shutdown(),
         condition=IfCondition(headless),
@@ -115,6 +131,7 @@ def generate_launch_description() -> LaunchDescription:
         ],
         name='ayyo_gazebo_graphical',
         output='screen',
+        additional_env=gazebo_environment,
         shell=False,
         on_exit=Shutdown(),
         condition=UnlessCondition(headless),

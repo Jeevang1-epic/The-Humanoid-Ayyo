@@ -11,6 +11,7 @@ readonly invalid_error="$smoke_root/invalid_command.err"
 readonly default_domain_id="$((100 + ($$ % 100)))"
 readonly smoke_domain_id="${AYYO_CONTROL_SMOKE_DOMAIN_ID:-$default_domain_id}"
 readonly smoke_partition="ayyo_control_smoke_$$"
+readonly wait_deadline_seconds=60
 launch_pid=""
 
 # shellcheck source=scripts/smoke_processes.sh
@@ -54,7 +55,8 @@ ayyo_smoke_start_owned_launch "$launch_log" \
 wait_until() {
   local description="$1"
   local check_function="$2"
-  for _ in {1..160}; do
+  local deadline="$((SECONDS + wait_deadline_seconds))"
+  while ((SECONDS < deadline)); do
     if ! kill -0 "$launch_pid" 2>/dev/null; then
       printf 'FAIL: launch exited while waiting for %s\n' "$description" >&2
       sed -n '1,260p' "$launch_log" >&2
@@ -73,7 +75,7 @@ wait_until() {
 
 controlled_nodes_ready() {
   local nodes
-  nodes="$(ros2 node list --no-daemon 2>/dev/null || true)"
+  nodes="$(timeout 3 ros2 node list --no-daemon 2>/dev/null || true)"
   grep -qx '/ayyo_clock_bridge' <<<"$nodes" &&
     grep -qx '/ayyo_sim_robot_state_publisher' <<<"$nodes" &&
     grep -qx '/ayyo_simulation_control' <<<"$nodes" &&
@@ -128,7 +130,8 @@ joint_states_ready() {
 development_service_ready() {
   local service_type
   service_type="$(
-    ros2 service type /ayyo/development/set_joint_position 2>/dev/null || true
+    timeout 3 ros2 service type /ayyo/development/set_joint_position \
+      2>/dev/null || true
   )"
   [[ "$service_type" == 'ayyo_interfaces/srv/SetDevelopmentJointPosition' ]]
 }
@@ -143,7 +146,8 @@ wait_until 'typed development control service is available' development_service_
 
 set +e
 valid_output="$(
-  ros2 run ayyo_simulation_control development_command.py --position 0.1
+  timeout --signal=INT --kill-after=5 30 \
+    ros2 run ayyo_simulation_control development_command.py --position 0.1
 )"
 valid_status=$?
 set -e
@@ -170,8 +174,9 @@ printf 'PASS: typed bounded motion completed with correlated state feedback\n'
 
 set +e
 invalid_output="$(
-  ros2 run ayyo_simulation_control development_command.py --position 1.3 \
-    2>"$invalid_error"
+  timeout --signal=INT --kill-after=5 30 \
+    ros2 run ayyo_simulation_control development_command.py --position 1.3 \
+      2>"$invalid_error"
 )"
 invalid_status=$?
 set -e

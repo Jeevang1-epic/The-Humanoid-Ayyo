@@ -311,6 +311,9 @@ def test_launch_owns_gazebo_without_shell_child_or_generic_wrapper() -> None:
     assert source.count('gazebo_graphical = ExecuteProcess(') == 1
     assert source.count('shell=False') == 2
     assert source.count('on_exit=Shutdown()') == 2
+    assert source.count('additional_env=gazebo_environment') == 2
+    assert "'GZ_SIM_SYSTEM_PLUGIN_PATH'" in source
+    assert "os.environ.get('LD_LIBRARY_PATH', '')" in source
     assert "FindExecutable(name='gz')" in source
     assert 'IncludeLaunchDescription' not in source
     assert 'gz_sim.launch.py' not in source
@@ -509,6 +512,8 @@ def test_controlled_smoke_uses_only_typed_motion_path() -> None:
         'smoke_processes.sh',
         'ayyo_smoke_shutdown_owned_launch',
         'exception was never retrieved',
+        'readonly wait_deadline_seconds=60',
+        'timeout --signal=INT --kill-after=5 30',
     ):
         assert expected in script
     assert 'ros2 topic pub' not in script
