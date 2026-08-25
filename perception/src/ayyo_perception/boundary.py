@@ -13,6 +13,7 @@ from ayyo_world_model import (
     SensorAvailability,
     SensorHealthObservation,
     SensorKind,
+    VisualFrameObservation,
     WorldModelFailureCode,
     WorldModelValidationError,
     rebuild_observation,
@@ -96,6 +97,7 @@ class PerceptionTrustBoundary:
         elif type(observation) in {
             ImuObservation,
             BodyPoseObservation,
+            VisualFrameObservation,
             SensorHealthObservation,
         }:
             matches = tuple(
@@ -169,15 +171,23 @@ class PerceptionTrustBoundary:
                 )
             source = self._source_for(rebuilt)
             if source is None:
-                sensor_ids = {
-                    item.sensor.sensor_id for item in self._config.sources
-                }
                 sensor_id = getattr(getattr(rebuilt, "sensor", None), "sensor_id", None)
-                reason = (
-                    AdmissionReason.UNKNOWN_SENSOR
-                    if sensor_id is not None and sensor_id not in sensor_ids
-                    else AdmissionReason.PROVENANCE_NOT_ALLOWED
+                matching_identities = tuple(
+                    item.sensor
+                    for item in self._config.sources
+                    if item.sensor.sensor_id == sensor_id
                 )
+                if sensor_id is not None and not matching_identities:
+                    reason = AdmissionReason.UNKNOWN_SENSOR
+                elif any(
+                    identity.kind == getattr(rebuilt, "sensor", None).kind
+                    and identity.frame_id
+                    != getattr(rebuilt, "sensor", None).frame_id
+                    for identity in matching_identities
+                ):
+                    reason = AdmissionReason.FRAME_MISMATCH
+                else:
+                    reason = AdmissionReason.PROVENANCE_NOT_ALLOWED
                 return self._reject(
                     reason,
                     "observation does not match one exact reviewed source contract",

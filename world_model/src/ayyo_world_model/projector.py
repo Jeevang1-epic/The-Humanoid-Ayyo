@@ -15,6 +15,7 @@ from .models import (
     ObservedJointState,
     ObservedPoseState,
     ObservedSensorHealthState,
+    ObservedVisualState,
     RobotAvailability,
     RobotBodyState,
     RobotStateObservation,
@@ -25,6 +26,7 @@ from .models import (
     SensorKind,
     WorldEntity,
     WorldSnapshot,
+    VisualFrameObservation,
     rebuild_observation,
 )
 
@@ -85,15 +87,20 @@ class WorldModelProjector:
         imu_evidence: Mapping[str, ImuObservation] | None = None,
         body_pose_evidence: Mapping[str, BodyPoseObservation] | None = None,
         health_evidence: Mapping[str, SensorHealthObservation] | None = None,
+        visual_evidence: Mapping[str, VisualFrameObservation] | None = None,
     ) -> WorldSnapshot:
         imu_sources = {} if imu_evidence is None else dict(imu_evidence)
         body_pose_sources = (
             {} if body_pose_evidence is None else dict(body_pose_evidence)
         )
         health_sources = {} if health_evidence is None else dict(health_evidence)
+        visual_sources = {} if visual_evidence is None else dict(visual_evidence)
         known_sensor_ids = {sensor.sensor_id for sensor in self._sensors}
         supplied_sensor_ids = (
-            set(imu_sources) | set(body_pose_sources) | set(health_sources)
+            set(imu_sources)
+            | set(body_pose_sources)
+            | set(health_sources)
+            | set(visual_sources)
         )
         if not supplied_sensor_ids <= known_sensor_ids:
             raise WorldModelValidationError(
@@ -169,6 +176,8 @@ class WorldModelProjector:
                 measurement = imu_sources.get(sensor.sensor_id)
             elif sensor.kind is SensorKind.BODY_POSE:
                 measurement = body_pose_sources.get(sensor.sensor_id)
+            elif sensor.kind is SensorKind.RGB_CAMERA:
+                measurement = visual_sources.get(sensor.sensor_id)
             health = health_sources.get(sensor.sensor_id)
             selected = (
                 health
@@ -200,6 +209,7 @@ class WorldModelProjector:
                     if type(selected) in {
                         ImuObservation,
                         BodyPoseObservation,
+                        VisualFrameObservation,
                         SensorHealthObservation,
                     }
                     else SensorAvailability.AVAILABLE
@@ -230,6 +240,32 @@ class WorldModelProjector:
             )
             imu_states.append(
                 ObservedImuState(
+                    observation=rebuilt,
+                    freshness=freshness,
+                    availability=(
+                        SensorAvailability.STALE
+                        if freshness is FreshnessState.STALE
+                        else sensor_availability_by_id[sensor_id]
+                    ),
+                )
+            )
+
+        visual_states: list[ObservedVisualState] = []
+        for sensor_id in sorted(visual_sources):
+            rebuilt = rebuild_observation(visual_sources[sensor_id])
+            assert type(rebuilt) is VisualFrameObservation
+            if rebuilt.sensor.sensor_id != sensor_id:
+                raise WorldModelValidationError(
+                    WorldModelFailureCode.SNAPSHOT_INVARIANT,
+                    "visual evidence key and sensor identity disagree",
+                )
+            freshness = freshness_for(
+                observed_at_ns=rebuilt.observed_at_ns,
+                now_ns=now_ns,
+                fresh_for_ns=fresh_for_ns,
+            )
+            visual_states.append(
+                ObservedVisualState(
                     observation=rebuilt,
                     freshness=freshness,
                     availability=(
@@ -316,6 +352,7 @@ class WorldModelProjector:
             base_pose=observed_pose,
             availability=availability,
             imu_states=tuple(imu_states),
+            visual_states=tuple(visual_states),
             sensor_states=tuple(sensor_states),
             sensor_health_states=tuple(sensor_health_states),
         )

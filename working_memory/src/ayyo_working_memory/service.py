@@ -13,6 +13,7 @@ from ayyo_world_model import (
     RobotStateObservation,
     SensorHealthObservation,
     SensorIdentity,
+    VisualFrameObservation,
     WorldEntity,
     WorldModelFailureCode,
     WorldModelProjector,
@@ -64,6 +65,7 @@ class WorkingMemory:
         "_health_evidence",
         "_imu_evidence",
         "_joint_evidence",
+        "_visual_evidence",
         "_last_now_ns",
         "_last_receipt_monotonic_ns",
         "_lock",
@@ -90,6 +92,7 @@ class WorkingMemory:
         self._joint_evidence: dict[str, RobotStateObservation] = {}
         self._pose_evidence: RobotStateObservation | None = None
         self._imu_evidence: dict[str, ImuObservation] = {}
+        self._visual_evidence: dict[str, VisualFrameObservation] = {}
         self._body_pose_evidence: dict[str, BodyPoseObservation] = {}
         self._health_evidence: dict[str, SensorHealthObservation] = {}
         self._entity_evidence: dict[str, EnvironmentEntityObservation] = {}
@@ -112,6 +115,7 @@ class WorkingMemory:
             self._joint_evidence.clear()
             self._pose_evidence = None
             self._imu_evidence.clear()
+            self._visual_evidence.clear()
             self._body_pose_evidence.clear()
             self._health_evidence.clear()
             self._entity_evidence.clear()
@@ -157,6 +161,11 @@ class WorkingMemory:
             for sensor_id, observation in self._imu_evidence.items()
             if observation.observed_at_ns >= threshold
         }
+        self._visual_evidence = {
+            sensor_id: observation
+            for sensor_id, observation in self._visual_evidence.items()
+            if observation.observed_at_ns >= threshold
+        }
         self._body_pose_evidence = {
             sensor_id: observation
             for sensor_id, observation in self._body_pose_evidence.items()
@@ -186,6 +195,9 @@ class WorkingMemory:
         if self._pose_evidence is not None:
             identities.add(self._pose_evidence.observation_id)
         identities.update(item.observation_id for item in self._imu_evidence.values())
+        identities.update(
+            item.observation_id for item in self._visual_evidence.values()
+        )
         identities.update(
             item.observation_id for item in self._body_pose_evidence.values()
         )
@@ -246,6 +258,7 @@ class WorkingMemory:
             if type(rebuilt) in {
                 ImuObservation,
                 BodyPoseObservation,
+                VisualFrameObservation,
                 SensorHealthObservation,
             }:
                 known_sensors = {
@@ -295,6 +308,7 @@ class WorkingMemory:
             if type(rebuilt) in {
                 ImuObservation,
                 BodyPoseObservation,
+                VisualFrameObservation,
                 SensorHealthObservation,
             }:
                 return self._ingest_sensor(rebuilt, envelope)
@@ -394,13 +408,21 @@ class WorkingMemory:
 
     def _ingest_sensor(
         self,
-        observation: ImuObservation | BodyPoseObservation | SensorHealthObservation,
+        observation: (
+            ImuObservation
+            | BodyPoseObservation
+            | VisualFrameObservation
+            | SensorHealthObservation
+        ),
         envelope: EvidenceEnvelope,
     ) -> IngestionResult:
         sensor_id = observation.sensor.sensor_id
         if type(observation) is ImuObservation:
             collection = self._imu_evidence
             key = StateKey(StateKeyKind.ROBOT_IMU, sensor_id)
+        elif type(observation) is VisualFrameObservation:
+            collection = self._visual_evidence
+            key = StateKey(StateKeyKind.ROBOT_VISUAL, sensor_id)
         elif type(observation) is BodyPoseObservation:
             collection = self._body_pose_evidence
             key = StateKey(StateKeyKind.ROBOT_BASE_POSE, sensor_id)
@@ -487,6 +509,7 @@ class WorkingMemory:
                 imu_evidence=dict(self._imu_evidence),
                 body_pose_evidence=dict(self._body_pose_evidence),
                 health_evidence=dict(self._health_evidence),
+                visual_evidence=dict(self._visual_evidence),
             )
 
     def get_robot_state(self, *, now_ns: int):
@@ -518,6 +541,8 @@ class WorkingMemory:
                     observation = self._pose_evidence
             elif key.kind is StateKeyKind.ROBOT_IMU:
                 observation = self._imu_evidence.get(key.identity)
+            elif key.kind is StateKeyKind.ROBOT_VISUAL:
+                observation = self._visual_evidence.get(key.identity)
             elif key.kind is StateKeyKind.SENSOR_HEALTH:
                 observation = self._health_evidence.get(key.identity)
             else:
@@ -552,6 +577,7 @@ class WorkingMemory:
                 len(self._joint_evidence)
                 + int(self._pose_evidence is not None)
                 + len(self._imu_evidence)
+                + len(self._visual_evidence)
                 + len(self._body_pose_evidence)
                 + len(self._health_evidence)
                 + len(self._entity_evidence)
@@ -571,4 +597,5 @@ class WorkingMemory:
                 current_imu_count=len(self._imu_evidence),
                 current_body_pose_count=len(self._body_pose_evidence),
                 current_sensor_health_count=len(self._health_evidence),
+                current_visual_count=len(self._visual_evidence),
             )

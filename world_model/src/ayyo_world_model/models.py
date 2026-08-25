@@ -23,11 +23,15 @@ MAX_OBSERVATION_ITEMS = 128
 MAX_ENVIRONMENT_ENTITIES = 256
 MAX_OBSERVATION_TIME_NS = (1 << 63) - 1
 MAX_SENSOR_IDENTITIES = 32
+MAX_CAMERA_DIMENSION = 4_096
+MAX_CAMERA_PIXELS = 16_777_216
+MAX_IMAGE_DATA_BYTES = 64 * 1_024 * 1_024
 QUATERNION_NORM_TOLERANCE = 1e-6
 
 _IDENTIFIER = re.compile(r"^[a-z0-9]+(?:[._-][a-z0-9]+)*$")
 _FRAME = re.compile(r"^[A-Za-z][A-Za-z0-9_/-]*$")
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
+_CALIBRATION_ID = re.compile(r"^camera-calibration-sha256-[0-9a-f]{64}$")
 
 
 def _invalid(code: WorldModelFailureCode, detail: str) -> None:
@@ -144,6 +148,7 @@ class SensorKind(StrEnum):
     JOINT_STATE = "joint_state"
     IMU = "imu"
     BODY_POSE = "body_pose"
+    RGB_CAMERA = "rgb_camera"
 
 
 class SensorAvailability(StrEnum):
@@ -239,6 +244,158 @@ class SensorIdentity:
             "kind": self.kind.value,
             "sensor_id": self.sensor_id,
         }
+
+
+@dataclass(frozen=True, slots=True, init=False)
+class CameraCalibration:
+    """Bounded standard camera calibration metadata, never pixel storage."""
+
+    width: int
+    height: int
+    distortion_model: str
+    d: tuple[float, ...]
+    k: tuple[float, ...]
+    r: tuple[float, ...]
+    p: tuple[float, ...]
+    binning_x: int
+    binning_y: int
+    roi: tuple[int, int, int, int, bool]
+    calibration_id: str
+
+    def __init__(
+        self,
+        *,
+        width: int,
+        height: int,
+        distortion_model: str,
+        d: tuple[float, ...],
+        k: tuple[float, ...],
+        r: tuple[float, ...],
+        p: tuple[float, ...],
+        binning_x: int = 0,
+        binning_y: int = 0,
+        roi: tuple[int, int, int, int, bool] = (0, 0, 0, 0, False),
+        calibration_id: str | None = None,
+    ) -> None:
+        if (
+            type(width) is not int
+            or type(height) is not int
+            or not 1 <= width <= MAX_CAMERA_DIMENSION
+            or not 1 <= height <= MAX_CAMERA_DIMENSION
+            or width * height > MAX_CAMERA_PIXELS
+        ):
+            _invalid(
+                WorldModelFailureCode.MALFORMED_OBSERVATION,
+                "camera calibration dimensions are outside reviewed bounds",
+            )
+        if (
+            type(distortion_model) is not str
+            or not distortion_model
+            or len(distortion_model) > 64
+            or _IDENTIFIER.fullmatch(distortion_model) is None
+        ):
+            _invalid(
+                WorldModelFailureCode.MALFORMED_OBSERVATION,
+                "camera distortion model must be bounded canonical text",
+            )
+        if type(d) is not tuple or len(d) > 16:
+            _invalid(
+                WorldModelFailureCode.MALFORMED_OBSERVATION,
+                "camera distortion vector exceeds its bound",
+            )
+        distortion = tuple(_finite(value, "camera distortion") for value in d)
+        matrices: list[tuple[float, ...]] = []
+        for values, size, field_name in (
+            (k, 9, "camera intrinsic matrix"),
+            (r, 9, "camera rectification matrix"),
+            (p, 12, "camera projection matrix"),
+        ):
+            if type(values) is not tuple or len(values) != size:
+                _invalid(
+                    WorldModelFailureCode.MALFORMED_OBSERVATION,
+                    f"{field_name} must contain exactly {size} values",
+                )
+            finite_values = tuple(_finite(value, field_name) for value in values)
+            if all(value == 0.0 for value in finite_values):
+                _invalid(
+                    WorldModelFailureCode.MALFORMED_OBSERVATION,
+                    f"{field_name} cannot be an all-zero calibration claim",
+                )
+            matrices.append(finite_values)
+        intrinsic, rectification, projection = matrices
+        if intrinsic[0] <= 0.0 or intrinsic[4] <= 0.0 or intrinsic[8] == 0.0:
+            _invalid(
+                WorldModelFailureCode.MALFORMED_OBSERVATION,
+                "camera intrinsic focal lengths and homogeneous scale must be positive",
+            )
+        if projection[0] <= 0.0 or projection[5] <= 0.0 or projection[10] == 0.0:
+            _invalid(
+                WorldModelFailureCode.MALFORMED_OBSERVATION,
+                "camera projection focal lengths and homogeneous scale must be positive",
+            )
+        for value, field_name in ((binning_x, "binning_x"), (binning_y, "binning_y")):
+            if type(value) is not int or not 0 <= value <= MAX_CAMERA_DIMENSION:
+                _invalid(
+                    WorldModelFailureCode.MALFORMED_OBSERVATION,
+                    f"camera {field_name} is outside its bound",
+                )
+        if (
+            type(roi) is not tuple
+            or len(roi) != 5
+            or any(type(value) is not int for value in roi[:4])
+            or type(roi[4]) is not bool
+        ):
+            _invalid(
+                WorldModelFailureCode.MALFORMED_OBSERVATION,
+                "camera ROI metadata is malformed",
+            )
+        x_offset, y_offset, roi_width, roi_height, do_rectify = roi
+        if (
+            min(x_offset, y_offset, roi_width, roi_height) < 0
+            or x_offset > width
+            or y_offset > height
+            or roi_width > width - x_offset
+            or roi_height > height - y_offset
+            or ((roi_width == 0) != (roi_height == 0))
+        ):
+            _invalid(
+                WorldModelFailureCode.MALFORMED_OBSERVATION,
+                "camera ROI lies outside the calibrated image",
+            )
+        document: dict[str, JSONValue] = {
+            "binning_x": binning_x,
+            "binning_y": binning_y,
+            "d": list(distortion),
+            "distortion_model": distortion_model,
+            "height": height,
+            "k": list(intrinsic),
+            "p": list(projection),
+            "r": list(rectification),
+            "roi": [x_offset, y_offset, roi_width, roi_height, do_rectify],
+            "schema": "ayyo.camera-calibration.v1",
+            "width": width,
+        }
+        derived_id = f"camera-calibration-sha256-{sha256_document(document)}"
+        if calibration_id is not None and calibration_id != derived_id:
+            raise ObservationIdentityError(
+                WorldModelFailureCode.IDENTITY_MISMATCH,
+                "camera calibration identity does not match its metadata",
+            )
+        object.__setattr__(self, "width", width)
+        object.__setattr__(self, "height", height)
+        object.__setattr__(self, "distortion_model", distortion_model)
+        object.__setattr__(self, "d", distortion)
+        object.__setattr__(self, "k", intrinsic)
+        object.__setattr__(self, "r", rectification)
+        object.__setattr__(self, "p", projection)
+        object.__setattr__(self, "binning_x", binning_x)
+        object.__setattr__(self, "binning_y", binning_y)
+        object.__setattr__(
+            self,
+            "roi",
+            (x_offset, y_offset, roi_width, roi_height, do_rectify),
+        )
+        object.__setattr__(self, "calibration_id", derived_id)
 
 
 @dataclass(frozen=True, slots=True)
@@ -408,6 +565,7 @@ class ObservationFingerprintKind(StrEnum):
     IMU = "imu"
     BODY_POSE = "body_pose"
     SENSOR_HEALTH = "sensor_health"
+    VISUAL_FRAME = "visual_frame"
     ENVIRONMENT_ENTITY = "environment_entity"
 
 
@@ -766,6 +924,176 @@ class ImuObservation:
 
 
 @dataclass(frozen=True, slots=True, init=False)
+class VisualFrameObservation:
+    """Compact evidence that one RGB frame was acquired; pixel bytes are absent."""
+
+    robot_id: str
+    sensor: SensorIdentity
+    width: int
+    height: int
+    encoding: str
+    step: int
+    data_size_bytes: int
+    is_bigendian: bool
+    calibration_id: str
+    observed_at_ns: int
+    provenance: ObservationProvenance
+    availability: SensorAvailability
+    observation_id: str
+    fingerprint: ObservationFingerprint
+
+    def __init__(
+        self,
+        *,
+        robot_id: str,
+        sensor: SensorIdentity,
+        width: int,
+        height: int,
+        encoding: str,
+        step: int,
+        data_size_bytes: int,
+        is_bigendian: bool,
+        calibration_id: str,
+        observed_at_ns: int,
+        provenance: ObservationProvenance,
+        availability: SensorAvailability,
+        observation_id: str | None = None,
+        fingerprint: ObservationFingerprint | None = None,
+    ) -> None:
+        canonical_identifier(robot_id, "robot_id")
+        if (
+            type(sensor) is not SensorIdentity
+            or sensor.kind is not SensorKind.RGB_CAMERA
+        ):
+            _invalid(
+                WorldModelFailureCode.MALFORMED_OBSERVATION,
+                "visual evidence requires a typed RGB camera identity",
+            )
+        if (
+            type(width) is not int
+            or type(height) is not int
+            or not 1 <= width <= MAX_CAMERA_DIMENSION
+            or not 1 <= height <= MAX_CAMERA_DIMENSION
+            or width * height > MAX_CAMERA_PIXELS
+        ):
+            _invalid(
+                WorldModelFailureCode.MALFORMED_OBSERVATION,
+                "visual frame dimensions are outside reviewed bounds",
+            )
+        if encoding != "rgb8":
+            _invalid(
+                WorldModelFailureCode.MALFORMED_OBSERVATION,
+                "v1 visual evidence accepts only the reviewed rgb8 encoding",
+            )
+        if (
+            type(step) is not int
+            or step < width * 3
+            or step > MAX_IMAGE_DATA_BYTES
+            or type(data_size_bytes) is not int
+            or data_size_bytes != step * height
+            or not 1 <= data_size_bytes <= MAX_IMAGE_DATA_BYTES
+        ):
+            _invalid(
+                WorldModelFailureCode.MALFORMED_OBSERVATION,
+                "visual frame row stride or byte-count metadata is inconsistent",
+            )
+        if type(is_bigendian) is not bool:
+            _invalid(
+                WorldModelFailureCode.MALFORMED_OBSERVATION,
+                "visual frame endian metadata must be boolean",
+            )
+        if type(calibration_id) is not str or _CALIBRATION_ID.fullmatch(
+            calibration_id
+        ) is None:
+            _invalid(
+                WorldModelFailureCode.MALFORMED_OBSERVATION,
+                "visual frame calibration identity is malformed",
+            )
+        if (
+            type(observed_at_ns) is not int
+            or not 1 <= observed_at_ns <= MAX_OBSERVATION_TIME_NS
+        ):
+            _invalid(
+                WorldModelFailureCode.MALFORMED_OBSERVATION,
+                "visual acquisition time must be nonzero bounded source time",
+            )
+        if type(provenance) is not ObservationProvenance:
+            _invalid(
+                WorldModelFailureCode.MALFORMED_PROVENANCE,
+                "visual frame provenance is required",
+            )
+        if availability not in {
+            SensorAvailability.AVAILABLE,
+            SensorAvailability.DEGRADED,
+        }:
+            _invalid(
+                WorldModelFailureCode.MALFORMED_OBSERVATION,
+                "measurement-bearing visual evidence must be available or degraded",
+            )
+        payload: dict[str, JSONValue] = {
+            "availability": availability.value,
+            "calibration_id": calibration_id,
+            "data_size_bytes": data_size_bytes,
+            "encoding": encoding,
+            "height": height,
+            "is_bigendian": is_bigendian,
+            "sensor": sensor.document(),
+            "step": step,
+            "width": width,
+        }
+        document = _observation_document(
+            kind=ObservationFingerprintKind.VISUAL_FRAME,
+            robot_id=robot_id,
+            observed_at_ns=observed_at_ns,
+            provenance=provenance,
+            confidence=None,
+            payload=payload,
+        )
+        derived = ObservationFingerprint(
+            kind=ObservationFingerprintKind.VISUAL_FRAME,
+            digest=sha256_document(document),
+        )
+        derived_id = f"world-observation-{derived.digest}"
+        if fingerprint is not None and fingerprint != derived:
+            raise ObservationIdentityError(
+                WorldModelFailureCode.IDENTITY_MISMATCH,
+                "visual frame fingerprint does not match its metadata",
+            )
+        if observation_id is not None and observation_id != derived_id:
+            raise ObservationIdentityError(
+                WorldModelFailureCode.IDENTITY_MISMATCH,
+                "visual frame observation ID does not match its metadata",
+            )
+        object.__setattr__(self, "robot_id", robot_id)
+        object.__setattr__(self, "sensor", sensor)
+        object.__setattr__(self, "width", width)
+        object.__setattr__(self, "height", height)
+        object.__setattr__(self, "encoding", encoding)
+        object.__setattr__(self, "step", step)
+        object.__setattr__(self, "data_size_bytes", data_size_bytes)
+        object.__setattr__(self, "is_bigendian", is_bigendian)
+        object.__setattr__(self, "calibration_id", calibration_id)
+        object.__setattr__(self, "observed_at_ns", observed_at_ns)
+        object.__setattr__(self, "provenance", provenance)
+        object.__setattr__(self, "availability", availability)
+        object.__setattr__(self, "observation_id", derived_id)
+        object.__setattr__(self, "fingerprint", derived)
+
+    def payload_document(self) -> dict[str, JSONValue]:
+        return {
+            "availability": self.availability.value,
+            "calibration_id": self.calibration_id,
+            "data_size_bytes": self.data_size_bytes,
+            "encoding": self.encoding,
+            "height": self.height,
+            "is_bigendian": self.is_bigendian,
+            "sensor": self.sensor.document(),
+            "step": self.step,
+            "width": self.width,
+        }
+
+
+@dataclass(frozen=True, slots=True, init=False)
 class BodyPoseObservation:
     robot_id: str
     sensor: SensorIdentity
@@ -1062,6 +1390,7 @@ class EnvironmentEntityObservation:
 Observation: TypeAlias = (
     RobotStateObservation
     | ImuObservation
+    | VisualFrameObservation
     | BodyPoseObservation
     | SensorHealthObservation
     | EnvironmentEntityObservation
@@ -1106,6 +1435,23 @@ def rebuild_observation(observation: Observation) -> Observation:
             provenance=observation.provenance,
             availability=observation.availability,
             quality=observation.quality,
+            observation_id=observation.observation_id,
+            fingerprint=observation.fingerprint,
+        )
+    if type(observation) is VisualFrameObservation:
+        return VisualFrameObservation(
+            robot_id=observation.robot_id,
+            sensor=observation.sensor,
+            width=observation.width,
+            height=observation.height,
+            encoding=observation.encoding,
+            step=observation.step,
+            data_size_bytes=observation.data_size_bytes,
+            is_bigendian=observation.is_bigendian,
+            calibration_id=observation.calibration_id,
+            observed_at_ns=observation.observed_at_ns,
+            provenance=observation.provenance,
+            availability=observation.availability,
             observation_id=observation.observation_id,
             fingerprint=observation.fingerprint,
         )
@@ -1312,6 +1658,48 @@ class ObservedImuState:
 
 
 @dataclass(frozen=True, slots=True)
+class ObservedVisualState:
+    observation: VisualFrameObservation
+    freshness: FreshnessState
+    availability: SensorAvailability
+
+    def __post_init__(self) -> None:
+        if type(self.observation) is not VisualFrameObservation:
+            _invalid(
+                WorldModelFailureCode.SNAPSHOT_INVARIANT,
+                "visual state is untyped",
+            )
+        if not isinstance(self.freshness, FreshnessState):
+            _invalid(
+                WorldModelFailureCode.SNAPSHOT_INVARIANT,
+                "visual freshness is invalid",
+            )
+        if not isinstance(self.availability, SensorAvailability):
+            _invalid(
+                WorldModelFailureCode.SNAPSHOT_INVARIANT,
+                "visual availability is invalid",
+            )
+        if self.freshness is FreshnessState.STALE and (
+            self.availability is not SensorAvailability.STALE
+        ):
+            _invalid(
+                WorldModelFailureCode.SNAPSHOT_INVARIANT,
+                "stale visual evidence must be explicitly marked stale",
+            )
+
+    def document(self) -> dict[str, JSONValue]:
+        return {
+            "availability": self.availability.value,
+            "fingerprint": str(self.observation.fingerprint),
+            "freshness": self.freshness.value,
+            "observation_id": self.observation.observation_id,
+            "observed_at_ns": self.observation.observed_at_ns,
+            "payload": self.observation.payload_document(),
+            "provenance": self.observation.provenance.document(),
+        }
+
+
+@dataclass(frozen=True, slots=True)
 class ObservedSensorHealthState:
     observation: SensorHealthObservation
     freshness: FreshnessState
@@ -1397,6 +1785,7 @@ class RobotBodyState:
     base_pose: ObservedPoseState | None
     availability: RobotAvailability
     imu_states: tuple[ObservedImuState, ...] = ()
+    visual_states: tuple[ObservedVisualState, ...] = ()
     sensor_states: tuple[SensorAvailabilityState, ...] = ()
     sensor_health_states: tuple[ObservedSensorHealthState, ...] = ()
 
@@ -1443,6 +1832,19 @@ class RobotBodyState:
         imu_ids = tuple(item.observation.sensor.sensor_id for item in self.imu_states)
         if imu_ids != tuple(sorted(set(imu_ids))):
             _invalid(WorldModelFailureCode.SNAPSHOT_INVARIANT, "IMU states must be unique and sorted")
+        if any(type(item) is not ObservedVisualState for item in self.visual_states):
+            _invalid(
+                WorldModelFailureCode.SNAPSHOT_INVARIANT,
+                "visual states must be typed",
+            )
+        visual_ids = tuple(
+            item.observation.sensor.sensor_id for item in self.visual_states
+        )
+        if visual_ids != tuple(sorted(set(visual_ids))):
+            _invalid(
+                WorldModelFailureCode.SNAPSHOT_INVARIANT,
+                "visual states must be unique and sorted",
+            )
         if any(type(item) is not SensorAvailabilityState for item in self.sensor_states):
             _invalid(WorldModelFailureCode.SNAPSHOT_INVARIANT, "sensor states must be typed")
         sensor_ids = tuple(item.sensor.sensor_id for item in self.sensor_states)
@@ -1475,6 +1877,7 @@ class RobotBodyState:
             "known_joint_names": list(self.known_joint_names),
             "robot_id": self.robot_id,
             "imu_states": [item.document() for item in self.imu_states],
+            "visual_states": [item.document() for item in self.visual_states],
             "sensor_states": [item.document() for item in self.sensor_states],
             "sensor_health_states": [
                 item.document() for item in self.sensor_health_states
