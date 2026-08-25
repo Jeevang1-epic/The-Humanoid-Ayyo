@@ -2,10 +2,6 @@ from __future__ import annotations
 
 import unittest
 
-from ayyo_perception import (
-    DeterministicVisualReferenceAdapter,
-    REFERENCE_VISUAL_PRODUCER,
-)
 from ayyo_working_memory import (
     IngestionReason,
     IngestionStatus,
@@ -14,11 +10,17 @@ from ayyo_working_memory import (
 )
 from ayyo_world_model import (
     AYYO_ROBOT_ID,
+    ImageRegion2D,
     ObservationClock,
     SensorAvailability,
     SensorIdentity,
     SensorKind,
+    VisualDetection,
     VisualFrameObservation,
+    VisualInterpretationObservation,
+    VisualInterpretationProducer,
+    VisualProducerKind,
+    VisualSemanticCategory,
 )
 
 from helpers import TEST_PROVENANCE, catalog
@@ -28,6 +30,13 @@ CAMERA = SensorIdentity(
     "ayyo.camera.head.rgb.v1",
     SensorKind.RGB_CAMERA,
     "head_camera_optical_frame",
+)
+PRODUCER = VisualInterpretationProducer(
+    "ayyo.visual.test.v1",
+    VisualProducerKind.TEST_FIXTURE,
+    "none",
+    "ayyo.visual.test.adapter.v1",
+    "ayyo.visual-interpretation.v1",
 )
 
 
@@ -48,6 +57,35 @@ def frame(time_ns: int) -> VisualFrameObservation:
     )
 
 
+def interpretation(source: VisualFrameObservation) -> VisualInterpretationObservation:
+    return VisualInterpretationObservation(
+        robot_id=source.robot_id,
+        sensor=source.sensor,
+        reference_frame_id=source.sensor.frame_id,
+        source_visual_observation_id=source.observation_id,
+        source_visual_fingerprint=source.fingerprint,
+        observed_at_ns=source.observed_at_ns,
+        result_at_ns=source.observed_at_ns,
+        producer=PRODUCER,
+        detections=(
+            VisualDetection(
+                source_visual_observation_id=source.observation_id,
+                category=VisualSemanticCategory.TEST_PATTERN,
+                label="test.marker.v1",
+                region=ImageRegion2D(
+                    x_min=0.25,
+                    y_min=0.25,
+                    x_max=0.75,
+                    y_max=0.75,
+                ),
+                confidence=None,
+            ),
+        ),
+        provenance=source.provenance,
+        availability=SensorAvailability.AVAILABLE,
+    )
+
+
 def memory(*, recent: int = 8) -> WorkingMemory:
     return WorkingMemory(
         catalog(),
@@ -60,7 +98,7 @@ def memory(*, recent: int = 8) -> WorkingMemory:
             retention_ttl_ns=2000,
             permitted_future_skew_ns=5,
             recent_evidence_capacity=recent,
-            visual_interpretation_producers=(REFERENCE_VISUAL_PRODUCER,),
+            visual_interpretation_producers=(PRODUCER,),
         ),
     )
 
@@ -69,10 +107,7 @@ class VisualInterpretationMemoryTest(unittest.TestCase):
     def test_retain_project_query_without_mutation_and_duplicate_growth(self) -> None:
         store = memory()
         source = frame(100)
-        result = DeterministicVisualReferenceAdapter().interpret(
-            source,
-            result_at_ns=101,
-        )
+        result = interpretation(source)
         self.assertEqual(
             IngestionStatus.REJECTED,
             store.ingest(result, now_ns=101, received_at_monotonic_ns=1).status,
@@ -98,7 +133,6 @@ class VisualInterpretationMemoryTest(unittest.TestCase):
 
     def test_high_rate_replacement_retains_one_current_result_and_bounded_recent(self) -> None:
         store = memory(recent=8)
-        adapter = DeterministicVisualReferenceAdapter()
         receipt = 0
         for index in range(1, 1001):
             source = frame(index)
@@ -108,7 +142,7 @@ class VisualInterpretationMemoryTest(unittest.TestCase):
                 store.ingest(source, now_ns=index, received_at_monotonic_ns=receipt).status,
             )
             receipt += 1
-            result = adapter.interpret(source, result_at_ns=index)
+            result = interpretation(source)
             self.assertEqual(
                 IngestionStatus.ACCEPTED,
                 store.ingest(result, now_ns=index, received_at_monotonic_ns=receipt).status,
