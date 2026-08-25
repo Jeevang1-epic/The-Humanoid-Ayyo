@@ -45,7 +45,7 @@ def test_complete_validation_command_passes() -> None:
     )
     assert result.returncode == 0, result.stderr
     assert result.stdout == (
-        'PASS: Ayyo description (36 links, 35 joints, 18 movable, '
+        'PASS: Ayyo description (37 links, 36 joints, 18 movable, '
         '33 mesh contracts)\n'
     )
 
@@ -56,7 +56,30 @@ def test_default_expansion_is_byte_deterministic() -> None:
 
 
 def test_canonical_topology(proxy_robot: ET.Element) -> None:
-    assert validate_tree(proxy_robot) == (36, 35, 18)
+    assert validate_tree(proxy_robot) == (37, 36, 18)
+
+
+def test_head_camera_mount_and_optical_frame_contract(proxy_robot: ET.Element) -> None:
+    mount = proxy_robot.find("./joint[@name='head_camera_mount_joint']")
+    assert mount is not None
+    assert mount.find('parent').get('link') == 'head_link'
+    assert mount.find('child').get('link') == 'head_camera_frame'
+
+    optical = proxy_robot.find("./joint[@name='head_camera_optical_joint']")
+    assert optical is not None
+    assert optical.get('type') == 'fixed'
+    assert optical.find('parent').get('link') == 'head_camera_frame'
+    assert optical.find('child').get('link') == 'head_camera_optical_frame'
+    assert tuple(float(value) for value in optical.find('origin').get('xyz').split()) == (
+        0.0,
+        0.0,
+        0.0,
+    )
+    assert tuple(float(value) for value in optical.find('origin').get('rpy').split()) == (
+        -1.5707963267948966,
+        0.0,
+        -1.5707963267948966,
+    )
 
 
 def test_expected_major_frames_are_present(proxy_robot: ET.Element) -> None:
@@ -272,7 +295,7 @@ def test_owned_python_sources_retain_project_copyright() -> None:
 
 
 def test_validation_api_reports_expected_counts() -> None:
-    assert validate_package(PACKAGE_ROOT) == (36, 35, 18, 33)
+    assert validate_package(PACKAGE_ROOT) == (37, 36, 18, 33)
 
 
 def test_rviz_launch_has_only_description_display_nodes() -> None:

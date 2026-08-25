@@ -24,6 +24,7 @@ EXPECTED_MAJOR_FRAMES = frozenset(
         'neck_link',
         'head_link',
         'head_camera_frame',
+        'head_camera_optical_frame',
         'imu_link',
         'left_shoulder_mount_link',
         'left_upper_arm_link',
