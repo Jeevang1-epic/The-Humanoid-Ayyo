@@ -39,7 +39,12 @@ health mapping, and opt-in Harmonic source. The deterministic
 [Head RGB Camera and Visual Observation Foundation](VISUAL_CAMERA_FOUNDATION.md)
 adds a fixed standard Image/CameraInfo boundary, an exact optical frame,
 deterministic calibration identity, and bounded pixel-free source state. It
-does not infer scene semantics or retain video. The deterministic
+does not infer scene semantics or retain video. The
+[Visual Perception Processing Foundation](VISUAL_PERCEPTION_PROCESSING.md)
+adds bounded typed interpretations tied to an exact admitted frame, an exact
+producer allowlist, temporary projection, and a synthetic default-off proof.
+It implements no production model and grants no execution authority. The
+deterministic
 [World Model and Working Memory Foundation](WORLD_MODEL_WORKING_MEMORY.md)
 implements immutable current embodied/environment evidence, deterministic
 snapshots, freshness, and bounded temporary retention ahead of durable memory.
@@ -108,6 +113,12 @@ replace proxy geometry without duplicating or bypassing frame semantics.
   image-shape validation, and immediate reduction to compact pixel-free
   metadata. Frame receipt establishes availability, not camera health or scene
   understanding. Pixel buffers cannot enter snapshots or durable memory.
+- Visual interpretation producers operate only after frame admission. The
+  existing trust boundary owns exact source-frame, camera, optical-frame,
+  acquisition/result-time, producer, provenance, ordering, fingerprint, and
+  resource admission. Working Memory keeps one current result per
+  camera/producer plus bounded recent evidence; interpretation is never a
+  command, permission, identity claim, or durable-memory write.
 - World Model owns transport-neutral provenance-bound current robot/environment
   observations, authoritative body-value validation, IMU/pose/covariance/
   availability contracts, discrete freshness, and canonical immutable

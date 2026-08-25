@@ -191,6 +191,25 @@
 - Headless visual smoke proving the real Gazebo image path, optical frame,
   source timestamp, calibration, simulation provenance, rejection/recovery,
   bounds, lifecycle, motion independence, and clean shutdown
+- Immutable bounded visual interpretation producer, normalized 2D region,
+  detection, source/result time, optional confidence, and canonical identity
+  contracts with no generic metadata or pixel retention
+- Exact interpreted-evidence admission against one retained trusted frame and
+  one reviewed producer, including simulation/physical provenance separation,
+  result ordering, typed rejection, and a 64-reference hard bound
+- Working Memory replacement per camera/producer and immutable World Model
+  visual-interpretation projection with additive fixed read-only query fields
+- Default-off deterministic synthetic reference adapter with no model,
+  randomness, network, fake confidence, command authority, or Memory OS path
+- Dedicated interpreted-visual headless smoke proving the full real-frame to
+  synthetic-result read path, adversarial recovery, 1,000-frame bounds,
+  lifecycle reactivation, no movement, and zero owned processes after shutdown
+- Exact smoke process ownership using a per-run inherited marker and dedicated
+  process session, graceful bounded SIGINT-first cleanup, scoped escalation,
+  survivor failure, early-exit coverage, and no name-based global killing
+- Direct shell-free Gazebo launch ownership fixing the previously orphaned
+  simulator child; the interrupted joint-state-publisher traceback is not
+  suppressed and was not reproduced under graceful teardown
 
 ## Planned, but not implemented
 
@@ -200,8 +219,8 @@
 - Ayyo-specific RViz and Gazebo graphical review of orientation, scale, pivots,
   symmetry, clipping, collision alignment, and joint direction
 - Physical joint, camera, IMU, localization, and diagnostic-source validation
-- Force/torque, touch, depth, audio, object, person, navigation, manipulation,
-  and semantic visual-processing observation adapters
+- Force/torque, touch, depth, audio, production object/person perception,
+  navigation, manipulation, and non-synthetic visual producer adapters
 - Production diagnostic producers, SLAM, visual localization, sensor fusion,
   calibration/bias estimation, trust scoring, clock
   synchronization, and environment-state ROS query transport
@@ -236,7 +255,8 @@ Simulation Control Foundation can actuate one bounded simulated neck joint only
 through explicit development injection and can prove the result from
 controller-derived feedback. The independent perception boundary admits
 standard joint/IMU, exact body-localization, allowlisted diagnostic, and
-compact calibrated visual-frame evidence but grants no authority. The project
+compact calibrated visual-frame and bounded interpreted evidence but grants no
+authority. The project
 does not
 provide inferred personality, natural-language understanding, model reasoning,
 general perception, physical sensor validation, authenticated

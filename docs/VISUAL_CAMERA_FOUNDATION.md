@@ -245,6 +245,12 @@ processors may subscribe to the standard image transport and emit separately
 reviewed compact evidence; they must not place pixel buffers into World Model
 or durable memory.
 
+The typed bounded seam and its explicitly synthetic reference proof are now
+implemented by the
+[Visual Perception Processing Foundation](VISUAL_PERCEPTION_PROCESSING.md).
+It does not change the camera transport, calibration, frame, or pixel-retention
+contracts described here and is not production machine perception.
+
 ## Not implemented
 
 - Physical camera, driver, calibration, synchronization, diagnostics, or

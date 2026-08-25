@@ -63,16 +63,21 @@ frame, a default-off standard `Image`/`CameraInfo` simulation source, fixed
 calibration-aware admission, and bounded pixel-free visual state. It does not
 implement detection, recognition, tracking, scene understanding, visual
 localization, or a physical camera driver.
+Visual Perception Processing Foundation v1 now adds bounded typed normalized
+image-region observations tied to an exact admitted source frame, exact
+producer/model/adapter identity, provenance and source/result time checks,
+bounded Working Memory/World Model projection, and a deterministic synthetic
+reference proof. It does not implement or claim production machine perception.
 
 Final Ayyo assets, graphical controlled-design validation, additional joints,
 trajectory/whole-body controllers, validated dynamics/contact behavior,
 authenticated identity, permissions, approval verification, live backend
 attestation, production typed ROS services, audit persistence,
 timeout/resource enforcement, runtime skill implementations, and
-physical-safety integration remain future work. Camera perception processing
-and live audio/depth/force/touch perception, physical camera/IMU/localization
-validation, production
-diagnostic producers, SLAM, sensor fusion, environment entity production, and
+physical-safety integration remain future work. Production/recorded visual
+producer evaluation and live audio/depth/force/touch perception, physical
+camera/IMU/localization validation, production diagnostic producers, SLAM,
+sensor fusion, environment entity production, and
 reviewed Working-Memory-to-Memory-Validation consolidation also remain future
 work. Executive proposals, Safety
 eligibility, Skill Manager runtime-handoff eligibility, Runtime Bridge

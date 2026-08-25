@@ -127,6 +127,14 @@ frame, dimensions, `rgb8` encoding, step, byte count, calibration identity,
 source timestamp, availability, provenance, and canonical identity. It has no
 pixel field and cannot represent detected entities or scene knowledge.
 
+`VisualInterpretationObservation` now represents a bounded semantic result from
+one exact admitted `VisualFrameObservation`. It retains the source frame ID and
+fingerprint, unchanged acquisition time, a separate result time, exact RGB
+camera/optical frame, source provenance, exact producer/model/adapter identity,
+and at most 32 typed normalized 2D detections with optional finite confidence.
+The focused contract is documented in
+[VISUAL_PERCEPTION_PROCESSING.md](VISUAL_PERCEPTION_PROCESSING.md).
+
 ## Provenance
 
 Every meaningful observation retains source kind, canonical source identity,
@@ -210,8 +218,9 @@ window. It has no database, filesystem writes, timer, worker thread, polling
 loop, or autonomous refresh. Time is supplied explicitly to every ingest/query
 operation so deterministic tests and ROS adapters control the correct clock.
 
-Current robot state is keyed per joint, IMU sensor, visual sensor, body-pose
-source, and sensor health source. Partial newer
+Current robot state is keyed per joint, IMU sensor, visual sensor,
+visual-camera/interpretation-producer pair, body-pose source, and sensor health
+source. Partial newer
 messages update only the joints they contain and do not clear other unexpired
 state. A same-key message with an older timestamp is rejected. Different
 evidence for the same key and exact timestamp is rejected as a temporal

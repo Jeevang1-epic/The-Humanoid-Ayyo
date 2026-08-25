@@ -27,6 +27,8 @@ Camera detection/recognition/tracking, depth, audio, fusion, navigation, motion
 authority, and durable sensor logging are not implemented. The RGB transport
 and compact pixel-free visual-state boundary are documented in
 [Visual Camera Foundation](VISUAL_CAMERA_FOUNDATION.md).
+The bounded post-admission semantic seam and synthetic-only proof are documented
+in [Visual Perception Processing](VISUAL_PERCEPTION_PROCESSING.md).
 
 ## Architecture
 
@@ -98,10 +100,11 @@ Model constructor before admission. It then checks:
 - duplicate, out-of-order, and same-time conflicting evidence; and
 - content-derived observation identity and fingerprint integrity.
 
-The boundary retains only one `(timestamp, observation ID)` pair per configured
-measurement or health key. Source registrations are capped at 32 and tracked
-keys at twice that count. There is no history queue, worker, timer, polling
-loop, dynamic source discovery, or arbitrary topic selection.
+The boundary retains only one ordering pair per configured measurement, health,
+or visual camera/producer key. Source registrations are capped at 32,
+interpretation producers at 16, and recently admitted visual source references
+at 64 with deterministic eviction. There is no unbounded history queue, worker,
+timer, polling loop, dynamic source discovery, or arbitrary topic selection.
 
 Malformed evidence produces typed validation or admission failure. Programming
 errors are not hidden by broad catch-and-ignore handling.

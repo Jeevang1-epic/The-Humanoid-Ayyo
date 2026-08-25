@@ -7,8 +7,8 @@ can mature behind stable boundaries before physical hardware is introduced.
 
 ## Current status
 
-Ayyo has reached the Head RGB Camera and Visual Observation Foundation v1
-review stage.
+Ayyo has reached the Visual Perception Processing Foundation v1 and deterministic
+smoke teardown hardening review stage.
 
 Implemented:
 
@@ -64,6 +64,9 @@ Implemented:
 - A standalone deterministic Perception Trust Boundary with exact source,
   sensor, frame, provenance, clock, time-order, fingerprint, and bounded
   resource admission policy and no ROS/Gazebo/vendor dependency
+- Bounded typed visual-interpretation contracts tied to one exact admitted
+  frame and producer, with normalized regions, optional honest confidence,
+  source/result time, deterministic identity, and no generic metadata
 - Immutable IMU, body-pose, covariance, quality, health/availability,
   freshness, and disappearance contracts integrated into Working Memory and
   World Model without fabricating missing state
@@ -89,6 +92,11 @@ Implemented:
 - A headless visual smoke proving real nonempty pixels at transport ingress,
   matching CameraInfo, simulation provenance, adversarial rejection, bounded
   retention, lifecycle behavior, independent neck motion, and clean shutdown
+- A disabled-by-default deterministic synthetic reference adapter and headless
+  proof of trusted frame → interpretation → trust → Working Memory → immutable
+  World Model → fixed query, without a model, fake confidence, or authority
+- Exact per-smoke process ownership and bounded graceful/scoped teardown,
+  including direct shell-free Gazebo ownership and survivor regression tests
 
 Planned, but not implemented:
 
@@ -97,8 +105,7 @@ Planned, but not implemented:
 - Additional commandable joints, trajectory/whole-body control, and validated
   dynamics/contact behavior
 - Physical localization/camera/sensor validation, real diagnostic producers,
-  SLAM/fusion/physical calibration, and perception processing beyond reviewed
-  body and visual-source observations
+  SLAM/fusion/physical calibration, and production visual producer evaluation
 - Natural-language/model integration and authenticated identity/approval
 - Runtime skill implementations, manipulation, and navigation
 - Production-authorized typed ROS services, runtime scheduling, and resource
@@ -125,6 +132,7 @@ independent of cognition and learned policies. See
 [docs/PERCEPTION_TRUST_PROPRIOCEPTION.md](docs/PERCEPTION_TRUST_PROPRIOCEPTION.md),
 [docs/BODY_LOCALIZATION_SENSOR_DIAGNOSTICS.md](docs/BODY_LOCALIZATION_SENSOR_DIAGNOSTICS.md),
 [docs/VISUAL_CAMERA_FOUNDATION.md](docs/VISUAL_CAMERA_FOUNDATION.md),
+[docs/VISUAL_PERCEPTION_PROCESSING.md](docs/VISUAL_PERCEPTION_PROCESSING.md),
 [docs/AYYO_MESH_IMPORT.md](docs/AYYO_MESH_IMPORT.md), and
 [docs/SAFETY.md](docs/SAFETY.md).
 
@@ -270,6 +278,12 @@ Run the head RGB camera and visual-observation integration smoke:
 ./scripts/smoke_visual_camera.sh
 ```
 
+Run the visual-perception processing and teardown proof:
+
+```bash
+./scripts/smoke_visual_perception.sh
+```
+
 ## Repository layout
 
 ```text
@@ -297,7 +311,8 @@ Robot Description & Simulation Foundation v1, and the one-joint Simulation
 Control & Actuation Foundation v1, Embodied World Model and Working Memory
 Foundation v1, and Perception Trust Boundary and Proprioceptive Observation
 Foundation v1, plus Body Localization and Sensor Diagnostics Foundation v1,
-and Head RGB Camera and Visual Observation Foundation v1 are implemented.
+Head RGB Camera and Visual Observation Foundation v1, and Visual Perception
+Processing Foundation v1 are implemented.
 Production motion remains
 closed because Safety v1 defers physical movement; only explicit development
 injection can exercise the simulated neck joint. The perception path adds
