@@ -165,7 +165,37 @@ def test_simulation_mode_is_static_and_plugin_free(proxy_robot: ET.Element) -> N
     assert sensor.findtext('topic') == '/ayyo/imu/data'
     assert sensor.findtext('gz_frame_id') == 'imu_link'
     assert sensor.findtext('update_rate') == '100'
+    assert robot.find("./gazebo/sensor[@type='camera']") is None
     assert proxy_robot.find('.//sensor') is None
+
+
+def test_camera_mode_adds_only_exact_simulation_rgb_source() -> None:
+    robot = parse_robot(
+        expand_xacro(
+            PACKAGE_ROOT / 'urdf' / 'ayyo.urdf.xacro',
+            'simulation_mode:=true',
+            'simulation_camera:=true',
+        )
+    )
+    camera = robot.find(
+        "./gazebo[@reference='head_camera_optical_frame']/sensor[@type='camera']"
+    )
+    assert camera is not None
+    assert camera.get('name') == 'head_rgb_camera'
+    assert camera.findtext('always_on') == 'true'
+    assert camera.findtext('update_rate') == '10'
+    assert camera.findtext('visualize') == 'false'
+    assert camera.findtext('topic') == '/ayyo/camera/head/image_raw'
+    assert camera.findtext('gz_frame_id') == 'head_camera_optical_frame'
+    assert camera.findtext('camera/image/width') == '320'
+    assert camera.findtext('camera/image/height') == '240'
+    assert camera.findtext('camera/image/format') == 'R8G8B8'
+    assert camera.findtext('camera/optical_frame_id') == (
+        'head_camera_optical_frame'
+    )
+    assert camera.findtext('camera/camera_info_topic') == (
+        '/ayyo/camera/head/camera_info'
+    )
 
 
 def test_localization_mode_adds_only_exact_ground_truth_odometry() -> None:

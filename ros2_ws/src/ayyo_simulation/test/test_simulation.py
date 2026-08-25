@@ -68,6 +68,7 @@ def test_world_has_only_required_harmonic_systems() -> None:
         ('gz-sim-scene-broadcaster-system', 'gz::sim::systems::SceneBroadcaster'),
         ('gz-sim-user-commands-system', 'gz::sim::systems::UserCommands'),
         ('gz-sim-imu-system', 'gz::sim::systems::Imu'),
+        ('gz-sim-sensors-system', 'gz::sim::systems::Sensors'),
     }
 
 
@@ -122,6 +123,23 @@ def test_bridge_allowlist_contains_only_reviewed_observation_topics() -> None:
             'subscriber_queue': 10,
         },
     ]
+    camera_config = yaml.safe_load(
+        (PACKAGE_ROOT / 'config' / 'ros_gz_camera_bridge.yaml').read_text(
+            encoding='utf-8'
+        )
+    )
+    assert camera_config == [
+        {
+            'ros_topic_name': '/ayyo/camera/head/camera_info',
+            'gz_topic_name': '/ayyo/camera/head/camera_info',
+            'ros_type_name': 'sensor_msgs/msg/CameraInfo',
+            'gz_type_name': 'gz.msgs.CameraInfo',
+            'direction': 'GZ_TO_ROS',
+            'lazy': False,
+            'publisher_queue': 2,
+            'subscriber_queue': 2,
+        }
+    ]
 
 
 def test_launch_uses_bounded_simulation_nodes() -> None:
@@ -139,6 +157,7 @@ def test_launch_uses_bounded_simulation_nodes() -> None:
         'joint_state_publisher',
         'robot_state_publisher',
         'ros_gz_bridge',
+        'ros_gz_image',
         'ros_gz_sim',
         'ayyo_simulation_control',
     }
@@ -158,6 +177,7 @@ def test_launch_spawns_authoritative_description_as_static() -> None:
     assert "' simulation_mode:=true simulation_static:=true'" in source
     assert "' simulation_control:='" in source
     assert "' simulation_localization:='" in source
+    assert "' simulation_camera:='" in source
     assert "' simulation_controller_config:='" in source
     assert "'topic': 'robot_description'" in source
     assert "'allow_renaming': False" in source
@@ -185,6 +205,7 @@ def test_launch_defaults_to_headless_proxy_ground_contact() -> None:
     assert defaults['enable_development_control'] == 'false'
     assert defaults['enable_world_model'] == 'false'
     assert defaults['enable_localization'] == 'false'
+    assert defaults['enable_camera'] == 'false'
     assert defaults['use_meshes'] == 'false'
     assert defaults['spawn_z'] == '0.95'
 
@@ -253,7 +274,24 @@ def test_simulation_package_has_no_authorization_layer_dependency() -> None:
         'forward_command_controller',
         'gz_ros2_control',
         'joint_state_broadcaster',
+        'ros_gz_image',
     } <= dependencies
+
+
+def test_camera_bridges_are_one_way_fixed_and_default_off() -> None:
+    source = (PACKAGE_ROOT / 'launch' / 'simulation.launch.py').read_text(
+        encoding='utf-8'
+    )
+    assert "enable_camera = LaunchConfiguration('enable_camera')" in source
+    assert "arguments=['/ayyo/camera/head/image_raw']" in source
+    assert "'ros_gz_camera_bridge.yaml'" in source
+    assert "name='ayyo_head_camera_image_bridge'" in source
+    assert "name='ayyo_head_camera_info_bridge'" in source
+    assert source.count('condition=IfCondition(enable_camera)') == 2
+    assert 'GZ_TO_ROS' in (
+        PACKAGE_ROOT / 'config' / 'ros_gz_camera_bridge.yaml'
+    ).read_text(encoding='utf-8')
+    assert 'ROS_TO_GZ' not in source
 
 
 def test_simulation_installs_only_owned_resources() -> None:

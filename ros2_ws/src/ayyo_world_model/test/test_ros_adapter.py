@@ -10,7 +10,7 @@ import xml.etree.ElementTree as ET
 
 from diagnostic_msgs.msg import DiagnosticArray, DiagnosticStatus, KeyValue
 from nav_msgs.msg import Odometry
-from sensor_msgs.msg import Imu, JointState
+from sensor_msgs.msg import CameraInfo, Image, Imu, JointState
 from tf2_ros import (
     ConnectivityException,
     ExtrapolationException,
@@ -52,6 +52,15 @@ def support_module():
     return module
 
 
+def visual_module():
+    path = PACKAGE_ROOT / 'scripts' / 'visual_camera.py'
+    spec = importlib.util.spec_from_file_location('ayyo_visual_camera_test', path)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
 def test_read_only_service_contract_is_bounded_and_typed() -> None:
     interface = (INTERFACES_ROOT / 'srv' / 'GetRobotBodyState.srv').read_text(
         encoding='utf-8'
@@ -77,6 +86,10 @@ def test_read_only_service_contract_is_bounded_and_typed() -> None:
         'bool[] has_sensor_health',
         'string[] sensor_health_details',
         'uint32 perception_rejected_count',
+        'uint32 current_visual_count',
+        'bool has_visual_frame',
+        'string visual_calibration_id',
+        'string visual_observation_fingerprint',
     ):
         assert field in interface
     assert interface.count('---') == 1
@@ -125,6 +138,11 @@ def test_adapter_subscribes_only_to_fixed_standard_proprioceptive_interfaces() -
     assert 'IMU_TOPIC' in source
     assert 'LOCALIZATION_TOPIC' in source
     assert 'DIAGNOSTICS_TOPIC' in source
+    visual = script_source('visual_camera.py')
+    assert "IMAGE_TOPIC = '/ayyo/camera/head/image_raw'" in visual
+    assert "CAMERA_INFO_TOPIC = '/ayyo/camera/head/camera_info'" in visual
+    assert 'Image' in source
+    assert 'CameraInfo' in source
     assert 'qos_profile_sensor_data' in source
     assert 'get_topic_names_and_types' not in source
     assert "declare_parameter('topic'" not in source
@@ -541,6 +559,130 @@ def test_all_explicitly_unavailable_imu_fields_do_not_create_measurement() -> No
         raise AssertionError('fully unavailable IMU became a measurement')
 
 
+def camera_messages(*, stamp=2_000_000_003, frame='head_camera_optical_frame'):
+    image = Image()
+    image.header.stamp.sec = stamp // 1_000_000_000
+    image.header.stamp.nanosec = stamp % 1_000_000_000
+    image.header.frame_id = frame
+    image.width = 2
+    image.height = 1
+    image.encoding = 'rgb8'
+    image.is_bigendian = 0
+    image.step = 6
+    image.data = [1, 2, 3, 4, 5, 6]
+    info = CameraInfo()
+    info.header.stamp.sec = image.header.stamp.sec
+    info.header.stamp.nanosec = image.header.stamp.nanosec
+    info.header.frame_id = frame
+    info.width = image.width
+    info.height = image.height
+    info.distortion_model = 'plumb_bob'
+    info.d = []
+    info.k = [2.0, 0.0, 1.0, 0.0, 2.0, 0.5, 0.0, 0.0, 1.0]
+    info.r = [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0]
+    info.p = [2.0, 0.0, 1.0, 0.0, 0.0, 2.0, 0.5, 0.0, 0.0, 0.0, 1.0, 0.0]
+    return image, info
+
+
+def test_visual_pair_normalizes_only_compact_exact_time_metadata() -> None:
+    adapter = adapter_module()
+    support = visual_module()
+    image, info = camera_messages()
+    observation = support.normalize_visual_pair(
+        image,
+        info,
+        adapter.CAMERA_SOURCE_PROFILES[adapter.SIMULATION_SOURCE_PROFILE],
+    )
+    assert observation.sensor == support.HEAD_CAMERA_SENSOR
+    assert observation.observed_at_ns == 2_000_000_003
+    assert (observation.width, observation.height, observation.encoding) == (
+        2,
+        1,
+        'rgb8',
+    )
+    assert observation.data_size_bytes == 6
+    assert observation.calibration_id.startswith('camera-calibration-sha256-')
+    assert not hasattr(observation, 'data')
+
+
+def test_visual_pair_rejects_frames_time_dimensions_encoding_and_buffer_shape() -> None:
+    adapter = adapter_module()
+    support = visual_module()
+    provenance = adapter.CAMERA_SOURCE_PROFILES[adapter.SIMULATION_SOURCE_PROFILE]
+    cases = []
+    image, info = camera_messages(frame='')
+    cases.append((image, info))
+    image, info = camera_messages(frame='head_camera_frame')
+    cases.append((image, info))
+    image, info = camera_messages(stamp=0)
+    cases.append((image, info))
+    image, info = camera_messages()
+    info.header.stamp.nanosec += 1
+    cases.append((image, info))
+    image, info = camera_messages()
+    info.width = 3
+    cases.append((image, info))
+    image, info = camera_messages()
+    image.encoding = 'bgr8'
+    cases.append((image, info))
+    image, info = camera_messages()
+    image.step = 5
+    cases.append((image, info))
+    image, info = camera_messages()
+    image.data = []
+    cases.append((image, info))
+    for image, info in cases:
+        try:
+            support.normalize_visual_pair(image, info, provenance)
+        except (support.VisualCameraAdapterError, adapter.WorldModelValidationError):
+            pass
+        else:
+            raise AssertionError('malformed visual pair was accepted')
+
+
+def test_camera_info_rejects_nonfinite_malformed_and_all_zero_calibration() -> None:
+    support = visual_module()
+    invalid = []
+    _, info = camera_messages()
+    info.k[0] = float('nan')
+    invalid.append(info)
+    _, info = camera_messages()
+    info.k = [0.0] * 9
+    invalid.append(info)
+    _, info = camera_messages()
+    info.d = [0.0] * 17
+    invalid.append(info)
+    _, info = camera_messages()
+    info.roi.x_offset = 2
+    info.roi.width = 1
+    info.roi.height = 1
+    invalid.append(info)
+    for info in invalid:
+        try:
+            support.normalize_camera_info(info)
+        except Exception as error:
+            assert type(error).__name__ in {
+                'VisualCameraAdapterError',
+                'WorldModelValidationError',
+            }
+        else:
+            raise AssertionError('malformed CameraInfo was accepted')
+
+
+def test_visual_pairing_retains_at_most_one_raw_message_without_worker() -> None:
+    source = script_source('world_model_node.py')
+    for expected in (
+        'self._pending_image: Image | None = None',
+        'self._pending_camera_info: CameraInfo | None = None',
+        'def _try_visual_pair',
+        'self._pending_image = None',
+        'self._pending_camera_info = None',
+    ):
+        assert expected in source
+    assert 'message_filters' not in source
+    assert 'create_timer' not in source
+
+
 def test_simulation_and_physical_profiles_cannot_masquerade_as_each_other() -> None:
     source = script_source('world_model_node.py')
     for expected in (
@@ -551,6 +693,8 @@ def test_simulation_and_physical_profiles_cannot_masquerade_as_each_other() -> N
         'clock=ObservationClock.ROS_SIMULATION_TIME',
         'clock=ObservationClock.ROS_SYSTEM_TIME',
         "'source profile and ROS clock configuration disagree'",
+        "source_id='ros.camera.head.simulation.gz-harmonic.v1'",
+        "source_id='ros.camera.head.physical.standard-driver.v1'",
     ):
         assert expected in source
     assert 'gazebo' not in source.lower()
@@ -582,6 +726,7 @@ def test_wrapper_installs_single_owned_core_packages_and_fixed_clients() -> None
     assert 'scripts/world_model_node.py' in cmake
     assert 'scripts/body_state_query.py' in cmake
     assert 'scripts/localization_diagnostics.py' in cmake
+    assert 'scripts/visual_camera.py' in cmake
     assert not (PACKAGE_ROOT / 'ayyo_world_model').exists()
     assert not (PACKAGE_ROOT / 'ayyo_working_memory').exists()
     assert not (PACKAGE_ROOT / 'ayyo_perception').exists()
@@ -711,10 +856,48 @@ def test_localization_diagnostics_smoke_uses_only_bounded_test_fixture() -> None
     assert fixture_path.stat().st_mode & 0o111
 
 
+def test_visual_smoke_proves_real_fixed_trust_path_and_bounded_fixture() -> None:
+    smoke_path = REPOSITORY_ROOT / 'scripts' / 'smoke_visual_camera.sh'
+    fixture_path = REPOSITORY_ROOT / 'scripts' / 'visual_test_fixture.py'
+    smoke = smoke_path.read_text(encoding='utf-8')
+    fixture = fixture_path.read_text(encoding='utf-8')
+    for expected in (
+        'enable_camera:=true',
+        '--scenario verify_stream',
+        '--scenario adversarial_contracts',
+        '--scenario wrong_frame',
+        'head_camera_optical_frame',
+        'data_size_bytes',
+        'camera-calibration-sha256-',
+        'ros.camera.head.simulation.gz-harmonic.v1',
+        'development_command.py --position 0.1',
+        'ros2 lifecycle set /ayyo_world_model deactivate',
+        'current_visual_count',
+        'remaining_nodes',
+        'kill -INT',
+    ):
+        assert expected in smoke
+    for expected in (
+        'TEST-ONLY',
+        "IMAGE_TOPIC = '/ayyo/camera/head/image_raw'",
+        "CAMERA_INFO_TOPIC = '/ayyo/camera/head/camera_info'",
+        "choices=('adversarial_contracts', 'verify_stream', 'wrong_frame')",
+        'time.monotonic() + 12.0',
+    ):
+        assert expected in fixture
+    for forbidden in ('eval(', 'exec(', 'subprocess', 'ros2 topic pub'):
+        assert forbidden not in fixture
+    cmake = (PACKAGE_ROOT / 'CMakeLists.txt').read_text(encoding='utf-8')
+    assert 'visual_test_fixture.py' not in cmake
+    assert smoke_path.stat().st_mode & 0o111
+    assert fixture_path.stat().st_mode & 0o111
+
+
 def test_owned_sources_retain_project_copyright() -> None:
     for relative in (
         'scripts/body_state_query.py',
         'scripts/localization_diagnostics.py',
+        'scripts/visual_camera.py',
         'scripts/world_model_node.py',
         'test/test_ros_adapter.py',
     ):
