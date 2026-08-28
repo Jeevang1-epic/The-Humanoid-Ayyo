@@ -715,6 +715,22 @@ def test_visual_pairing_retains_at_most_one_raw_message_without_worker() -> None
     assert 'create_timer' not in source
 
 
+def test_evaluated_visual_fixture_is_sealed_bounded_and_lifecycle_scoped() -> None:
+    source = script_source('world_model_node.py')
+    for expected in (
+        "declare_parameter(\n            'enable_visual_producer_evaluation_fixture'",
+        'fixture_bundle_for_live_profile(',
+        'VisualProducerEvaluator(',
+        'DeterministicFixtureInvoker()',
+        'authorize_evaluated_visual(sealed)',
+        'self._visual_evaluated_this_activation = True',
+        "'visual reference and evaluated fixture modes are mutually exclusive'",
+    ):
+        assert expected in source
+    assert source.count('self._visual_evaluated_this_activation = False') >= 5
+    assert 'OwnedProcessVisualProducerInvoker' not in source
+
+
 def test_simulation_and_physical_profiles_cannot_masquerade_as_each_other() -> None:
     source = script_source('world_model_node.py')
     for expected in (
@@ -753,6 +769,7 @@ def test_adapter_learns_only_from_observation_not_control_request() -> None:
 def test_wrapper_installs_single_owned_core_packages_and_fixed_clients() -> None:
     cmake = (PACKAGE_ROOT / 'CMakeLists.txt').read_text(encoding='utf-8')
     assert '../../../world_model/src/ayyo_world_model' in cmake
+    assert '../../../visual_evaluation/src/ayyo_visual_evaluation' in cmake
     assert '../../../working_memory/src/ayyo_working_memory' in cmake
     assert '../../../perception/src/ayyo_perception' in cmake
     assert 'scripts/world_model_node.py' in cmake
@@ -812,6 +829,11 @@ def test_simulation_launch_keeps_adapter_opt_in_and_pins_simulation_profile() ->
     assert "'source_profile': 'simulation_ros2_control_v1'" in source
     assert (
         "'enable_visual_reference_interpreter',\n                default_value='false'"
+        in source
+    )
+    assert (
+        "'enable_visual_producer_evaluation_fixture',\n"
+        "                default_value='false'"
         in source
     )
     assert 'condition=IfCondition(enable_world_model)' in source
@@ -961,6 +983,49 @@ def test_interpreted_visual_smoke_is_synthetic_bounded_and_process_owned() -> No
         assert forbidden not in fixture
     cmake = (PACKAGE_ROOT / 'CMakeLists.txt').read_text(encoding='utf-8')
     assert 'visual_interpretation_test_fixture.py' not in cmake
+    assert smoke_path.stat().st_mode & 0o111
+    assert fixture_path.stat().st_mode & 0o111
+
+
+def test_evaluated_visual_smoke_is_adversarial_bounded_and_process_owned() -> None:
+    smoke_path = (
+        REPOSITORY_ROOT / 'scripts' / 'smoke_visual_producer_evaluation.sh'
+    )
+    fixture_path = (
+        REPOSITORY_ROOT
+        / 'scripts'
+        / 'visual_producer_evaluation_test_fixture.py'
+    )
+    smoke = smoke_path.read_text(encoding='utf-8')
+    fixture = fixture_path.read_text(encoding='utf-8')
+    for expected in (
+        'enable_visual_producer_evaluation_fixture:=true',
+        'world_model_retention_ttl_ms:=10000',
+        'enable_visual_reference_interpreter:=false',
+        'VISUAL_EVALUATION_FIXTURE_RESULT=',
+        'cycle_count',
+        'report_semantic_sha256',
+        'ros2 lifecycle set /ayyo_world_model deactivate',
+        'ayyo_smoke_start_owned_launch',
+        'ayyo_smoke_shutdown_owned_launch',
+        'leftover owned process set=[]',
+    ):
+        assert expected in smoke
+    for expected in (
+        'TEST-ONLY',
+        'CYCLE_COUNT = 5_000',
+        'WrongModelFixtureProducer',
+        'WrongSourceFixtureProducer',
+        'MalformedBoxFixtureProducer',
+        'SlowFixtureProducer',
+        'tracemalloc.get_traced_memory()',
+        'authorize_evaluated_visual(last_sealed)',
+    ):
+        assert expected in fixture
+    for forbidden in ('rclpy', 'sensor_msgs', 'ayyo_memory', 'shell=True'):
+        assert forbidden not in fixture
+    cmake = (PACKAGE_ROOT / 'CMakeLists.txt').read_text(encoding='utf-8')
+    assert 'visual_producer_evaluation_test_fixture.py' not in cmake
     assert smoke_path.stat().st_mode & 0o111
     assert fixture_path.stat().st_mode & 0o111
 

@@ -3,6 +3,12 @@ from __future__ import annotations
 from dataclasses import replace
 import unittest
 
+from ayyo_world_model import (
+    ObservationClock,
+    ObservationProvenance,
+    ObservationSourceKind,
+    ObservationTransport,
+)
 from ayyo_visual_evaluation import (
     EvaluatedVisualAdmission,
     FIXTURE_MODEL,
@@ -12,6 +18,7 @@ from ayyo_visual_evaluation import (
     VisualProducerRegistrationError,
     VisualProducerRegistry,
     fixture_bundle,
+    fixture_bundle_for_live_profile,
     fixture_manifest,
     fixture_registration,
     verify_model_artifact_bytes,
@@ -64,6 +71,26 @@ class VisualEvaluationContractTest(unittest.TestCase):
             EvaluatedVisualAdmission()  # type: ignore[call-arg]
         # Possessing manifest and producer fixtures alone does not expose the seal.
         self.assertFalse(hasattr(bundle.registration, "issue_admission"))
+
+    def test_live_profile_fixture_keeps_recorded_and_live_provenance_distinct(self) -> None:
+        live = ObservationProvenance(
+            ObservationSourceKind.SIMULATION,
+            "ros.camera.head.simulation.test.v1",
+            ObservationClock.ROS_SIMULATION_TIME,
+            ObservationTransport.ROS2,
+            "sensor-msgs.image-camera-info.v1",
+        )
+        bundle = fixture_bundle_for_live_profile(
+            live,
+            width=32,
+            height=24,
+        )
+        self.assertNotEqual(live, bundle.dataset.source_profile)
+        self.assertIn(live, bundle.manifest.allowed_source_profiles)
+        self.assertEqual((32, 24), (bundle.dataset.width, bundle.dataset.height))
+        self.assertEqual(32 * 24 * 3, bundle.source.total_bytes)
+        with self.assertRaises(ValueError):
+            fixture_bundle_for_live_profile(live, width=100_000, height=100_000)
 
 
 if __name__ == "__main__":

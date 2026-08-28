@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+from hashlib import sha256
 import time
 
 from ayyo_interfaces.srv import GetRobotBodyState
@@ -45,6 +46,18 @@ from ayyo_world_model import (
     SensorKind,
     WorldModelFailureCode,
     WorldModelValidationError,
+)
+from ayyo_visual_evaluation import (
+    DeterministicFixtureInvoker,
+    FixtureEvaluationBundle,
+    VisualEvaluationConfigurationError,
+    VisualEvaluationInput,
+    VisualEvaluationReport,
+    VisualEvaluationSample,
+    VisualProducerEvaluator,
+    VisualProducerRegistry,
+    fixture_bundle_for_live_profile,
+    fixture_detection,
 )
 from builtin_interfaces.msg import Time
 from diagnostic_msgs.msg import DiagnosticArray
@@ -338,6 +351,10 @@ class AyyoWorldModelNode(LifecycleNode):
         self.declare_parameter('environment_entity_capacity', 128)
         self.declare_parameter('pose_lookup_timeout_ms', 20)
         self.declare_parameter('enable_visual_reference_interpreter', False)
+        self.declare_parameter(
+            'enable_visual_producer_evaluation_fixture',
+            False,
+        )
         self._memory: WorkingMemory | None = None
         self._trust_boundary: PerceptionTrustBoundary | None = None
         self._provenance: ObservationProvenance | None = None
@@ -348,6 +365,10 @@ class AyyoWorldModelNode(LifecycleNode):
         self._visual_reference_adapter: (
             DeterministicVisualReferenceAdapter | None
         ) = None
+        self._visual_evaluation_bundle: FixtureEvaluationBundle | None = None
+        self._visual_evaluation_report: VisualEvaluationReport | None = None
+        self._visual_evaluator: VisualProducerEvaluator | None = None
+        self._visual_evaluated_this_activation = False
         self._joint_subscription = None
         self._imu_subscription = None
         self._localization_subscription = None
@@ -435,10 +456,56 @@ class AyyoWorldModelNode(LifecycleNode):
             enable_visual_reference = bool(
                 self.get_parameter('enable_visual_reference_interpreter').value
             )
+            enable_visual_evaluation = bool(
+                self.get_parameter(
+                    'enable_visual_producer_evaluation_fixture'
+                ).value
+            )
+            if enable_visual_reference and enable_visual_evaluation:
+                raise WorkingMemoryConfigurationError(
+                    'visual reference and evaluated fixture modes are mutually exclusive'
+                )
+            visual_bundle = None
+            visual_evaluator = None
+            visual_report = None
+            visual_requirements = ()
+            if enable_visual_evaluation:
+                visual_bundle = fixture_bundle_for_live_profile(
+                    camera_provenance,
+                    width=320,
+                    height=240,
+                )
+                registry = VisualProducerRegistry()
+                registry.register(visual_bundle.registration)
+                visual_evaluator = VisualProducerEvaluator(
+                    registry,
+                    DeterministicFixtureInvoker(),
+                    software_identities=(
+                        'ayyo.visual-evaluation.core.v1',
+                        'ayyo.world-model.ros-fixture-adapter.v1',
+                    ),
+                )
+                outcome = visual_evaluator.evaluate(
+                    producer_id=visual_bundle.manifest.producer.producer_id,
+                    dataset=visual_bundle.dataset,
+                    source=visual_bundle.source,
+                    policy=visual_bundle.policy,
+                    run_id='ayyo.ros-fixture.configure.v1',
+                )
+                if len(outcome.admissions) != 1:
+                    raise VisualEvaluationConfigurationError(
+                        'recorded fixture did not issue exactly one admission'
+                    )
+                visual_report = outcome.report
+                visual_requirements = (outcome.admissions[0].requirement,)
             visual_producers = (
-                (REFERENCE_VISUAL_PRODUCER,)
-                if enable_visual_reference
-                else ()
+                (visual_bundle.manifest.producer,)
+                if visual_bundle is not None
+                else (
+                    (REFERENCE_VISUAL_PRODUCER,)
+                    if enable_visual_reference
+                    else ()
+                )
             )
             self._memory = WorkingMemory(
                 catalog,
@@ -480,6 +547,7 @@ class AyyoWorldModelNode(LifecycleNode):
                         self.get_parameter('environment_entity_capacity').value
                     ),
                     visual_interpretation_producers=visual_producers,
+                    visual_evaluation_requirements=visual_requirements,
                 ),
             )
             self._trust_boundary = PerceptionTrustBoundary(
@@ -518,6 +586,7 @@ class AyyoWorldModelNode(LifecycleNode):
                     )
                     * 1_000_000,
                     visual_interpretation_producers=visual_producers,
+                    visual_evaluation_requirements=visual_requirements,
                 )
             )
             self._provenance = provenance
@@ -530,6 +599,10 @@ class AyyoWorldModelNode(LifecycleNode):
                 if enable_visual_reference
                 else None
             )
+            self._visual_evaluation_bundle = visual_bundle
+            self._visual_evaluation_report = visual_report
+            self._visual_evaluator = visual_evaluator
+            self._visual_evaluated_this_activation = False
             self._query_service = self.create_service(
                 GetRobotBodyState,
                 QUERY_SERVICE,
@@ -540,6 +613,7 @@ class AyyoWorldModelNode(LifecycleNode):
             return TransitionCallbackReturn.SUCCESS
         except (
             PerceptionConfigurationError,
+            VisualEvaluationConfigurationError,
             WorldModelValidationError,
             WorkingMemoryConfigurationError,
         ) as error:
@@ -552,6 +626,10 @@ class AyyoWorldModelNode(LifecycleNode):
             self._diagnostic_provenance = None
             self._camera_provenance = None
             self._visual_reference_adapter = None
+            self._visual_evaluation_bundle = None
+            self._visual_evaluation_report = None
+            self._visual_evaluator = None
+            self._visual_evaluated_this_activation = False
             self._destroy_runtime_interfaces()
             return TransitionCallbackReturn.FAILURE
 
@@ -608,6 +686,7 @@ class AyyoWorldModelNode(LifecycleNode):
             self._on_camera_info,
             qos_profile_sensor_data,
         )
+        self._visual_evaluated_this_activation = False
         self._active = True
         return TransitionCallbackReturn.SUCCESS
 
@@ -634,6 +713,7 @@ class AyyoWorldModelNode(LifecycleNode):
             self._camera_info_subscription = None
         self._pending_image = None
         self._pending_camera_info = None
+        self._visual_evaluated_this_activation = False
         self._pose_buffer = None
         return TransitionCallbackReturn.SUCCESS
 
@@ -653,6 +733,10 @@ class AyyoWorldModelNode(LifecycleNode):
         self._diagnostic_provenance = None
         self._camera_provenance = None
         self._visual_reference_adapter = None
+        self._visual_evaluation_bundle = None
+        self._visual_evaluation_report = None
+        self._visual_evaluator = None
+        self._visual_evaluated_this_activation = False
         return TransitionCallbackReturn.SUCCESS
 
     def on_shutdown(self, state: State) -> TransitionCallbackReturn:
@@ -671,6 +755,10 @@ class AyyoWorldModelNode(LifecycleNode):
         self._diagnostic_provenance = None
         self._camera_provenance = None
         self._visual_reference_adapter = None
+        self._visual_evaluation_bundle = None
+        self._visual_evaluation_report = None
+        self._visual_evaluator = None
+        self._visual_evaluated_this_activation = False
         return TransitionCallbackReturn.SUCCESS
 
     def on_error(self, state: State) -> TransitionCallbackReturn:
@@ -685,7 +773,7 @@ class AyyoWorldModelNode(LifecycleNode):
             count = self._rejected_message_count
         if count == 1 or count % 100 == 0:
             self.get_logger().warning(
-                f'{category} proprioceptive evidence count={count}: {detail}'
+                f'{category} perception evidence count={count}: {detail}'
             )
 
     def _reset_evidence_epoch(self) -> None:
@@ -693,6 +781,7 @@ class AyyoWorldModelNode(LifecycleNode):
             self._trust_boundary.reset()
         if self._memory is not None:
             self._memory.reset()
+        self._visual_evaluated_this_activation = False
 
     def _admit_and_retain(self, observation):
         if self._trust_boundary is None or self._memory is None:
@@ -788,6 +877,42 @@ class AyyoWorldModelNode(LifecycleNode):
         self._pending_camera_info = message
         self._try_visual_pair()
 
+    def _evaluate_visual_frame(self, frame, rgb8: bytes) -> None:
+        """Issue one sealed TEST-ONLY live result per lifecycle activation."""
+        if (
+            self._visual_evaluated_this_activation
+            or self._visual_evaluator is None
+            or self._visual_evaluation_bundle is None
+            or self._visual_evaluation_report is None
+            or self._trust_boundary is None
+        ):
+            return
+        sample = VisualEvaluationSample(
+            sample_id='fixture.qualified-live-frame.v1',
+            sequence_index=0,
+            frame=frame,
+            asset_reference='live/ephemeral-not-retained.rgb8',
+            asset_sha256=sha256(rgb8).hexdigest(),
+            asset_size_bytes=len(rgb8),
+            scenario_ids=('fixture.qualified-live-frame.v1',),
+            expected_detections=(fixture_detection(frame),),
+        )
+        sealed = self._visual_evaluator.invoke_qualified_input(
+            producer_id=self._visual_evaluation_bundle.manifest.producer.producer_id,
+            evaluation_input=VisualEvaluationInput(sample=sample, rgb8=rgb8),
+            policy=self._visual_evaluation_bundle.policy,
+            qualified_report=self._visual_evaluation_report,
+        )
+        if not self._trust_boundary.authorize_evaluated_visual(sealed):
+            self._warn_bounded(
+                'rejected',
+                'sealed visual evaluation did not bind to the admitted source',
+            )
+            return
+        result = self._admit_and_retain(sealed.observation)
+        if result is not None and result.status is AdmissionStatus.ACCEPTED:
+            self._visual_evaluated_this_activation = True
+
     def _try_visual_pair(self) -> None:
         """Retain at most one raw image while matching exact acquisition time."""
         if (
@@ -834,8 +959,18 @@ class AyyoWorldModelNode(LifecycleNode):
                     ),
                 )
                 self._admit_and_retain(interpretation)
+            if (
+                self._visual_evaluator is not None
+                and admission is not None
+                and admission.status is AdmissionStatus.ACCEPTED
+            ):
+                self._evaluate_visual_frame(
+                    admission.observation,
+                    bytes(image.data),
+                )
         except (
             PerceptionConfigurationError,
+            VisualEvaluationConfigurationError,
             VisualCameraAdapterError,
             WorldModelValidationError,
             WorkingMemoryConfigurationError,

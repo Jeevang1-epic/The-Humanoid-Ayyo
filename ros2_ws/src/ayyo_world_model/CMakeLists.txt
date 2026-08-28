@@ -9,6 +9,10 @@ ament_python_install_package(
   PACKAGE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../../world_model/src/ayyo_world_model"
 )
 ament_python_install_package(
+  ayyo_visual_evaluation
+  PACKAGE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../../visual_evaluation/src/ayyo_visual_evaluation"
+)
+ament_python_install_package(
   ayyo_working_memory
   PACKAGE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../../working_memory/src/ayyo_working_memory"
 )

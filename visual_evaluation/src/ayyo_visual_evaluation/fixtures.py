@@ -29,6 +29,7 @@ from ayyo_world_model import (
 
 from .dataset import InMemoryVisualRecordedSource
 from .models import (
+    MAX_DATASET_BYTES,
     VerifiedModelArtifact,
     VisualConfidenceSemantics,
     VisualDatasetCollectionProvenance,
@@ -465,4 +466,125 @@ def fixture_bundle(
         manifest=manifest,
         policy=fixture_policy(manifest, dataset),
         registration=fixture_registration(adapter, manifest=manifest),
+    )
+
+
+def fixture_bundle_for_live_profile(
+    live_profile: ObservationProvenance,
+    *,
+    width: int,
+    height: int,
+) -> FixtureEvaluationBundle:
+    """Build a TEST-ONLY recorded qualification for one exact live profile.
+
+    The recorded sample retains the fixture source identity. The additional
+    profile only authorizes a separately validated live invocation; it never
+    claims that live evidence was part of the recorded dataset.
+    """
+    if type(live_profile) is not ObservationProvenance:
+        raise ValueError("live qualification profile must be exact provenance")
+    if (
+        type(width) is not int
+        or type(height) is not int
+        or not 1 <= width <= 4_096
+        or not 1 <= height <= 4_096
+        or width * height * 3 > MAX_DATASET_BYTES
+    ):
+        raise ValueError("fixture live dimensions exceed their exact byte bound")
+    payload = bytes(width * height * 3)
+    frame = VisualFrameObservation(
+        robot_id=AYYO_ROBOT_ID,
+        sensor=FIXTURE_CAMERA,
+        width=width,
+        height=height,
+        encoding="rgb8",
+        step=width * 3,
+        data_size_bytes=len(payload),
+        is_bigendian=False,
+        calibration_id="camera-calibration-sha256-" + "1" * 64,
+        observed_at_ns=1_000_000_000,
+        provenance=FIXTURE_PROVENANCE,
+        availability=SensorAvailability.AVAILABLE,
+    )
+    sample = VisualEvaluationSample(
+        sample_id="fixture.live-profile-qualification.v1",
+        sequence_index=0,
+        frame=frame,
+        asset_reference="samples/live-profile-qualification.rgb8",
+        asset_sha256=sha256(payload).hexdigest(),
+        asset_size_bytes=len(payload),
+        scenario_ids=("fixture.live-profile-qualification.v1",),
+        expected_detections=(fixture_detection(frame),),
+    )
+    dataset = VisualEvaluationDatasetManifest(
+        dataset_id="ayyo.visual.fixture-live-profile-dataset.v1",
+        dataset_version="1.0.0",
+        robot_id=AYYO_ROBOT_ID,
+        sensor=FIXTURE_CAMERA,
+        expected_optical_frame_id=FIXTURE_CAMERA.frame_id,
+        source_profile=FIXTURE_PROVENANCE,
+        collection=VisualDatasetCollectionProvenance(
+            collection_id="ayyo.visual.fixture-live-profile-collection.v1",
+            collection_version="1.0.0",
+            collector_id="ayyo.visual.fixture-collector.v1",
+            source=FIXTURE_PROVENANCE,
+        ),
+        encoding="rgb8",
+        width=width,
+        height=height,
+        calibration_id=frame.calibration_id,
+        annotation_schema_id="ayyo.visual.fixture-annotations.v1",
+        annotation_schema_version="1.0.0",
+        samples=(sample,),
+    )
+    allowed_profiles = tuple(
+        sorted(
+            {FIXTURE_PROVENANCE, live_profile},
+            key=lambda item: (
+                item.source_kind.value,
+                item.source_id,
+                item.clock.value,
+                item.transport.value,
+                item.interface,
+            ),
+        )
+    )
+    manifest = VisualProducerManifest(
+        producer=FIXTURE_PRODUCER,
+        producer_version="1.0.0",
+        producer_implementation_sha256=FIXTURE_IMPLEMENTATION_SHA256,
+        model=FIXTURE_MODEL,
+        supported_categories=(
+            VisualSemanticCategory.OBJECT,
+            VisualSemanticCategory.TEST_PATTERN,
+            VisualSemanticCategory.UNKNOWN,
+        ),
+        expected_input_interface=VISUAL_EVALUATION_INPUT_INTERFACE,
+        expected_encodings=("rgb8",),
+        dimensions=VisualInputDimensionsPolicy(
+            VisualInputDimensionPolicyKind.EXACT,
+            width,
+            height,
+        ),
+        allowed_sensor_ids=(FIXTURE_CAMERA.sensor_id,),
+        allowed_source_profiles=allowed_profiles,
+        confidence_semantics=VisualConfidenceSemantics.OPTIONAL_UNIT_INTERVAL,
+        resources=VisualProducerResourcePolicy(
+            timeout_ns=20_000_000,
+            maximum_input_bytes=len(payload),
+            maximum_results_per_sample=3,
+            maximum_detections_per_result=8,
+            maximum_label_length=64,
+        ),
+        result_schema_version="1.0.0",
+        manifest_source=VisualProducerManifestSource.TEST_FIXTURE,
+    )
+    return FixtureEvaluationBundle(
+        dataset=dataset,
+        source=InMemoryVisualRecordedSource(
+            {"samples/live-profile-qualification.rgb8": payload}
+        ),
+        manifest=manifest,
+        policy=fixture_policy(manifest, dataset),
+        registration=fixture_registration(manifest=manifest),
     )

@@ -37,6 +37,12 @@ def generate_launch_description() -> LaunchDescription:
     enable_visual_reference_interpreter = LaunchConfiguration(
         'enable_visual_reference_interpreter'
     )
+    enable_visual_producer_evaluation_fixture = LaunchConfiguration(
+        'enable_visual_producer_evaluation_fixture'
+    )
+    world_model_retention_ttl_ms = LaunchConfiguration(
+        'world_model_retention_ttl_ms'
+    )
     use_meshes = LaunchConfiguration('use_meshes')
     spawn_x = LaunchConfiguration('spawn_x')
     spawn_y = LaunchConfiguration('spawn_y')
@@ -211,6 +217,13 @@ def generate_launch_description() -> LaunchDescription:
                 'enable_visual_reference_interpreter': (
                     enable_visual_reference_interpreter
                 ),
+                'enable_visual_producer_evaluation_fixture': (
+                    enable_visual_producer_evaluation_fixture
+                ),
+                'retention_ttl_ms': ParameterValue(
+                    world_model_retention_ttl_ms,
+                    value_type=int,
+                ),
             },
         ],
         condition=IfCondition(enable_world_model),
@@ -268,6 +281,20 @@ def generate_launch_description() -> LaunchDescription:
                 default_value='false',
                 description=(
                     'Enable the deterministic synthetic visual-result test adapter.'
+                ),
+            ),
+            DeclareLaunchArgument(
+                'enable_visual_producer_evaluation_fixture',
+                default_value='false',
+                description=(
+                    'Enable one sealed evaluated visual TEST fixture per activation.'
+                ),
+            ),
+            DeclareLaunchArgument(
+                'world_model_retention_ttl_ms',
+                default_value='2000',
+                description=(
+                    'Bound temporary World Model evidence retention in milliseconds.'
                 ),
             ),
             DeclareLaunchArgument('spawn_x', default_value='0.0'),
