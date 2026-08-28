@@ -31,6 +31,7 @@ MAX_VISUAL_INTERPRETATION_PRODUCERS = 16
 MAX_VISUAL_LABEL_LENGTH = 64
 MAX_VISUAL_PRODUCER_ID_LENGTH = 128
 MAX_VISUAL_SOURCE_REFERENCES = 64
+MAX_VISUAL_EVALUATION_REQUIREMENTS = 16
 QUATERNION_NORM_TOLERANCE = 1e-6
 
 _IDENTIFIER = re.compile(r"^[a-z0-9]+(?:[._-][a-z0-9]+)*$")
@@ -187,6 +188,33 @@ class VisualProducerKind(StrEnum):
     RECORDED_PROCESSOR = "recorded_processor"
 
 
+class VisualModelFormat(StrEnum):
+    DETERMINISTIC_FIXTURE = "deterministic_fixture"
+    ONNX = "onnx"
+    TENSORFLOW_LITE = "tensorflow_lite"
+    TORCHSCRIPT = "torchscript"
+    OTHER_REVIEWED = "other_reviewed"
+
+
+class VisualModelCapability(StrEnum):
+    BOUNDED_DETECTION = "bounded_detection"
+    CLASSIFICATION = "classification"
+    KEYPOINTS = "keypoints"
+    OCR = "ocr"
+    SCENE_LABELS = "scene_labels"
+
+
+class VisualModelSourceClassification(StrEnum):
+    TEST_FIXTURE = "test_fixture"
+    EVALUATION_CANDIDATE = "evaluation_candidate"
+    PROJECT_REVIEWED_ARTIFACT = "project_reviewed_artifact"
+
+
+class VisualEvaluationDecision(StrEnum):
+    MEETS_MECHANICAL_POLICY = "meets_mechanical_policy"
+    DOES_NOT_MEET_MECHANICAL_POLICY = "does_not_meet_mechanical_policy"
+
+
 _CLOCK_BY_SOURCE = {
     ObservationSourceKind.SIMULATION: ObservationClock.ROS_SIMULATION_TIME,
     ObservationSourceKind.PHYSICAL_SENSOR: ObservationClock.ROS_SYSTEM_TIME,
@@ -314,6 +342,292 @@ class VisualInterpretationProducer:
             "model_id": self.model_id,
             "producer_id": self.producer_id,
         }
+
+
+def _sha256_digest(value: object, field_name: str) -> str:
+    if type(value) is not str or _SHA256.fullmatch(value) is None:
+        _invalid(
+            WorldModelFailureCode.MALFORMED_OBSERVATION,
+            f"{field_name} must be a lowercase SHA-256 digest",
+        )
+    return value
+
+
+@dataclass(frozen=True, slots=True, init=False)
+class VisualModelProvenance:
+    """Immutable model-artifact identity; never a mutable filesystem path."""
+
+    model_id: str
+    model_version: str
+    producer_id: str
+    artifact_sha256: str
+    model_format: VisualModelFormat
+    capability: VisualModelCapability
+    configuration_sha256: str
+    label_schema_id: str
+    label_schema_version: str
+    source_classification: VisualModelSourceClassification
+    build_export_id: str | None
+    provenance_sha256: str
+
+    def __init__(
+        self,
+        *,
+        model_id: str,
+        model_version: str,
+        producer_id: str,
+        artifact_sha256: str,
+        model_format: VisualModelFormat,
+        capability: VisualModelCapability,
+        configuration_sha256: str,
+        label_schema_id: str,
+        label_schema_version: str,
+        source_classification: VisualModelSourceClassification,
+        build_export_id: str | None = None,
+        provenance_sha256: str | None = None,
+    ) -> None:
+        for value, field_name in (
+            (model_id, "visual model_id"),
+            (model_version, "visual model_version"),
+            (producer_id, "visual model producer_id"),
+            (label_schema_id, "visual label_schema_id"),
+            (label_schema_version, "visual label_schema_version"),
+        ):
+            canonical_identifier(
+                value,
+                field_name,
+                maximum=MAX_VISUAL_PRODUCER_ID_LENGTH,
+            )
+        artifact = _sha256_digest(artifact_sha256, "visual model artifact")
+        configuration = _sha256_digest(
+            configuration_sha256,
+            "visual model configuration",
+        )
+        if not isinstance(model_format, VisualModelFormat):
+            _invalid(
+                WorldModelFailureCode.MALFORMED_OBSERVATION,
+                "visual model format must be typed",
+            )
+        if not isinstance(capability, VisualModelCapability):
+            _invalid(
+                WorldModelFailureCode.MALFORMED_OBSERVATION,
+                "visual model capability must be typed",
+            )
+        if not isinstance(source_classification, VisualModelSourceClassification):
+            _invalid(
+                WorldModelFailureCode.MALFORMED_OBSERVATION,
+                "visual model source classification must be typed",
+            )
+        if build_export_id is not None:
+            canonical_identifier(
+                build_export_id,
+                "visual model build/export identity",
+                maximum=MAX_VISUAL_PRODUCER_ID_LENGTH,
+            )
+        document: dict[str, JSONValue] = {
+            "artifact_sha256": artifact,
+            "build_export_id": build_export_id,
+            "capability": capability.value,
+            "configuration_sha256": configuration,
+            "label_schema_id": label_schema_id,
+            "label_schema_version": label_schema_version,
+            "model_format": model_format.value,
+            "model_id": model_id,
+            "model_version": model_version,
+            "producer_id": producer_id,
+            "schema": "ayyo.visual-model-provenance.v1",
+            "source_classification": source_classification.value,
+        }
+        derived = sha256_document(document)
+        if provenance_sha256 is not None and provenance_sha256 != derived:
+            raise ObservationIdentityError(
+                WorldModelFailureCode.IDENTITY_MISMATCH,
+                "visual model provenance fingerprint does not match its content",
+            )
+        object.__setattr__(self, "model_id", model_id)
+        object.__setattr__(self, "model_version", model_version)
+        object.__setattr__(self, "producer_id", producer_id)
+        object.__setattr__(self, "artifact_sha256", artifact)
+        object.__setattr__(self, "model_format", model_format)
+        object.__setattr__(self, "capability", capability)
+        object.__setattr__(self, "configuration_sha256", configuration)
+        object.__setattr__(self, "label_schema_id", label_schema_id)
+        object.__setattr__(self, "label_schema_version", label_schema_version)
+        object.__setattr__(self, "source_classification", source_classification)
+        object.__setattr__(self, "build_export_id", build_export_id)
+        object.__setattr__(self, "provenance_sha256", derived)
+
+    def document(self) -> dict[str, JSONValue]:
+        return {
+            "artifact_sha256": self.artifact_sha256,
+            "build_export_id": self.build_export_id,
+            "capability": self.capability.value,
+            "configuration_sha256": self.configuration_sha256,
+            "label_schema_id": self.label_schema_id,
+            "label_schema_version": self.label_schema_version,
+            "model_format": self.model_format.value,
+            "model_id": self.model_id,
+            "model_version": self.model_version,
+            "producer_id": self.producer_id,
+            "provenance_sha256": self.provenance_sha256,
+            "source_classification": self.source_classification.value,
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class VisualEvaluationReference:
+    """Compact mechanically-evaluated provenance carried by trusted evidence."""
+
+    producer_version: str
+    producer_implementation_sha256: str
+    producer_manifest_sha256: str
+    model: VisualModelProvenance
+    dataset_id: str
+    dataset_version: str
+    dataset_manifest_sha256: str
+    policy_id: str
+    policy_version: str
+    policy_sha256: str
+    report_semantic_sha256: str
+    result_schema_version: str
+    decision: VisualEvaluationDecision
+
+    def __post_init__(self) -> None:
+        for value, field_name in (
+            (self.producer_version, "visual producer version"),
+            (self.dataset_id, "visual evaluation dataset_id"),
+            (self.dataset_version, "visual evaluation dataset_version"),
+            (self.policy_id, "visual evaluation policy_id"),
+            (self.policy_version, "visual evaluation policy_version"),
+            (self.result_schema_version, "visual result schema version"),
+        ):
+            canonical_identifier(
+                value,
+                field_name,
+                maximum=MAX_VISUAL_PRODUCER_ID_LENGTH,
+            )
+        for value, field_name in (
+            (
+                self.producer_implementation_sha256,
+                "visual producer implementation",
+            ),
+            (self.producer_manifest_sha256, "visual producer manifest"),
+            (self.dataset_manifest_sha256, "visual dataset manifest"),
+            (self.policy_sha256, "visual evaluation policy"),
+            (self.report_semantic_sha256, "visual evaluation report"),
+        ):
+            _sha256_digest(value, field_name)
+        if type(self.model) is not VisualModelProvenance:
+            _invalid(
+                WorldModelFailureCode.MALFORMED_OBSERVATION,
+                "visual evaluation model provenance must be typed",
+            )
+        if self.decision is not VisualEvaluationDecision.MEETS_MECHANICAL_POLICY:
+            _invalid(
+                WorldModelFailureCode.MALFORMED_OBSERVATION,
+                "only mechanically eligible evidence may carry an evaluation reference",
+            )
+
+    def document(self) -> dict[str, JSONValue]:
+        return {
+            "dataset_id": self.dataset_id,
+            "dataset_manifest_sha256": self.dataset_manifest_sha256,
+            "dataset_version": self.dataset_version,
+            "decision": self.decision.value,
+            "model": self.model.document(),
+            "policy_id": self.policy_id,
+            "policy_sha256": self.policy_sha256,
+            "policy_version": self.policy_version,
+            "producer_implementation_sha256": (
+                self.producer_implementation_sha256
+            ),
+            "producer_manifest_sha256": self.producer_manifest_sha256,
+            "producer_version": self.producer_version,
+            "report_semantic_sha256": self.report_semantic_sha256,
+            "result_schema_version": self.result_schema_version,
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class VisualEvaluationRequirement:
+    """Exact allowlist binding for one evaluated producer and policy."""
+
+    producer_id: str
+    producer_version: str
+    producer_implementation_sha256: str
+    producer_manifest_sha256: str
+    model_provenance_sha256: str
+    model_artifact_sha256: str
+    dataset_id: str
+    dataset_version: str
+    dataset_manifest_sha256: str
+    policy_id: str
+    policy_version: str
+    policy_sha256: str
+    report_semantic_sha256: str
+    result_schema_version: str
+
+    def __post_init__(self) -> None:
+        for value, field_name in (
+            (self.producer_id, "required visual producer_id"),
+            (self.producer_version, "required visual producer version"),
+            (self.dataset_id, "required visual dataset_id"),
+            (self.dataset_version, "required visual dataset_version"),
+            (self.policy_id, "required visual policy_id"),
+            (self.policy_version, "required visual policy_version"),
+            (self.result_schema_version, "required visual result schema version"),
+        ):
+            canonical_identifier(
+                value,
+                field_name,
+                maximum=MAX_VISUAL_PRODUCER_ID_LENGTH,
+            )
+        for value, field_name in (
+            (
+                self.producer_implementation_sha256,
+                "required visual producer implementation",
+            ),
+            (self.producer_manifest_sha256, "required visual producer manifest"),
+            (self.model_provenance_sha256, "required visual model provenance"),
+            (self.model_artifact_sha256, "required visual model artifact"),
+            (self.dataset_manifest_sha256, "required visual dataset manifest"),
+            (self.policy_sha256, "required visual evaluation policy"),
+            (self.report_semantic_sha256, "required visual evaluation report"),
+        ):
+            _sha256_digest(value, field_name)
+
+    def matches(
+        self,
+        producer: VisualInterpretationProducer,
+        reference: VisualEvaluationReference,
+    ) -> bool:
+        return (
+            type(producer) is VisualInterpretationProducer
+            and type(reference) is VisualEvaluationReference
+            and producer.producer_id == self.producer_id
+            and reference.model.producer_id == producer.producer_id
+            and reference.model.model_id == producer.model_id
+            and reference.producer_version == self.producer_version
+            and reference.producer_implementation_sha256
+            == self.producer_implementation_sha256
+            and reference.producer_manifest_sha256
+            == self.producer_manifest_sha256
+            and reference.model.provenance_sha256
+            == self.model_provenance_sha256
+            and reference.model.artifact_sha256 == self.model_artifact_sha256
+            and reference.dataset_id == self.dataset_id
+            and reference.dataset_version == self.dataset_version
+            and reference.dataset_manifest_sha256
+            == self.dataset_manifest_sha256
+            and reference.policy_id == self.policy_id
+            and reference.policy_version == self.policy_version
+            and reference.policy_sha256 == self.policy_sha256
+            and reference.report_semantic_sha256
+            == self.report_semantic_sha256
+            and reference.result_schema_version == self.result_schema_version
+            and reference.decision
+            is VisualEvaluationDecision.MEETS_MECHANICAL_POLICY
+        )
 
 
 @dataclass(frozen=True, slots=True, init=False)
@@ -1306,6 +1620,7 @@ class VisualInterpretationObservation:
     observed_at_ns: int
     result_at_ns: int
     producer: VisualInterpretationProducer
+    evaluation_reference: VisualEvaluationReference | None
     detections: tuple[VisualDetection, ...]
     provenance: ObservationProvenance
     availability: SensorAvailability
@@ -1326,6 +1641,7 @@ class VisualInterpretationObservation:
         detections: tuple[VisualDetection, ...],
         provenance: ObservationProvenance,
         availability: SensorAvailability,
+        evaluation_reference: VisualEvaluationReference | None = None,
         observation_id: str | None = None,
         fingerprint: ObservationFingerprint | None = None,
     ) -> None:
@@ -1371,6 +1687,20 @@ class VisualInterpretationObservation:
                 WorldModelFailureCode.MALFORMED_OBSERVATION,
                 "visual interpretation producer must be typed",
             )
+        if evaluation_reference is not None:
+            if type(evaluation_reference) is not VisualEvaluationReference:
+                _invalid(
+                    WorldModelFailureCode.MALFORMED_OBSERVATION,
+                    "visual evaluation reference must be typed",
+                )
+            if (
+                evaluation_reference.model.producer_id != producer.producer_id
+                or evaluation_reference.model.model_id != producer.model_id
+            ):
+                _invalid(
+                    WorldModelFailureCode.MALFORMED_OBSERVATION,
+                    "visual producer and evaluated model provenance disagree",
+                )
         if (
             type(detections) is not tuple
             or len(detections) > MAX_VISUAL_DETECTIONS
@@ -1419,6 +1749,8 @@ class VisualInterpretationObservation:
             "source_visual_fingerprint": str(source_visual_fingerprint),
             "source_visual_observation_id": source_visual_observation_id,
         }
+        if evaluation_reference is not None:
+            payload["evaluation_reference"] = evaluation_reference.document()
         document = _observation_document(
             kind=ObservationFingerprintKind.VISUAL_INTERPRETATION,
             robot_id=robot_id,
@@ -1458,6 +1790,7 @@ class VisualInterpretationObservation:
         object.__setattr__(self, "observed_at_ns", observed_at_ns)
         object.__setattr__(self, "result_at_ns", result_at_ns)
         object.__setattr__(self, "producer", producer)
+        object.__setattr__(self, "evaluation_reference", evaluation_reference)
         object.__setattr__(self, "detections", canonical_detections)
         object.__setattr__(self, "provenance", provenance)
         object.__setattr__(self, "availability", availability)
@@ -1465,7 +1798,7 @@ class VisualInterpretationObservation:
         object.__setattr__(self, "fingerprint", derived)
 
     def payload_document(self) -> dict[str, JSONValue]:
-        return {
+        payload: dict[str, JSONValue] = {
             "availability": self.availability.value,
             "detections": [item.document() for item in self.detections],
             "producer": self.producer.document(),
@@ -1475,6 +1808,9 @@ class VisualInterpretationObservation:
             "source_visual_fingerprint": str(self.source_visual_fingerprint),
             "source_visual_observation_id": self.source_visual_observation_id,
         }
+        if self.evaluation_reference is not None:
+            payload["evaluation_reference"] = self.evaluation_reference.document()
+        return payload
 
 
 @dataclass(frozen=True, slots=True, init=False)
@@ -1855,6 +2191,7 @@ def rebuild_observation(observation: Observation) -> Observation:
             detections=observation.detections,
             provenance=observation.provenance,
             availability=observation.availability,
+            evaluation_reference=observation.evaluation_reference,
             observation_id=observation.observation_id,
             fingerprint=observation.fingerprint,
         )
