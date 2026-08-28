@@ -68,14 +68,19 @@ image-region observations tied to an exact admitted source frame, exact
 producer/model/adapter identity, provenance and source/result time checks,
 bounded Working Memory/World Model projection, and a deterministic synthetic
 reference proof. It does not implement or claim production machine perception.
+Recorded Visual Producer Evaluation and Perception Quality Gate v1 now adds
+explicit producer registration, verified model artifact identity, immutable
+recorded dataset/policy/report contracts, deterministic bounded evaluation,
+sealed Perception admission, and a default-off ROS fixture. It remains a TEST
+foundation, not model approval or physical-camera validation.
 
 Final Ayyo assets, graphical controlled-design validation, additional joints,
 trajectory/whole-body controllers, validated dynamics/contact behavior,
 authenticated identity, permissions, approval verification, live backend
 attestation, production typed ROS services, audit persistence,
 timeout/resource enforcement, runtime skill implementations, and
-physical-safety integration remain future work. Production/recorded visual
-producer evaluation and live audio/depth/force/touch perception, physical
+physical-safety integration remain future work. Production visual producer
+promotion and live audio/depth/force/touch perception, physical
 camera/IMU/localization validation, production diagnostic producers, SLAM,
 sensor fusion, environment entity production, and
 reviewed Working-Memory-to-Memory-Validation consolidation also remain future

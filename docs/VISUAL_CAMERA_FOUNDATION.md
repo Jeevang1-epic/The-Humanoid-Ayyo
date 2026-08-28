@@ -250,6 +250,10 @@ implemented by the
 [Visual Perception Processing Foundation](VISUAL_PERCEPTION_PROCESSING.md).
 It does not change the camera transport, calibration, frame, or pixel-retention
 contracts described here and is not production machine perception.
+The subsequent
+[Recorded Visual Producer Evaluation and Perception Quality Gate](VISUAL_PRODUCER_EVALUATION.md)
+binds future producer/model/dataset/policy identities to this same exact camera
+source contract; it does not make the simulation camera physical evidence.
 
 ## Not implemented
 

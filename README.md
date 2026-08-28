@@ -7,8 +7,8 @@ can mature behind stable boundaries before physical hardware is introduced.
 
 ## Current status
 
-Ayyo has reached the Visual Perception Processing Foundation v1 and deterministic
-smoke teardown hardening review stage.
+Ayyo has reached the Recorded Visual Producer Evaluation and Perception Quality
+Gate v1 milestone with deterministic smoke teardown hardening.
 
 Implemented:
 
@@ -95,6 +95,12 @@ Implemented:
 - A disabled-by-default deterministic synthetic reference adapter and headless
   proof of trusted frame → interpretation → trust → Working Memory → immutable
   World Model → fixed query, without a model, fake confidence, or authority
+- Immutable producer/model/dataset/policy contracts, verified artifact and
+  dataset digests, bounded evaluation metrics/reports, and sealed one-use
+  Perception admission for evaluated visual evidence
+- A default-off evaluated ROS fixture and twice-run owned smoke proving exact
+  compact provenance, 5,000-cycle bounded state, adversarial recovery,
+  repeat-query identity, lifecycle reactivation, and empty teardown
 - Exact per-smoke process ownership and bounded graceful/scoped teardown,
   including direct shell-free Gazebo ownership and survivor regression tests
 
@@ -105,7 +111,7 @@ Planned, but not implemented:
 - Additional commandable joints, trajectory/whole-body control, and validated
   dynamics/contact behavior
 - Physical localization/camera/sensor validation, real diagnostic producers,
-  SLAM/fusion/physical calibration, and production visual producer evaluation
+  SLAM/fusion/physical calibration, and production visual producer promotion
 - Natural-language/model integration and authenticated identity/approval
 - Runtime skill implementations, manipulation, and navigation
 - Production-authorized typed ROS services, runtime scheduling, and resource
@@ -133,6 +139,7 @@ independent of cognition and learned policies. See
 [docs/BODY_LOCALIZATION_SENSOR_DIAGNOSTICS.md](docs/BODY_LOCALIZATION_SENSOR_DIAGNOSTICS.md),
 [docs/VISUAL_CAMERA_FOUNDATION.md](docs/VISUAL_CAMERA_FOUNDATION.md),
 [docs/VISUAL_PERCEPTION_PROCESSING.md](docs/VISUAL_PERCEPTION_PROCESSING.md),
+[docs/VISUAL_PRODUCER_EVALUATION.md](docs/VISUAL_PRODUCER_EVALUATION.md),
 [docs/AYYO_MESH_IMPORT.md](docs/AYYO_MESH_IMPORT.md), and
 [docs/SAFETY.md](docs/SAFETY.md).
 
@@ -250,8 +257,15 @@ python3 -m unittest discover -s working_memory/tests -v
 Run Perception Trust Boundary tests:
 
 ```bash
-PYTHONPATH=world_model/src:perception/src \
+PYTHONPATH=world_model/src:visual_evaluation/src:perception/src \
 python3 -m unittest discover -s perception/tests -v
+```
+
+Run visual producer evaluation tests:
+
+```bash
+PYTHONPATH=world_model/src:visual_evaluation/src \
+python3 -m unittest discover -s visual_evaluation/tests -v
 ```
 
 Run the embodied feedback integration smoke after building:
@@ -284,6 +298,13 @@ Run the visual-perception processing and teardown proof:
 ./scripts/smoke_visual_perception.sh
 ```
 
+Run the recorded/evaluated producer gate twice:
+
+```bash
+./scripts/smoke_visual_producer_evaluation.sh
+./scripts/smoke_visual_producer_evaluation.sh
+```
+
 ## Repository layout
 
 ```text
@@ -298,6 +319,7 @@ runtime_bridge/  Deterministic Skill-to-ROS compatibility and transport boundary
 simulation_control/  Bounded deterministic simulation-control policy and feedback
 world_model/  Transport-neutral embodied/environment observations and snapshots
 perception/  Deterministic sensor/provenance/time admission trust boundary
+visual_evaluation/  Deterministic producer/model/dataset evaluation quality gate
 working_memory/  Bounded temporary current-state and recent-evidence retention
 ros2_ws/src/   ROS 2 interfaces, description, simulation, Runtime Bridge, and bringup
 scripts/       Local environment, build, and test commands

@@ -44,6 +44,11 @@ does not infer scene semantics or retain video. The
 adds bounded typed interpretations tied to an exact admitted frame, an exact
 producer allowlist, temporary projection, and a synthetic default-off proof.
 It implements no production model and grants no execution authority. The
+transport-neutral
+[Recorded Visual Producer Evaluation and Perception Quality Gate](VISUAL_PRODUCER_EVALUATION.md)
+adds verified model/dataset/policy identity, bounded deterministic metrics,
+sealed evaluator evidence, and a default-off live fixture while preserving the
+same Perception boundary. Mechanical pass is not production approval. The
 deterministic
 [World Model and Working Memory Foundation](WORLD_MODEL_WORKING_MEMORY.md)
 implements immutable current embodied/environment evidence, deterministic
@@ -119,6 +124,10 @@ replace proxy geometry without duplicating or bypassing frame semantics.
   resource admission. Working Memory keeps one current result per
   camera/producer plus bounded recent evidence; interpretation is never a
   command, permission, identity claim, or durable-memory write.
+- Evaluated producers additionally require one exact registered manifest,
+  verified model artifact, immutable dataset and policy, successful semantic
+  report identity, and a sealed one-use authorization. A bare result or
+  self-asserted pass reference cannot establish Perception trust.
 - World Model owns transport-neutral provenance-bound current robot/environment
   observations, authoritative body-value validation, IMU/pose/covariance/
   availability contracts, discrete freshness, and canonical immutable

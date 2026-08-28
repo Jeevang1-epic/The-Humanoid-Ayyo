@@ -204,6 +204,15 @@
 - Dedicated interpreted-visual headless smoke proving the full real-frame to
   synthetic-result read path, adversarial recovery, 1,000-frame bounds,
   lifecycle reactivation, no movement, and zero owned processes after shutdown
+- Immutable visual producer manifests, verified model artifacts, recorded
+  dataset manifests/sources, typed evaluation policies, bounded metrics,
+  deterministic semantic reports, and explicit mechanical decisions
+- Sealed evaluated admissions bound exactly to producer/model/dataset/policy/
+  report identity, consumed only by the existing Perception Trust Boundary and
+  rechecked by bounded Working Memory
+- Default-off evaluated live fixture plus two consecutive owned headless smoke
+  runs, each proving 5,000-cycle bounds, adversarial recovery, compact query
+  provenance, repeat-query identity, lifecycle reactivation, and empty teardown
 - Exact smoke process ownership using a per-run inherited marker and dedicated
   process session, graceful bounded SIGINT-first cleanup, scoped escalation,
   survivor failure, early-exit coverage, and no name-based global killing

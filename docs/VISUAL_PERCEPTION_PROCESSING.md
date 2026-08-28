@@ -128,6 +128,13 @@ admitted frame, not on a downstream interpretation. Interpretation semantics
 participate in snapshot identity; query/capture time and pixel data do not.
 Repeated read-only queries do not mutate state.
 
+Evaluated producers add an exact compact `VisualEvaluationReference` and must
+arrive as a sealed evaluator-issued admission. Perception consumes that
+authorization once after binding it to the admitted source frame; Working
+Memory independently matches the configured producer/model/dataset/policy/
+report requirement. The full gate is documented in
+[VISUAL_PRODUCER_EVALUATION.md](VISUAL_PRODUCER_EVALUATION.md).
+
 No interpretation enters Memory OS. A later durable consolidation milestone
 would require an explicit separate candidate-selection decision and the
 existing Memory Validation boundary.
@@ -252,6 +259,7 @@ Run the focused proof with:
 ./scripts/smoke_visual_perception.sh
 ```
 
-The recommended next milestone is a recorded-data visual producer evaluation
-harness with immutable dataset/model artifacts, latency/quality measurements,
-and the same fail-closed contracts, still without movement authority.
+The recorded-data evaluation harness is now implemented in
+[Recorded Visual Producer Evaluation and Perception Quality Gate v1](VISUAL_PRODUCER_EVALUATION.md).
+The next step is representative recorded-corpus integration and a human-reviewed
+promotion/rollback registry, still without movement authority.

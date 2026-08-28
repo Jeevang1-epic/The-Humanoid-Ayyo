@@ -134,6 +134,10 @@ camera/optical frame, source provenance, exact producer/model/adapter identity,
 and at most 32 typed normalized 2D detections with optional finite confidence.
 The focused contract is documented in
 [VISUAL_PERCEPTION_PROCESSING.md](VISUAL_PERCEPTION_PROCESSING.md).
+Evaluated interpretations may additionally retain one compact immutable model/
+dataset/policy/report reference. The evaluator report, manifests, model bytes,
+dataset bytes, and pixels remain outside Working Memory and snapshots; see
+[VISUAL_PRODUCER_EVALUATION.md](VISUAL_PRODUCER_EVALUATION.md).
 
 ## Provenance
 
