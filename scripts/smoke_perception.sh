@@ -71,7 +71,8 @@ wait_until() {
 }
 
 world_model_active() {
-  ros2 lifecycle get /ayyo_world_model 2>/dev/null | grep -q 'active'
+  ros2 lifecycle get /ayyo_world_model 2>/dev/null \
+    | grep -q '^active \[3\]$'
 }
 
 trusted_imu_ready() {

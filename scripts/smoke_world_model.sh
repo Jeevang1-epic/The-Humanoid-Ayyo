@@ -77,7 +77,7 @@ world_model_active() {
   service_type="$(
     ros2 service type /ayyo/world_model/get_robot_body_state 2>/dev/null || true
   )"
-  grep -q 'active' <<<"$state" &&
+  grep -q '^active \[3\]$' <<<"$state" &&
     [[ "$service_type" == 'ayyo_interfaces/srv/GetRobotBodyState' ]]
 }
 
