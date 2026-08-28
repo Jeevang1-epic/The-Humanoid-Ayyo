@@ -10,7 +10,9 @@ from ayyo_world_model import (
     ObservationClock,
     ObservationProvenance,
     SensorIdentity,
+    VisualEvaluationRequirement,
     VisualInterpretationProducer,
+    MAX_VISUAL_EVALUATION_REQUIREMENTS,
     MAX_VISUAL_INTERPRETATION_PRODUCERS,
     rebuild_observation,
 )
@@ -48,6 +50,8 @@ class IngestionReason(StrEnum):
     UNKNOWN_SENSOR = "unknown_sensor"
     UNKNOWN_PRODUCER = "unknown_producer"
     SOURCE_OBSERVATION_MISMATCH = "source_observation_mismatch"
+    EVALUATION_REQUIRED = "evaluation_required"
+    EVALUATION_MISMATCH = "evaluation_mismatch"
 
 
 class WorkingMemoryFreshness(StrEnum):
@@ -91,6 +95,9 @@ class WorkingMemoryConfig:
     environment_entity_capacity: int = 128
     visual_interpretation_producers: tuple[
         VisualInterpretationProducer, ...
+    ] = ()
+    visual_evaluation_requirements: tuple[
+        VisualEvaluationRequirement, ...
     ] = ()
 
     def __post_init__(self) -> None:
@@ -168,6 +175,29 @@ class WorkingMemoryConfig:
         if len(producer_ids) != len(set(producer_ids)):
             raise WorkingMemoryConfigurationError(
                 "visual interpretation producer identities must be unique"
+            )
+        if (
+            type(self.visual_evaluation_requirements) is not tuple
+            or len(self.visual_evaluation_requirements)
+            > MAX_VISUAL_EVALUATION_REQUIREMENTS
+            or any(
+                type(requirement) is not VisualEvaluationRequirement
+                for requirement in self.visual_evaluation_requirements
+            )
+        ):
+            raise WorkingMemoryConfigurationError(
+                "visual evaluation requirements must be a bounded typed tuple"
+            )
+        required_producers = tuple(
+            requirement.producer_id
+            for requirement in self.visual_evaluation_requirements
+        )
+        if (
+            len(required_producers) != len(set(required_producers))
+            or not set(required_producers) <= set(producer_ids)
+        ):
+            raise WorkingMemoryConfigurationError(
+                "visual evaluation requirements must uniquely bind configured producers"
             )
 
 

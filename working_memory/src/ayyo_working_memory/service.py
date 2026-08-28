@@ -466,6 +466,30 @@ class WorkingMemory:
                     IngestionReason.UNKNOWN_PRODUCER,
                     "visual result producer is outside the reviewed producer catalog",
                 )
+            requirement = next(
+                (
+                    item
+                    for item in self._config.visual_evaluation_requirements
+                    if item.producer_id == observation.producer.producer_id
+                ),
+                None,
+            )
+            if observation.evaluation_reference is None:
+                if requirement is not None:
+                    return self._reject(
+                        observation.observation_id,
+                        IngestionReason.EVALUATION_REQUIRED,
+                        "visual producer requires evaluated provenance",
+                    )
+            elif requirement is None or not requirement.matches(
+                observation.producer,
+                observation.evaluation_reference,
+            ):
+                return self._reject(
+                    observation.observation_id,
+                    IngestionReason.EVALUATION_MISMATCH,
+                    "visual evaluation provenance differs from the allowlist",
+                )
             source_frames = tuple(
                 frame
                 for frame in (

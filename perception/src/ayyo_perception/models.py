@@ -14,6 +14,8 @@ from ayyo_world_model import (
     SensorIdentity,
     SensorKind,
     VisualInterpretationProducer,
+    VisualEvaluationRequirement,
+    MAX_VISUAL_EVALUATION_REQUIREMENTS,
     MAX_VISUAL_INTERPRETATION_PRODUCERS,
     MAX_VISUAL_SOURCE_REFERENCES,
     rebuild_observation,
@@ -64,6 +66,9 @@ class AdmissionReason(StrEnum):
     SOURCE_FRAME_NOT_ADMITTED = "source_frame_not_admitted"
     SOURCE_FRAME_MISMATCH = "source_frame_mismatch"
     RESULT_TIME_INVALID = "result_time_invalid"
+    EVALUATION_REQUIRED = "evaluation_required"
+    EVALUATION_MISMATCH = "evaluation_mismatch"
+    EVALUATION_NOT_AUTHORIZED = "evaluation_not_authorized"
 
 
 class EvidenceFailureKind(StrEnum):
@@ -121,6 +126,9 @@ class PerceptionTrustConfig:
     permitted_future_skew_ns: int = 50_000_000
     visual_interpretation_producers: tuple[
         VisualInterpretationProducer, ...
+    ] = ()
+    visual_evaluation_requirements: tuple[
+        VisualEvaluationRequirement, ...
     ] = ()
 
     def __post_init__(self) -> None:
@@ -190,6 +198,29 @@ class PerceptionTrustConfig:
             raise PerceptionConfigurationError(
                 "visual interpretation producer identities must be unique"
             )
+        if (
+            type(self.visual_evaluation_requirements) is not tuple
+            or len(self.visual_evaluation_requirements)
+            > MAX_VISUAL_EVALUATION_REQUIREMENTS
+            or any(
+                type(requirement) is not VisualEvaluationRequirement
+                for requirement in self.visual_evaluation_requirements
+            )
+        ):
+            raise PerceptionConfigurationError(
+                "visual evaluation requirements must be a bounded typed tuple"
+            )
+        required_producers = tuple(
+            requirement.producer_id
+            for requirement in self.visual_evaluation_requirements
+        )
+        if (
+            len(required_producers) != len(set(required_producers))
+            or not set(required_producers) <= set(producer_ids)
+        ):
+            raise PerceptionConfigurationError(
+                "visual evaluation requirements must uniquely bind configured producers"
+            )
 
 
 @dataclass(frozen=True, slots=True)
@@ -230,6 +261,7 @@ class PerceptionStats:
     tracked_source_key_count: int
     configured_source_count: int
     tracked_visual_source_count: int = 0
+    tracked_evaluated_visual_count: int = 0
 
     def __post_init__(self) -> None:
         values = (
@@ -239,6 +271,7 @@ class PerceptionStats:
             self.tracked_source_key_count,
             self.configured_source_count,
             self.tracked_visual_source_count,
+            self.tracked_evaluated_visual_count,
         )
         if any(type(value) is not int or value < 0 for value in values):
             raise PerceptionConfigurationError("perception statistics are invalid")
@@ -251,6 +284,10 @@ class PerceptionStats:
         if self.tracked_visual_source_count > MAX_VISUAL_SOURCE_REFERENCES:
             raise PerceptionConfigurationError(
                 "tracked visual source references exceed their hard bound"
+            )
+        if self.tracked_evaluated_visual_count > MAX_VISUAL_SOURCE_REFERENCES:
+            raise PerceptionConfigurationError(
+                "tracked evaluated visual authorizations exceed their hard bound"
             )
 
 

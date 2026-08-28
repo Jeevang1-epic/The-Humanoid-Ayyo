@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import replace
 import unittest
 
 from ayyo_perception import (
@@ -23,8 +24,16 @@ from ayyo_world_model import (
     SensorKind,
     VisualInterpretationObservation,
     VisualInterpretationProducer,
+    VisualEvaluationReference,
     VisualProducerKind,
     VisualFrameObservation,
+)
+from ayyo_visual_evaluation import (
+    DeterministicFixtureInvoker,
+    EvaluatedVisualAdmission,
+    VisualProducerEvaluator,
+    VisualProducerRegistry,
+    fixture_bundle,
 )
 
 
@@ -40,8 +49,6 @@ PROVENANCE = ObservationProvenance(
     ObservationTransport.DIRECT,
     "direct.visual-frame.v1",
 )
-
-
 def frame(time_ns: int = 100, **overrides) -> VisualFrameObservation:
     values = {
         "robot_id": AYYO_ROBOT_ID,
@@ -75,6 +82,61 @@ def boundary(*, ttl: int = 1000) -> PerceptionTrustBoundary:
     )
 
 
+def with_reference(
+    observation: VisualInterpretationObservation,
+    reference: VisualEvaluationReference | None,
+) -> VisualInterpretationObservation:
+    return VisualInterpretationObservation(
+        robot_id=observation.robot_id,
+        sensor=observation.sensor,
+        reference_frame_id=observation.reference_frame_id,
+        source_visual_observation_id=observation.source_visual_observation_id,
+        source_visual_fingerprint=observation.source_visual_fingerprint,
+        observed_at_ns=observation.observed_at_ns,
+        result_at_ns=observation.result_at_ns,
+        producer=observation.producer,
+        detections=observation.detections,
+        provenance=observation.provenance,
+        availability=observation.availability,
+        evaluation_reference=reference,
+    )
+
+
+def evaluated_admission() -> EvaluatedVisualAdmission:
+    bundle = fixture_bundle(sample_count=1)
+    registry = VisualProducerRegistry()
+    registry.register(bundle.registration)
+    outcome = VisualProducerEvaluator(
+        registry,
+        DeterministicFixtureInvoker(),
+    ).evaluate(
+        producer_id=bundle.manifest.producer.producer_id,
+        dataset=bundle.dataset,
+        source=bundle.source,
+        policy=bundle.policy,
+        run_id="perception.fixture-evaluation.v1",
+    )
+    return outcome.admissions[0]
+
+
+def evaluated_boundary(
+    admission: EvaluatedVisualAdmission,
+) -> PerceptionTrustBoundary:
+    source = admission.producer_result.source_frame
+    return PerceptionTrustBoundary(
+        PerceptionTrustConfig(
+            robot_id=source.robot_id,
+            source_clock=source.provenance.clock,
+            sources=(PerceptionSourceContract(source.sensor, source.provenance),),
+            freshness_ns=50_000_000,
+            retention_ttl_ns=1_000_000_000,
+            permitted_future_skew_ns=5_000_000,
+            visual_interpretation_producers=(admission.observation.producer,),
+            visual_evaluation_requirements=(admission.requirement,),
+        )
+    )
+
+
 def admit(trust, observation, *, now: int, receipt: int):
     return trust.admit(
         observation,
@@ -84,6 +146,73 @@ def admit(trust, observation, *, now: int, receipt: int):
 
 
 class VisualInterpretationBoundaryTest(unittest.TestCase):
+    def test_evaluated_result_requires_exact_binding_and_one_authorization(self) -> None:
+        admission = evaluated_admission()
+        source = admission.producer_result.source_frame
+        evaluated = admission.observation
+        trust = evaluated_boundary(admission)
+        admit(trust, source, now=source.observed_at_ns, receipt=1)
+        raw = with_reference(evaluated, None)
+        self.assertEqual(
+            AdmissionReason.EVALUATION_REQUIRED,
+            admit(trust, raw, now=evaluated.result_at_ns, receipt=2).reason,
+        )
+        self.assertEqual(
+            AdmissionReason.EVALUATION_NOT_AUTHORIZED,
+            admit(
+                trust,
+                evaluated,
+                now=evaluated.result_at_ns,
+                receipt=3,
+            ).reason,
+        )
+        self.assertFalse(
+            trust.authorize_evaluated_visual(  # type: ignore[arg-type]
+                evaluated
+            )
+        )
+        self.assertTrue(trust.authorize_evaluated_visual(admission))
+        self.assertEqual(
+            AdmissionStatus.ACCEPTED,
+            admit(
+                trust,
+                evaluated,
+                now=evaluated.result_at_ns,
+                receipt=4,
+            ).status,
+        )
+        self.assertEqual(0, trust.stats().tracked_evaluated_visual_count)
+        self.assertEqual(
+            AdmissionReason.EVALUATION_NOT_AUTHORIZED,
+            admit(
+                trust,
+                evaluated,
+                now=evaluated.result_at_ns,
+                receipt=5,
+            ).reason,
+        )
+
+    def test_evaluation_binding_rejects_changed_dataset_and_missing_source(self) -> None:
+        admission = evaluated_admission()
+        source = admission.producer_result.source_frame
+        trust = evaluated_boundary(admission)
+        self.assertFalse(trust.authorize_evaluated_visual(admission))
+        changed = replace(
+            admission.reference,
+            dataset_id="ayyo.dataset.other.v1",
+        )
+        changed_result = with_reference(admission.observation, changed)
+        admit(trust, source, now=source.observed_at_ns, receipt=1)
+        self.assertEqual(
+            AdmissionReason.EVALUATION_MISMATCH,
+            admit(
+                trust,
+                changed_result,
+                now=admission.observation.result_at_ns,
+                receipt=2,
+            ).reason,
+        )
+
     def test_admitted_frame_to_reference_result_and_duplicate(self) -> None:
         trust = boundary()
         source = frame()

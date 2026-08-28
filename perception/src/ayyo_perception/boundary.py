@@ -19,6 +19,7 @@ from ayyo_world_model import (
     WorldModelValidationError,
     rebuild_observation,
 )
+from ayyo_visual_evaluation import EvaluatedVisualAdmission
 
 from .errors import PerceptionClockRegressionError, PerceptionConfigurationError
 from .models import (
@@ -40,6 +41,7 @@ class PerceptionTrustBoundary:
         "_accepted_count",
         "_config",
         "_duplicate_count",
+        "_evaluated_visual_authorizations",
         "_last_by_key",
         "_last_now_ns",
         "_last_receipt_monotonic_ns",
@@ -59,6 +61,9 @@ class PerceptionTrustBoundary:
         self._duplicate_count = 0
         self._rejected_count = 0
         self._visual_sources: dict[str, VisualFrameObservation] = {}
+        self._evaluated_visual_authorizations: dict[
+            str, VisualInterpretationObservation
+        ] = {}
         self._lock = RLock()
 
     @property
@@ -74,6 +79,7 @@ class PerceptionTrustBoundary:
             self._duplicate_count = 0
             self._rejected_count = 0
             self._visual_sources.clear()
+            self._evaluated_visual_authorizations.clear()
 
     def _reject(
         self,
@@ -135,6 +141,14 @@ class PerceptionTrustBoundary:
         )
         for observation_id in expired:
             del self._visual_sources[observation_id]
+        retained_source_ids = set(self._visual_sources)
+        self._evaluated_visual_authorizations = {
+            observation_id: observation
+            for observation_id, observation in (
+                self._evaluated_visual_authorizations.items()
+            )
+            if observation.source_visual_observation_id in retained_source_ids
+        }
 
     def _remember_visual_source(self, frame: VisualFrameObservation) -> None:
         self._visual_sources[frame.observation_id] = frame
@@ -147,6 +161,77 @@ class PerceptionTrustBoundary:
                 ),
             )
             del self._visual_sources[oldest_id]
+            self._evaluated_visual_authorizations = {
+                observation_id: observation
+                for observation_id, observation in (
+                    self._evaluated_visual_authorizations.items()
+                )
+                if observation.source_visual_observation_id != oldest_id
+            }
+
+    def authorize_evaluated_visual(
+        self,
+        admission: EvaluatedVisualAdmission,
+    ) -> bool:
+        """Bind one sealed evaluator result to the next trust admission attempt."""
+        if type(admission) is not EvaluatedVisualAdmission:
+            return False
+        try:
+            rebuilt = rebuild_observation(admission.observation)
+        except (ObservationIdentityError, WorldModelValidationError):
+            return False
+        if (
+            type(rebuilt) is not VisualInterpretationObservation
+            or rebuilt.evaluation_reference is None
+        ):
+            return False
+        with self._lock:
+            requirement = next(
+                (
+                    item
+                    for item in self._config.visual_evaluation_requirements
+                    if item.producer_id == rebuilt.producer.producer_id
+                ),
+                None,
+            )
+            if (
+                requirement is None
+                or admission.requirement != requirement
+                or admission.reference != rebuilt.evaluation_reference
+                or not requirement.matches(
+                    rebuilt.producer,
+                    rebuilt.evaluation_reference,
+                )
+            ):
+                return False
+            source = self._visual_sources.get(
+                rebuilt.source_visual_observation_id
+            )
+            if source is None or (
+                source.robot_id != rebuilt.robot_id
+                or source.sensor != rebuilt.sensor
+                or source.sensor.frame_id != rebuilt.reference_frame_id
+                or source.observed_at_ns != rebuilt.observed_at_ns
+                or source.provenance != rebuilt.provenance
+                or source.fingerprint != rebuilt.source_visual_fingerprint
+            ):
+                return False
+            self._evaluated_visual_authorizations[rebuilt.observation_id] = rebuilt
+            while (
+                len(self._evaluated_visual_authorizations)
+                > MAX_VISUAL_SOURCE_REFERENCES
+            ):
+                oldest_id = min(
+                    self._evaluated_visual_authorizations,
+                    key=lambda observation_id: (
+                        self._evaluated_visual_authorizations[
+                            observation_id
+                        ].result_at_ns,
+                        observation_id,
+                    ),
+                )
+                del self._evaluated_visual_authorizations[oldest_id]
+            return True
 
     def admit(
         self,
@@ -238,6 +323,39 @@ class PerceptionTrustBoundary:
                     return self._reject(
                         AdmissionReason.UNKNOWN_PRODUCER,
                         "visual result producer is not one exact reviewed producer",
+                        rebuilt.observation_id,
+                    )
+                requirement = next(
+                    (
+                        item
+                        for item in self._config.visual_evaluation_requirements
+                        if item.producer_id == rebuilt.producer.producer_id
+                    ),
+                    None,
+                )
+                if rebuilt.evaluation_reference is None:
+                    if requirement is not None:
+                        return self._reject(
+                            AdmissionReason.EVALUATION_REQUIRED,
+                            "visual producer requires evaluated provenance",
+                            rebuilt.observation_id,
+                        )
+                elif requirement is None or not requirement.matches(
+                    rebuilt.producer,
+                    rebuilt.evaluation_reference,
+                ):
+                    return self._reject(
+                        AdmissionReason.EVALUATION_MISMATCH,
+                        "visual evaluation provenance differs from the allowlist",
+                        rebuilt.observation_id,
+                    )
+                elif self._evaluated_visual_authorizations.pop(
+                    rebuilt.observation_id,
+                    None,
+                ) != rebuilt:
+                    return self._reject(
+                        AdmissionReason.EVALUATION_NOT_AUTHORIZED,
+                        "evaluated result was not registered by the evaluator",
                         rebuilt.observation_id,
                     )
                 source_frame = self._visual_sources.get(
@@ -400,4 +518,7 @@ class PerceptionTrustBoundary:
                 tracked_source_key_count=len(self._last_by_key),
                 configured_source_count=len(self._config.sources),
                 tracked_visual_source_count=len(self._visual_sources),
+                tracked_evaluated_visual_count=len(
+                    self._evaluated_visual_authorizations
+                ),
             )

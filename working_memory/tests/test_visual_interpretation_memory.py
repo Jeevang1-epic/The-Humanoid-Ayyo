@@ -16,10 +16,17 @@ from ayyo_world_model import (
     SensorIdentity,
     SensorKind,
     VisualDetection,
+    VisualEvaluationDecision,
+    VisualEvaluationReference,
+    VisualEvaluationRequirement,
     VisualFrameObservation,
     VisualInterpretationObservation,
     VisualInterpretationProducer,
     VisualProducerKind,
+    VisualModelCapability,
+    VisualModelFormat,
+    VisualModelProvenance,
+    VisualModelSourceClassification,
     VisualSemanticCategory,
 )
 
@@ -37,6 +44,51 @@ PRODUCER = VisualInterpretationProducer(
     "none",
     "ayyo.visual.test.adapter.v1",
     "ayyo.visual-interpretation.v1",
+)
+MODEL = VisualModelProvenance(
+    model_id=PRODUCER.model_id,
+    model_version="1.0.0",
+    producer_id=PRODUCER.producer_id,
+    artifact_sha256="1" * 64,
+    model_format=VisualModelFormat.DETERMINISTIC_FIXTURE,
+    capability=VisualModelCapability.BOUNDED_DETECTION,
+    configuration_sha256="2" * 64,
+    label_schema_id="ayyo.visual-labels.fixture.v1",
+    label_schema_version="1.0.0",
+    source_classification=VisualModelSourceClassification.TEST_FIXTURE,
+)
+REFERENCE = VisualEvaluationReference(
+    producer_version="1.0.0",
+    producer_implementation_sha256="3" * 64,
+    producer_manifest_sha256="4" * 64,
+    model=MODEL,
+    dataset_id="ayyo.dataset.visual.fixture.v1",
+    dataset_version="1.0.0",
+    dataset_manifest_sha256="5" * 64,
+    policy_id="ayyo.visual-evaluation.fixture.v1",
+    policy_version="1.0.0",
+    policy_sha256="6" * 64,
+    report_semantic_sha256="7" * 64,
+    result_schema_version="1.0.0",
+    decision=VisualEvaluationDecision.MEETS_MECHANICAL_POLICY,
+)
+REQUIREMENT = VisualEvaluationRequirement(
+    producer_id=PRODUCER.producer_id,
+    producer_version=REFERENCE.producer_version,
+    producer_implementation_sha256=(
+        REFERENCE.producer_implementation_sha256
+    ),
+    producer_manifest_sha256=REFERENCE.producer_manifest_sha256,
+    model_provenance_sha256=MODEL.provenance_sha256,
+    model_artifact_sha256=MODEL.artifact_sha256,
+    dataset_id=REFERENCE.dataset_id,
+    dataset_version=REFERENCE.dataset_version,
+    dataset_manifest_sha256=REFERENCE.dataset_manifest_sha256,
+    policy_id=REFERENCE.policy_id,
+    policy_version=REFERENCE.policy_version,
+    policy_sha256=REFERENCE.policy_sha256,
+    report_semantic_sha256=REFERENCE.report_semantic_sha256,
+    result_schema_version=REFERENCE.result_schema_version,
 )
 
 
@@ -57,7 +109,11 @@ def frame(time_ns: int) -> VisualFrameObservation:
     )
 
 
-def interpretation(source: VisualFrameObservation) -> VisualInterpretationObservation:
+def interpretation(
+    source: VisualFrameObservation,
+    *,
+    evaluated: bool = False,
+) -> VisualInterpretationObservation:
     return VisualInterpretationObservation(
         robot_id=source.robot_id,
         sensor=source.sensor,
@@ -83,10 +139,11 @@ def interpretation(source: VisualFrameObservation) -> VisualInterpretationObserv
         ),
         provenance=source.provenance,
         availability=SensorAvailability.AVAILABLE,
+        evaluation_reference=REFERENCE if evaluated else None,
     )
 
 
-def memory(*, recent: int = 8) -> WorkingMemory:
+def memory(*, recent: int = 8, evaluated: bool = False) -> WorkingMemory:
     return WorkingMemory(
         catalog(),
         WorkingMemoryConfig(
@@ -99,11 +156,32 @@ def memory(*, recent: int = 8) -> WorkingMemory:
             permitted_future_skew_ns=5,
             recent_evidence_capacity=recent,
             visual_interpretation_producers=(PRODUCER,),
+            visual_evaluation_requirements=(REQUIREMENT,) if evaluated else (),
         ),
     )
 
 
 class VisualInterpretationMemoryTest(unittest.TestCase):
+    def test_evaluated_producer_requires_exact_compact_reference(self) -> None:
+        store = memory(evaluated=True)
+        source = frame(100)
+        self.assertEqual(
+            IngestionStatus.ACCEPTED,
+            store.ingest(source, now_ns=100, received_at_monotonic_ns=1).status,
+        )
+        missing = store.ingest(
+            interpretation(source),
+            now_ns=100,
+            received_at_monotonic_ns=2,
+        )
+        self.assertEqual(IngestionReason.EVALUATION_REQUIRED, missing.reason)
+        accepted = store.ingest(
+            interpretation(source, evaluated=True),
+            now_ns=100,
+            received_at_monotonic_ns=3,
+        )
+        self.assertEqual(IngestionStatus.ACCEPTED, accepted.status)
+
     def test_retain_project_query_without_mutation_and_duplicate_growth(self) -> None:
         store = memory()
         source = frame(100)

@@ -43,10 +43,16 @@ class PerceptionPackageBoundaryTest(unittest.TestCase):
                     imports.add(node.module.split(".")[0])
         self.assertEqual(set(), imports & forbidden)
 
-    def test_only_world_model_runtime_dependency_is_declared(self) -> None:
+    def test_only_reviewed_runtime_dependencies_are_declared(self) -> None:
         with (self.package_root / "pyproject.toml").open("rb") as stream:
             project = tomllib.load(stream)["project"]
-        self.assertEqual(["ayyo-world-model==0.1.0"], project["dependencies"])
+        self.assertEqual(
+            [
+                "ayyo-world-model==0.1.0",
+                "ayyo-visual-evaluation==0.1.0",
+            ],
+            project["dependencies"],
+        )
 
     def test_public_exports_are_importable(self) -> None:
         self.assertTrue(ayyo_perception.__all__)
