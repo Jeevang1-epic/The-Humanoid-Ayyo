@@ -1278,6 +1278,71 @@ class AyyoWorldModelNode(LifecycleNode):
             response.visual_interpretation_interface = (
                 observation.producer.interface
             )
+            evaluation = observation.evaluation_reference
+            if evaluation is not None:
+                model = evaluation.model
+                response.has_visual_evaluation = True
+                response.visual_interpretation_producer_version = (
+                    evaluation.producer_version
+                )
+                response.visual_interpretation_producer_implementation_sha256 = (
+                    evaluation.producer_implementation_sha256
+                )
+                response.visual_interpretation_producer_manifest_sha256 = (
+                    evaluation.producer_manifest_sha256
+                )
+                response.visual_interpretation_model_version = model.model_version
+                response.visual_interpretation_model_artifact_sha256 = (
+                    model.artifact_sha256
+                )
+                response.visual_interpretation_model_format = model.model_format.value
+                response.visual_interpretation_model_capability = (
+                    model.capability.value
+                )
+                response.visual_interpretation_model_configuration_sha256 = (
+                    model.configuration_sha256
+                )
+                response.visual_interpretation_model_label_schema_id = (
+                    model.label_schema_id
+                )
+                response.visual_interpretation_model_label_schema_version = (
+                    model.label_schema_version
+                )
+                response.visual_interpretation_model_source_classification = (
+                    model.source_classification.value
+                )
+                response.visual_interpretation_model_has_build_export_id = (
+                    model.build_export_id is not None
+                )
+                response.visual_interpretation_model_build_export_id = (
+                    '' if model.build_export_id is None else model.build_export_id
+                )
+                response.visual_interpretation_model_provenance_sha256 = (
+                    model.provenance_sha256
+                )
+                response.visual_interpretation_dataset_id = evaluation.dataset_id
+                response.visual_interpretation_dataset_version = (
+                    evaluation.dataset_version
+                )
+                response.visual_interpretation_dataset_manifest_sha256 = (
+                    evaluation.dataset_manifest_sha256
+                )
+                response.visual_interpretation_policy_id = evaluation.policy_id
+                response.visual_interpretation_policy_version = (
+                    evaluation.policy_version
+                )
+                response.visual_interpretation_policy_sha256 = (
+                    evaluation.policy_sha256
+                )
+                response.visual_interpretation_report_semantic_sha256 = (
+                    evaluation.report_semantic_sha256
+                )
+                response.visual_interpretation_result_schema_version = (
+                    evaluation.result_schema_version
+                )
+                response.visual_interpretation_mechanical_decision = (
+                    evaluation.decision.value
+                )
             response.visual_interpretation_source_kind = (
                 observation.provenance.source_kind.value
             )

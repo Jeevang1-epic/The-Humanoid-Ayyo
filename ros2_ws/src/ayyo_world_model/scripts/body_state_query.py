@@ -289,6 +289,43 @@ def main() -> None:
                     'freshness': response.visual_interpretation_freshness,
                     'interface': response.visual_interpretation_interface,
                     'model_id': response.visual_interpretation_model_id,
+                    'model': (
+                        {
+                            'artifact_sha256': (
+                                response.visual_interpretation_model_artifact_sha256
+                            ),
+                            'build_export_id': (
+                                response.visual_interpretation_model_build_export_id
+                                if response.visual_interpretation_model_has_build_export_id
+                                else None
+                            ),
+                            'capability': (
+                                response.visual_interpretation_model_capability
+                            ),
+                            'configuration_sha256': (
+                                response.visual_interpretation_model_configuration_sha256
+                            ),
+                            'format': response.visual_interpretation_model_format,
+                            'id': response.visual_interpretation_model_id,
+                            'label_schema_id': (
+                                response.visual_interpretation_model_label_schema_id
+                            ),
+                            'label_schema_version': (
+                                response.visual_interpretation_model_label_schema_version
+                            ),
+                            'provenance_sha256': (
+                                response.visual_interpretation_model_provenance_sha256
+                            ),
+                            'source_classification': (
+                                response.visual_interpretation_model_source_classification
+                            ),
+                            'version': (
+                                response.visual_interpretation_model_version
+                            ),
+                        }
+                        if response.has_visual_evaluation
+                        else None
+                    ),
                     'observation_fingerprint': (
                         response.visual_interpretation_observation_fingerprint
                     ),
@@ -297,6 +334,46 @@ def main() -> None:
                     ),
                     'producer_id': response.visual_interpretation_producer_id,
                     'producer_kind': response.visual_interpretation_producer_kind,
+                    'evaluation': (
+                        {
+                            'dataset_id': (
+                                response.visual_interpretation_dataset_id
+                            ),
+                            'dataset_manifest_sha256': (
+                                response.visual_interpretation_dataset_manifest_sha256
+                            ),
+                            'dataset_version': (
+                                response.visual_interpretation_dataset_version
+                            ),
+                            'decision': (
+                                response.visual_interpretation_mechanical_decision
+                            ),
+                            'policy_id': response.visual_interpretation_policy_id,
+                            'policy_sha256': (
+                                response.visual_interpretation_policy_sha256
+                            ),
+                            'policy_version': (
+                                response.visual_interpretation_policy_version
+                            ),
+                            'producer_implementation_sha256': (
+                                response.visual_interpretation_producer_implementation_sha256
+                            ),
+                            'producer_manifest_sha256': (
+                                response.visual_interpretation_producer_manifest_sha256
+                            ),
+                            'producer_version': (
+                                response.visual_interpretation_producer_version
+                            ),
+                            'report_semantic_sha256': (
+                                response.visual_interpretation_report_semantic_sha256
+                            ),
+                            'result_schema_version': (
+                                response.visual_interpretation_result_schema_version
+                            ),
+                        }
+                        if response.has_visual_evaluation
+                        else None
+                    ),
                     'reference_frame_id': (
                         response.visual_interpretation_reference_frame_id
                     ),

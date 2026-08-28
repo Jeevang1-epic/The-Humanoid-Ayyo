@@ -94,6 +94,15 @@ def test_read_only_service_contract_is_bounded_and_typed() -> None:
         'bool has_visual_interpretation',
         'string visual_interpretation_source_visual_observation_id',
         'string visual_interpretation_producer_kind',
+        'bool has_visual_evaluation',
+        'string visual_interpretation_producer_version',
+        'string visual_interpretation_producer_implementation_sha256',
+        'string visual_interpretation_model_artifact_sha256',
+        'string visual_interpretation_model_provenance_sha256',
+        'string visual_interpretation_dataset_manifest_sha256',
+        'string visual_interpretation_policy_sha256',
+        'string visual_interpretation_report_semantic_sha256',
+        'string visual_interpretation_mechanical_decision',
         'uint32 visual_detection_count',
         'bool[] visual_detection_has_confidence',
     ):
@@ -101,6 +110,23 @@ def test_read_only_service_contract_is_bounded_and_typed() -> None:
     assert interface.count('---') == 1
     assert 'string expression' not in interface
     assert 'string query' not in interface
+    assert 'string visual_interpretation_report_json' not in interface
+    assert 'uint8[] visual_interpretation_pixels' not in interface
+
+
+def test_query_exposes_only_compact_evaluation_and_model_provenance() -> None:
+    source = script_source('body_state_query.py')
+    for field in (
+        'artifact_sha256',
+        'dataset_manifest_sha256',
+        'model_provenance_sha256',
+        'policy_sha256',
+        'producer_manifest_sha256',
+        'report_semantic_sha256',
+    ):
+        assert field in source
+    for forbidden in ('pixels', 'report_json', 'latency_ns', 'asset_reference'):
+        assert forbidden not in source
 
 
 def test_adapter_uses_managed_lifecycle_and_no_background_polling() -> None:
