@@ -213,6 +213,16 @@
 - Default-off evaluated live fixture plus two consecutive owned headless smoke
   runs, each proving 5,000-cycle bounds, adversarial recovery, compact query
   provenance, repeat-query identity, lifecycle reactivation, and empty teardown
+- Standalone driver-neutral physical-camera package with immutable source
+  manifests, explicit unknown device fields, deterministic calibration records,
+  bounded exact-time pairing, lifecycle sessions, acquisition diagnostics, and
+  no ROS, vendor, persistence, network, control, or pixel-storage dependency
+- Sealed one-use physical frame and health admission through the existing
+  Perception Trust Boundary, with exact adapter/manifest/calibration/provenance
+  binding and rejection of bare, replayed, simulation, and recorded evidence
+- Default-off hardware-free physical-camera TEST composition and two consecutive
+  owned smoke passes proving 5,000-cycle bounds, calibration/frame rejection,
+  recovery, lifecycle epoch isolation, compact query state, and empty teardown
 - Exact smoke process ownership using a per-run inherited marker and dedicated
   process session, graceful bounded SIGINT-first cleanup, scoped escalation,
   survivor failure, early-exit coverage, and no name-based global killing
@@ -227,7 +237,8 @@
   mass, and inertia tensors
 - Ayyo-specific RViz and Gazebo graphical review of orientation, scale, pivots,
   symmetry, clipping, collision alignment, and joint direction
-- Physical joint, camera, IMU, localization, and diagnostic-source validation
+- Physical joint, real camera/driver/calibration, IMU, localization, and
+  diagnostic-source validation; the implemented camera source is TEST-only
 - Force/torque, touch, depth, audio, production object/person perception,
   navigation, manipulation, and non-synthetic visual producer adapters
 - Production diagnostic producers, SLAM, visual localization, sensor fusion,

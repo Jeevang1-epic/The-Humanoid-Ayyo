@@ -73,6 +73,12 @@ explicit producer registration, verified model artifact identity, immutable
 recorded dataset/policy/report contracts, deterministic bounded evaluation,
 sealed Perception admission, and a default-off ROS fixture. It remains a TEST
 foundation, not model approval or physical-camera validation.
+Physical Head Camera Adapter, Calibration, and Camera Diagnostics Foundation v1
+now adds a driver-neutral reviewed-source contract, deterministic calibration
+identity, bounded Image/CameraInfo pairing, lifecycle sessions, acquisition
+health, sealed Perception admission, and a default-off hardware-free TEST
+composition. It validates the future integration boundary, not any real camera,
+driver, clock, lens calibration, image quality, or edge-device performance.
 
 Final Ayyo assets, graphical controlled-design validation, additional joints,
 trajectory/whole-body controllers, validated dynamics/contact behavior,

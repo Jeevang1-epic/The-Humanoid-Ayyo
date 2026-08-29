@@ -7,8 +7,8 @@ can mature behind stable boundaries before physical hardware is introduced.
 
 ## Current status
 
-Ayyo has reached the Recorded Visual Producer Evaluation and Perception Quality
-Gate v1 milestone with deterministic smoke teardown hardening.
+Ayyo has reached the Physical Head Camera Adapter, Calibration, and Camera
+Diagnostics Foundation v1 milestone with a hardware-free TEST proof.
 
 Implemented:
 
@@ -101,6 +101,12 @@ Implemented:
 - A default-off evaluated ROS fixture and twice-run owned smoke proving exact
   compact provenance, 5,000-cycle bounded state, adversarial recovery,
   repeat-query identity, lifecycle reactivation, and empty teardown
+- A driver-neutral physical-camera source, calibration, pairing, lifecycle,
+  diagnostics, and sealed Perception-admission boundary with distinct physical,
+  simulation, and recorded provenance and no raw-pixel retention
+- A default-off TEST-only physical-camera ROS composition and twice-run smoke
+  proving 5,000-cycle bounds, malformed-calibration/wrong-frame rejection,
+  recovery, source-session renewal, and an empty graph without camera hardware
 - Exact per-smoke process ownership and bounded graceful/scoped teardown,
   including direct shell-free Gazebo ownership and survivor regression tests
 
@@ -140,6 +146,7 @@ independent of cognition and learned policies. See
 [docs/VISUAL_CAMERA_FOUNDATION.md](docs/VISUAL_CAMERA_FOUNDATION.md),
 [docs/VISUAL_PERCEPTION_PROCESSING.md](docs/VISUAL_PERCEPTION_PROCESSING.md),
 [docs/VISUAL_PRODUCER_EVALUATION.md](docs/VISUAL_PRODUCER_EVALUATION.md),
+[docs/PHYSICAL_HEAD_CAMERA_CALIBRATION_DIAGNOSTICS.md](docs/PHYSICAL_HEAD_CAMERA_CALIBRATION_DIAGNOSTICS.md),
 [docs/AYYO_MESH_IMPORT.md](docs/AYYO_MESH_IMPORT.md), and
 [docs/SAFETY.md](docs/SAFETY.md).
 
@@ -257,8 +264,15 @@ python3 -m unittest discover -s working_memory/tests -v
 Run Perception Trust Boundary tests:
 
 ```bash
-PYTHONPATH=world_model/src:visual_evaluation/src:perception/src \
+PYTHONPATH=world_model/src:physical_camera/src:visual_evaluation/src:perception/src \
 python3 -m unittest discover -s perception/tests -v
+```
+
+Run physical head-camera foundation tests:
+
+```bash
+PYTHONPATH=world_model/src:physical_camera/src \
+python3 -m unittest discover -s physical_camera/tests -v
 ```
 
 Run visual producer evaluation tests:
@@ -305,6 +319,13 @@ Run the recorded/evaluated producer gate twice:
 ./scripts/smoke_visual_producer_evaluation.sh
 ```
 
+Run the hardware-free physical-camera foundation smoke twice:
+
+```bash
+./scripts/smoke_physical_camera_foundation.sh
+./scripts/smoke_physical_camera_foundation.sh
+```
+
 ## Repository layout
 
 ```text
@@ -319,6 +340,7 @@ runtime_bridge/  Deterministic Skill-to-ROS compatibility and transport boundary
 simulation_control/  Bounded deterministic simulation-control policy and feedback
 world_model/  Transport-neutral embodied/environment observations and snapshots
 perception/  Deterministic sensor/provenance/time admission trust boundary
+physical_camera/  Driver-neutral physical source, calibration, lifecycle, and diagnostics
 visual_evaluation/  Deterministic producer/model/dataset evaluation quality gate
 working_memory/  Bounded temporary current-state and recent-evidence retention
 ros2_ws/src/   ROS 2 interfaces, description, simulation, Runtime Bridge, and bringup
@@ -334,7 +356,10 @@ Control & Actuation Foundation v1, Embodied World Model and Working Memory
 Foundation v1, and Perception Trust Boundary and Proprioceptive Observation
 Foundation v1, plus Body Localization and Sensor Diagnostics Foundation v1,
 Head RGB Camera and Visual Observation Foundation v1, and Visual Perception
-Processing Foundation v1 are implemented.
+Processing Foundation v1, Recorded Visual Producer Evaluation and Perception
+Quality Gate v1, and Physical Head Camera Adapter, Calibration, and Camera
+Diagnostics Foundation v1 are implemented. The physical-camera milestone has
+only a TEST source; it does not validate real hardware or calibration.
 Production motion remains
 closed because Safety v1 defers physical movement; only explicit development
 injection can exercise the simulated neck joint. The perception path adds

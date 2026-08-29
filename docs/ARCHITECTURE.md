@@ -49,6 +49,12 @@ transport-neutral
 adds verified model/dataset/policy identity, bounded deterministic metrics,
 sealed evaluator evidence, and a default-off live fixture while preserving the
 same Perception boundary. Mechanical pass is not production approval. The
+driver-neutral
+[Physical Head Camera, Calibration, and Diagnostics Foundation](PHYSICAL_HEAD_CAMERA_CALIBRATION_DIAGNOSTICS.md)
+adds an exact physical source manifest, bounded calibration validation,
+lifecycle-scoped sessions, acquisition diagnostics, and sealed frame/health
+admission. Its only executable source is a default-off TEST fixture; simulation
+and recorded evidence cannot inherit physical trust from shared topics. The
 deterministic
 [World Model and Working Memory Foundation](WORLD_MODEL_WORKING_MEMORY.md)
 implements immutable current embodied/environment evidence, deterministic
@@ -118,6 +124,12 @@ replace proxy geometry without duplicating or bypassing frame semantics.
   image-shape validation, and immediate reduction to compact pixel-free
   metadata. Frame receipt establishes availability, not camera health or scene
   understanding. Pixel buffers cannot enter snapshots or durable memory.
+- The physical-camera adapter additionally owns an explicit source allowlist,
+  exact calibration record, active session, bounded metadata pairing, and
+  acquisition-health evidence. Only a sealed frame/health pair may enter the
+  Perception boundary; inactive, old-session, simulation, recorded, wrong-frame,
+  or wrong-calibration evidence fails closed. It owns no driver, control, skill,
+  or movement authority.
 - Visual interpretation producers operate only after frame admission. The
   existing trust boundary owns exact source-frame, camera, optical-frame,
   acquisition/result-time, producer, provenance, ordering, fingerprint, and

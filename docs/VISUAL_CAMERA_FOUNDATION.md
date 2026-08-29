@@ -123,11 +123,14 @@ transport:  ros2
 interface:  sensor-msgs.image-camera-info.v1
 ```
 
-The unexercised physical seam has distinct source identity
-`ros.camera.head.physical.standard-driver.v1`, source kind `physical_sensor`,
-and `ros_system_time`. Simulation evidence cannot be relabeled as physical:
-the exact provenance and clock checks reject substitution, and provenance is
-part of every observation fingerprint.
+The original `ros.camera.head.physical.standard-driver.v1` seam remains
+unexercised and is not enabled as a trusted camera source by itself. The
+separate
+[Physical Head Camera, Calibration, and Diagnostics Foundation](PHYSICAL_HEAD_CAMERA_CALIBRATION_DIAGNOSTICS.md)
+now requires an explicit source manifest, reviewed calibration, active session,
+and sealed admission. Its executable source is TEST-only. Simulation evidence
+cannot be relabeled as physical: exact provenance, clock, manifest, session,
+and calibration checks reject substitution.
 
 Visual evidence uses the existing default 500 ms freshness, 2 second TTL, and
 50 ms permitted future skew. Duplicate, stale, future, out-of-order,
@@ -135,11 +138,13 @@ same-time-conflicting, wrong-robot, wrong-sensor, wrong-frame, wrong-source,
 malformed-calibration, malformed-image, and source-clock-regression input fails
 closed. Receipt time never replaces acquisition time.
 
-A valid frame establishes only that a source produced a valid frame pair.
-There is no camera diagnostic producer, so explicit camera health remains
-absent. After freshness the retained measurement becomes stale; after TTL it
-disappears and the known camera source becomes unavailable. This is evaluated
-on ingest/query without a background timer.
+A valid simulation frame establishes only that a source produced a valid frame
+pair. The simulation path has no camera diagnostic producer, so explicit camera
+health remains absent. The physical TEST foundation produces separate bounded
+acquisition health; it is not scene understanding or real-device validation.
+After freshness a retained measurement becomes stale; after TTL it disappears
+and the known source becomes unavailable. This is evaluated on ingest/query
+without a background timer.
 
 ## Simulation only
 
@@ -257,8 +262,9 @@ source contract; it does not make the simulation camera physical evidence.
 
 ## Not implemented
 
-- Physical camera, driver, calibration, synchronization, diagnostics, or
-  hardware validation
+- Real physical camera/driver integration, real calibration or synchronization,
+  production diagnostics, and hardware validation; only the driver-neutral
+  boundary and a programmatic TEST source are implemented
 - RGB-D or depth transport
 - Preprocessing, detection, tracking, face or owner recognition
 - Object, person, identity, pose, gesture, OCR, or scene understanding

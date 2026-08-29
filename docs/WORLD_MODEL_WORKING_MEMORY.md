@@ -162,8 +162,12 @@ The corresponding IMU sources are
 exercised; the physical profile is a reviewed seam, not a hardware claim.
 The corresponding RGB camera sources are
 `ros.camera.head.simulation.gz-harmonic.v1` and
-`ros.camera.head.physical.standard-driver.v1`, both using the transport-neutral
-`sensor-msgs.image-camera-info.v1` interface identity.
+the unexercised seam `ros.camera.head.physical.standard-driver.v1`, both using
+the transport-neutral `sensor-msgs.image-camera-info.v1` interface identity.
+The seam is not sufficient to admit a physical frame. The separate
+[Physical Head Camera, Calibration, and Diagnostics Foundation](PHYSICAL_HEAD_CAMERA_CALIBRATION_DIAGNOSTICS.md)
+requires an explicit manifest, calibration, active session, and sealed
+Perception authorization. Its only executable source is TEST-only.
 
 The adapter rejects a simulation profile with wall/system ROS time and a
 physical profile with simulation time. Profile selection never changes the
