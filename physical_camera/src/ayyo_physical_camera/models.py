@@ -380,11 +380,30 @@ class PhysicalCameraSourceManifest:
         derived = f"physical-camera-source-sha256-{_canonical_sha256(document)}"
         if manifest_id is not None and manifest_id != derived:
             _fail("physical source manifest identity does not match its content")
-        for name, value in locals().copy().items():
-            if name in {"self", "manifest_id", "document", "derived", "dimensions"}:
-                continue
-            if name in self.__slots__:
-                object.__setattr__(self, name, value)
+        object.__setattr__(self, "source_id", source_id)
+        object.__setattr__(self, "robot_id", robot_id)
+        object.__setattr__(self, "camera", camera)
+        object.__setattr__(self, "adapter_id", adapter_id)
+        object.__setattr__(self, "adapter_version", adapter_version)
+        object.__setattr__(self, "adapter_implementation_sha256", implementation)
+        object.__setattr__(self, "provenance", provenance)
+        object.__setattr__(self, "classification", classification)
+        object.__setattr__(self, "device_serial", device_serial)
+        object.__setattr__(
+            self,
+            "device_fingerprint_sha256",
+            device_fingerprint_sha256,
+        )
+        object.__setattr__(self, "camera_frame_id", camera_frame)
+        object.__setattr__(self, "encodings", encodings)
+        object.__setattr__(self, "minimum_width", minimum_width)
+        object.__setattr__(self, "maximum_width", maximum_width)
+        object.__setattr__(self, "minimum_height", minimum_height)
+        object.__setattr__(self, "maximum_height", maximum_height)
+        object.__setattr__(self, "image_topic", image_topic)
+        object.__setattr__(self, "camera_info_topic", camera_info_topic)
+        object.__setattr__(self, "calibration_id", calibration_id)
+        object.__setattr__(self, "calibration_record_id", calibration_record_id)
         object.__setattr__(self, "manifest_id", derived)
 
     def requirement(self) -> PhysicalCameraTrustRequirement:

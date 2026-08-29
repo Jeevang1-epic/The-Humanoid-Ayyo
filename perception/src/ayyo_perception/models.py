@@ -15,6 +15,7 @@ from ayyo_world_model import (
     Observation,
     ObservationClock,
     ObservationProvenance,
+    ObservationSourceKind,
     SensorIdentity,
     SensorKind,
     VisualInterpretationProducer,
@@ -246,7 +247,7 @@ class PerceptionTrustConfig:
             (source.sensor.sensor_id, source.provenance.source_id)
             for source in self.sources
             if source.sensor.kind is SensorKind.RGB_CAMERA
-            and source.provenance.source_kind.value == "physical_sensor"
+            and source.provenance.source_kind is ObservationSourceKind.PHYSICAL_SENSOR
         }
         physical_requirement_keys = {
             (requirement.camera.sensor_id, requirement.source_id)

@@ -10,6 +10,7 @@ from ayyo_world_model import (
     EnvironmentEntityObservation,
     ImuObservation,
     ObservationIdentityError,
+    ObservationSourceKind,
     RobotStateObservation,
     SensorAvailability,
     SensorHealthObservation,
@@ -368,7 +369,8 @@ class PerceptionTrustBoundary:
             if (
                 type(rebuilt) in {VisualFrameObservation, SensorHealthObservation}
                 and getattr(rebuilt, "sensor", None).kind is SensorKind.RGB_CAMERA
-                and rebuilt.provenance.source_kind.value == "physical_sensor"
+                and rebuilt.provenance.source_kind
+                is ObservationSourceKind.PHYSICAL_SENSOR
             ):
                 requirement = next(
                     (

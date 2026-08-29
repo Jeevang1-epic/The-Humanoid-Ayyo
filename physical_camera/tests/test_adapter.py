@@ -11,9 +11,18 @@ from ayyo_physical_camera import (
     PhysicalCameraLifecycleError,
     PhysicalCameraLifecycleState,
     PhysicalCameraSourceRegistry,
+    PhysicalCameraValidationError,
     fixture_camera_info_metadata,
     fixture_image_metadata,
     physical_camera_fixture_bundle,
+)
+from ayyo_world_model import (
+    MAX_IMAGE_DATA_BYTES,
+    ObservationClock,
+    ObservationSourceKind,
+    ObservationTransport,
+    SensorIdentity,
+    SensorKind,
 )
 
 
@@ -94,6 +103,42 @@ class PhysicalCameraAdapterTest(unittest.TestCase):
             )
         )
 
+    def test_wrong_camera_and_recorded_source_cannot_claim_physical_identity(self) -> None:
+        bundle, adapter, session = configured_adapter()
+        wrong_camera = SensorIdentity(
+            "other.camera.head.rgb.v1",
+            SensorKind.RGB_CAMERA,
+            bundle.source.camera.frame_id,
+        )
+        recorded_provenance = replace(
+            bundle.source.provenance,
+            source_kind=ObservationSourceKind.RECORDED_DATA,
+            clock=ObservationClock.RECORDED_TIME,
+            transport=ObservationTransport.RECORDED,
+        )
+        for image in (
+            fixture_image_metadata(
+                bundle,
+                session,
+                100,
+                camera=wrong_camera,
+            ),
+            fixture_image_metadata(
+                bundle,
+                session,
+                101,
+                provenance=recorded_provenance,
+            ),
+        ):
+            with self.subTest(image=image):
+                self.assertIsNone(
+                    adapter.submit_image(image, now_ns=image.observed_at_ns)
+                )
+                self.assertEqual(
+                    PhysicalCameraDiagnosticEvent.WRONG_SOURCE,
+                    adapter.diagnostics.event,
+                )
+
     def test_wrong_dimensions_encoding_and_calibration_fail(self) -> None:
         bundle, adapter, session = configured_adapter()
         wrong_images = (
@@ -123,6 +168,65 @@ class PhysicalCameraAdapterTest(unittest.TestCase):
         self.assertIsNone(adapter.submit_camera_info(wrong_info, now_ns=102))
         self.assertEqual(
             PhysicalCameraDiagnosticEvent.CALIBRATION_INVALID,
+            adapter.diagnostics.event,
+        )
+
+    def test_pair_geometry_and_malformed_image_metadata_fail_closed(self) -> None:
+        bundle = physical_camera_fixture_bundle()
+        source = replace(
+            bundle.source,
+            maximum_width=bundle.source.maximum_width + 1,
+            manifest_id=None,
+        )
+        registry = PhysicalCameraSourceRegistry()
+        registry.register(source)
+        adapter = PhysicalCameraLifecycleAdapter(registry)
+        adapter.configure(source.source_id, bundle.calibration)
+        session = adapter.activate()
+        adapter.submit_camera_info(
+            fixture_camera_info_metadata(bundle, session, 100),
+            now_ns=100,
+        )
+        self.assertIsNone(
+            adapter.submit_image(
+                fixture_image_metadata(
+                    bundle,
+                    session,
+                    100,
+                    width=bundle.calibration.calibration.width + 1,
+                    step=(bundle.calibration.calibration.width + 1) * 3,
+                    data_size_bytes=(
+                        (bundle.calibration.calibration.width + 1)
+                        * bundle.calibration.calibration.height
+                        * 3
+                    ),
+                ),
+                now_ns=100,
+            )
+        )
+        self.assertEqual(
+            PhysicalCameraDiagnosticEvent.PAIR_MISMATCH,
+            adapter.diagnostics.event,
+        )
+        with self.assertRaises(PhysicalCameraValidationError):
+            fixture_image_metadata(
+                bundle,
+                session,
+                101,
+                step=MAX_IMAGE_DATA_BYTES,
+                data_size_bytes=MAX_IMAGE_DATA_BYTES * 2,
+            )
+        empty_encoding = fixture_image_metadata(
+            bundle,
+            session,
+            102,
+            encoding="",
+        )
+        self.assertIsNone(
+            adapter.submit_image(empty_encoding, now_ns=102)
+        )
+        self.assertEqual(
+            PhysicalCameraDiagnosticEvent.UNSUPPORTED_ENCODING,
             adapter.diagnostics.event,
         )
 

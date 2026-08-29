@@ -79,6 +79,21 @@ class PhysicalCameraContractTest(unittest.TestCase):
         self.assertNotEqual(first.calibration.calibration_id, changed.calibration.calibration_id)
         self.assertNotEqual(first.calibration_record_id, changed.calibration_record_id)
 
+    def test_supplied_calibration_and_manifest_fingerprints_must_match_content(self) -> None:
+        bundle = physical_camera_fixture_bundle()
+        with self.assertRaises(PhysicalCameraValidationError):
+            replace(
+                bundle.calibration,
+                calibration_record_id=(
+                    "physical-camera-calibration-sha256-" + "1" * 64
+                ),
+            )
+        with self.assertRaises(PhysicalCameraValidationError):
+            replace(
+                bundle.source,
+                manifest_id="physical-camera-source-sha256-" + "1" * 64,
+            )
+
     def test_unsupported_distortion_model_and_coefficient_count_fail(self) -> None:
         base = physical_camera_fixture_bundle().calibration
         for model, coefficients in (("unknown_model", ()), ("plumb_bob", (0.0,))):

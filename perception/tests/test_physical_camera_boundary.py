@@ -103,19 +103,31 @@ class PhysicalCameraPerceptionBoundaryTest(unittest.TestCase):
 
     def test_wrong_calibration_requirement_cannot_authorize(self) -> None:
         bundle, admission = sealed_admission()
-        wrong = replace(
-            bundle.source.requirement(),
-            calibration_id="camera-calibration-sha256-" + "1" * 64,
-        )
-        trust = PerceptionTrustBoundary(
-            PerceptionTrustConfig(
-                robot_id=bundle.source.robot_id,
-                source_clock=ObservationClock.ROS_SYSTEM_TIME,
-                sources=(PerceptionSourceContract(bundle.source.camera, bundle.source.provenance),),
-                physical_camera_requirements=(wrong,),
-            )
-        )
-        self.assertFalse(trust.authorize_physical_camera(admission))
+        for wrong in (
+            replace(
+                bundle.source.requirement(),
+                calibration_id="camera-calibration-sha256-" + "1" * 64,
+            ),
+            replace(
+                bundle.source.requirement(),
+                adapter_id="unknown.physical-camera.adapter.v1",
+            ),
+        ):
+            with self.subTest(requirement=wrong):
+                trust = PerceptionTrustBoundary(
+                    PerceptionTrustConfig(
+                        robot_id=bundle.source.robot_id,
+                        source_clock=ObservationClock.ROS_SYSTEM_TIME,
+                        sources=(
+                            PerceptionSourceContract(
+                                bundle.source.camera,
+                                bundle.source.provenance,
+                            ),
+                        ),
+                        physical_camera_requirements=(wrong,),
+                    )
+                )
+                self.assertFalse(trust.authorize_physical_camera(admission))
 
     def test_physical_rgb_source_without_requirement_is_invalid_configuration(self) -> None:
         bundle = physical_camera_fixture_bundle()
