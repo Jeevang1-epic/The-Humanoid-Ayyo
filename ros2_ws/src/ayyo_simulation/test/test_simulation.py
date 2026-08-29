@@ -110,12 +110,23 @@ def test_owned_shutdown_uses_scoped_term_escalation() -> None:
 set -euo pipefail
 launch_pid=""
 source "{PROCESS_HELPER}"
+ready_file="$(mktemp -t ayyo-smoke-term-ready.XXXXXX)"
+rm -f "$ready_file"
+trap 'rm -f "$ready_file"' EXIT
 ayyo_smoke_start_owned_launch /dev/null python3 -c '
+import pathlib
 import signal
+import sys
 import time
 signal.signal(signal.SIGINT, signal.SIG_IGN)
+pathlib.Path(sys.argv[1]).touch()
 time.sleep(30)
-'
+' "$ready_file"
+for _ in {{1..100}}; do
+  [[ -f "$ready_file" ]] && break
+  sleep 0.01
+done
+[[ -f "$ready_file" ]]
 ayyo_smoke_shutdown_owned_launch
 [[ "$ayyo_smoke_shutdown_escalated" -eq 1 ]]
 [[ -z "$(ayyo_smoke_owned_pids)" ]]

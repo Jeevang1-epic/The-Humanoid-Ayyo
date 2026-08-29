@@ -21,6 +21,18 @@ from ayyo_perception import (
     PerceptionTrustConfig,
     REFERENCE_VISUAL_PRODUCER,
 )
+from ayyo_visual_evaluation import (
+    DeterministicFixtureInvoker,
+    fixture_bundle_for_live_profile,
+    fixture_detection,
+    FixtureEvaluationBundle,
+    VisualEvaluationConfigurationError,
+    VisualEvaluationInput,
+    VisualEvaluationReport,
+    VisualEvaluationSample,
+    VisualProducerEvaluator,
+    VisualProducerRegistry,
+)
 from ayyo_working_memory import (
     IngestionStatus,
     WorkingMemory,
@@ -46,18 +58,6 @@ from ayyo_world_model import (
     SensorKind,
     WorldModelFailureCode,
     WorldModelValidationError,
-)
-from ayyo_visual_evaluation import (
-    DeterministicFixtureInvoker,
-    FixtureEvaluationBundle,
-    VisualEvaluationConfigurationError,
-    VisualEvaluationInput,
-    VisualEvaluationReport,
-    VisualEvaluationSample,
-    VisualProducerEvaluator,
-    VisualProducerRegistry,
-    fixture_bundle_for_live_profile,
-    fixture_detection,
 )
 from builtin_interfaces.msg import Time
 from diagnostic_msgs.msg import DiagnosticArray
