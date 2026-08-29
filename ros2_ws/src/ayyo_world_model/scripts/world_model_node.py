@@ -21,6 +21,16 @@ from ayyo_perception import (
     PerceptionTrustConfig,
     REFERENCE_VISUAL_PRODUCER,
 )
+from ayyo_physical_camera import (
+    FIXTURE_PROVENANCE as PHYSICAL_CAMERA_FIXTURE_PROVENANCE,
+    physical_camera_fixture_bundle,
+    PhysicalCameraConfigurationError,
+    PhysicalCameraLifecycleAdapter,
+    PhysicalCameraLifecycleError,
+    PhysicalCameraLifecycleState,
+    PhysicalCameraSourceRegistry,
+    PhysicalCameraValidationError,
+)
 from ayyo_visual_evaluation import (
     DeterministicFixtureInvoker,
     fixture_bundle_for_live_profile,
@@ -71,6 +81,11 @@ from localization_diagnostics import (
     odometry_transform,
 )
 from nav_msgs.msg import Odometry
+from physical_camera_adapter import (
+    normalize_physical_camera_info_metadata,
+    normalize_physical_image_metadata,
+    PhysicalCameraRosAdapterError,
+)
 import rclpy
 from rclpy.duration import Duration
 from rclpy.executors import ExternalShutdownException, SingleThreadedExecutor
@@ -96,6 +111,7 @@ DIAGNOSTICS_TOPIC = '/diagnostics'
 QUERY_SERVICE = '/ayyo/world_model/get_robot_body_state'
 SIMULATION_SOURCE_PROFILE = 'simulation_ros2_control_v1'
 PHYSICAL_SOURCE_PROFILE = 'physical_ros2_control_v1'
+PHYSICAL_CAMERA_FIXTURE_SOURCE_PROFILE = 'physical_camera_test_fixture_v1'
 SOURCE_PROFILES = {
     SIMULATION_SOURCE_PROFILE: ObservationProvenance(
         source_kind=ObservationSourceKind.SIMULATION,
@@ -107,6 +123,13 @@ SOURCE_PROFILES = {
     PHYSICAL_SOURCE_PROFILE: ObservationProvenance(
         source_kind=ObservationSourceKind.PHYSICAL_SENSOR,
         source_id='ros.joint-states.physical.ros2-control.v1',
+        clock=ObservationClock.ROS_SYSTEM_TIME,
+        transport=ObservationTransport.ROS2,
+        interface='sensor-msgs.joint-state.v1',
+    ),
+    PHYSICAL_CAMERA_FIXTURE_SOURCE_PROFILE: ObservationProvenance(
+        source_kind=ObservationSourceKind.PHYSICAL_SENSOR,
+        source_id='ros.joint-states.physical.test-fixture.v1',
         clock=ObservationClock.ROS_SYSTEM_TIME,
         transport=ObservationTransport.ROS2,
         interface='sensor-msgs.joint-state.v1',
@@ -127,6 +150,13 @@ IMU_SOURCE_PROFILES = {
         transport=ObservationTransport.ROS2,
         interface='sensor-msgs.imu.v1',
     ),
+    PHYSICAL_CAMERA_FIXTURE_SOURCE_PROFILE: ObservationProvenance(
+        source_kind=ObservationSourceKind.PHYSICAL_SENSOR,
+        source_id='ros.imu.physical.test-fixture.v1',
+        clock=ObservationClock.ROS_SYSTEM_TIME,
+        transport=ObservationTransport.ROS2,
+        interface='sensor-msgs.imu.v1',
+    ),
 }
 POSE_SOURCE_PROFILES = {
     SIMULATION_SOURCE_PROFILE: ObservationProvenance(
@@ -139,6 +169,13 @@ POSE_SOURCE_PROFILES = {
     PHYSICAL_SOURCE_PROFILE: ObservationProvenance(
         source_kind=ObservationSourceKind.PHYSICAL_SENSOR,
         source_id='ros.body-pose.physical.localization.v1',
+        clock=ObservationClock.ROS_SYSTEM_TIME,
+        transport=ObservationTransport.ROS2,
+        interface='nav-msgs.odometry-tf2.v1',
+    ),
+    PHYSICAL_CAMERA_FIXTURE_SOURCE_PROFILE: ObservationProvenance(
+        source_kind=ObservationSourceKind.PHYSICAL_SENSOR,
+        source_id='ros.body-pose.physical.test-fixture.v1',
         clock=ObservationClock.ROS_SYSTEM_TIME,
         transport=ObservationTransport.ROS2,
         interface='nav-msgs.odometry-tf2.v1',
@@ -159,6 +196,13 @@ DIAGNOSTIC_SOURCE_PROFILES = {
         transport=ObservationTransport.ROS2,
         interface='diagnostic-msgs.diagnostic-array.v1',
     ),
+    PHYSICAL_CAMERA_FIXTURE_SOURCE_PROFILE: ObservationProvenance(
+        source_kind=ObservationSourceKind.PHYSICAL_SENSOR,
+        source_id='ros.diagnostics.physical.test-fixture.v1',
+        clock=ObservationClock.ROS_SYSTEM_TIME,
+        transport=ObservationTransport.ROS2,
+        interface='diagnostic-msgs.diagnostic-array.v1',
+    ),
 }
 CAMERA_SOURCE_PROFILES = {
     SIMULATION_SOURCE_PROFILE: ObservationProvenance(
@@ -175,6 +219,7 @@ CAMERA_SOURCE_PROFILES = {
         transport=ObservationTransport.ROS2,
         interface='sensor-msgs.image-camera-info.v1',
     ),
+    PHYSICAL_CAMERA_FIXTURE_SOURCE_PROFILE: PHYSICAL_CAMERA_FIXTURE_PROVENANCE,
 }
 JOINT_SENSOR = SensorIdentity(
     'ayyo.joint-state.body.v1',
@@ -355,6 +400,8 @@ class AyyoWorldModelNode(LifecycleNode):
             'enable_visual_producer_evaluation_fixture',
             False,
         )
+        self.declare_parameter('enable_physical_camera_adapter', False)
+        self.declare_parameter('physical_camera_profile', 'unconfigured')
         self._memory: WorkingMemory | None = None
         self._trust_boundary: PerceptionTrustBoundary | None = None
         self._provenance: ObservationProvenance | None = None
@@ -362,6 +409,8 @@ class AyyoWorldModelNode(LifecycleNode):
         self._pose_provenance: ObservationProvenance | None = None
         self._diagnostic_provenance: ObservationProvenance | None = None
         self._camera_provenance: ObservationProvenance | None = None
+        self._camera_enabled = False
+        self._physical_camera_adapter: PhysicalCameraLifecycleAdapter | None = None
         self._visual_reference_adapter: (
             DeterministicVisualReferenceAdapter | None
         ) = None
@@ -461,10 +510,65 @@ class AyyoWorldModelNode(LifecycleNode):
                     'enable_visual_producer_evaluation_fixture'
                 ).value
             )
+            enable_physical_camera = bool(
+                self.get_parameter('enable_physical_camera_adapter').value
+            )
+            physical_camera_profile = self.get_parameter(
+                'physical_camera_profile'
+            ).value
             if enable_visual_reference and enable_visual_evaluation:
                 raise WorkingMemoryConfigurationError(
                     'visual reference and evaluated fixture modes are mutually exclusive'
                 )
+            physical_camera_bundle = None
+            physical_camera_adapter = None
+            physical_camera_requirements = ()
+            if enable_physical_camera:
+                if (
+                    profile_name != PHYSICAL_CAMERA_FIXTURE_SOURCE_PROFILE
+                    or physical_camera_profile != 'test_fixture_v1'
+                ):
+                    raise PhysicalCameraConfigurationError(
+                        'v1 physical camera adapter requires the explicit TEST fixture profile'
+                    )
+                if enable_visual_reference or enable_visual_evaluation:
+                    raise PhysicalCameraConfigurationError(
+                        'physical camera, visual reference, and evaluation '
+                        'fixtures remain distinct'
+                    )
+                physical_camera_bundle = physical_camera_fixture_bundle()
+                if physical_camera_bundle.source.provenance != camera_provenance:
+                    raise PhysicalCameraConfigurationError(
+                        'physical camera fixture provenance differs from composition'
+                    )
+                physical_registry = PhysicalCameraSourceRegistry()
+                physical_registry.register(physical_camera_bundle.source)
+                physical_camera_adapter = PhysicalCameraLifecycleAdapter(
+                    physical_registry,
+                    retention_ns=int(
+                        self.get_parameter('retention_ttl_ms').value
+                    )
+                    * 1_000_000,
+                    future_skew_ns=int(
+                        self.get_parameter('permitted_future_skew_ms').value
+                    )
+                    * 1_000_000,
+                )
+                physical_camera_adapter.configure(
+                    physical_camera_bundle.source.source_id,
+                    physical_camera_bundle.calibration,
+                )
+                physical_camera_requirements = (
+                    physical_camera_bundle.source.requirement(),
+                )
+            elif physical_camera_profile != 'unconfigured':
+                raise PhysicalCameraConfigurationError(
+                    'physical camera profile must remain unconfigured while disabled'
+                )
+            camera_enabled = (
+                camera_provenance.source_kind is ObservationSourceKind.SIMULATION
+                or physical_camera_adapter is not None
+            )
             visual_bundle = None
             visual_evaluator = None
             visual_report = None
@@ -506,6 +610,32 @@ class AyyoWorldModelNode(LifecycleNode):
                     if enable_visual_reference
                     else ()
                 )
+            )
+            perception_sources = (
+                PerceptionSourceContract(JOINT_SENSOR, provenance),
+                PerceptionSourceContract(IMU_SENSOR, imu_provenance),
+                PerceptionSourceContract(
+                    BODY_POSE_SENSOR,
+                    pose_provenance,
+                    'odom',
+                ),
+                PerceptionSourceContract(
+                    JOINT_SENSOR,
+                    diagnostic_provenance,
+                ),
+                PerceptionSourceContract(
+                    IMU_SENSOR,
+                    diagnostic_provenance,
+                ),
+            ) + (
+                (
+                    PerceptionSourceContract(
+                        HEAD_CAMERA_SENSOR,
+                        camera_provenance,
+                    ),
+                )
+                if camera_enabled
+                else ()
             )
             self._memory = WorkingMemory(
                 catalog,
@@ -554,27 +684,7 @@ class AyyoWorldModelNode(LifecycleNode):
                 PerceptionTrustConfig(
                     robot_id=AYYO_ROBOT_ID,
                     source_clock=provenance.clock,
-                    sources=(
-                        PerceptionSourceContract(JOINT_SENSOR, provenance),
-                        PerceptionSourceContract(IMU_SENSOR, imu_provenance),
-                        PerceptionSourceContract(
-                            BODY_POSE_SENSOR,
-                            pose_provenance,
-                            'odom',
-                        ),
-                        PerceptionSourceContract(
-                            JOINT_SENSOR,
-                            diagnostic_provenance,
-                        ),
-                        PerceptionSourceContract(
-                            IMU_SENSOR,
-                            diagnostic_provenance,
-                        ),
-                        PerceptionSourceContract(
-                            HEAD_CAMERA_SENSOR,
-                            camera_provenance,
-                        ),
-                    ),
+                    sources=perception_sources,
                     freshness_ns=int(self.get_parameter('freshness_ms').value)
                     * 1_000_000,
                     retention_ttl_ns=int(
@@ -587,6 +697,7 @@ class AyyoWorldModelNode(LifecycleNode):
                     * 1_000_000,
                     visual_interpretation_producers=visual_producers,
                     visual_evaluation_requirements=visual_requirements,
+                    physical_camera_requirements=physical_camera_requirements,
                 )
             )
             self._provenance = provenance
@@ -594,6 +705,8 @@ class AyyoWorldModelNode(LifecycleNode):
             self._pose_provenance = pose_provenance
             self._diagnostic_provenance = diagnostic_provenance
             self._camera_provenance = camera_provenance
+            self._camera_enabled = camera_enabled
+            self._physical_camera_adapter = physical_camera_adapter
             self._visual_reference_adapter = (
                 DeterministicVisualReferenceAdapter()
                 if enable_visual_reference
@@ -613,6 +726,9 @@ class AyyoWorldModelNode(LifecycleNode):
             return TransitionCallbackReturn.SUCCESS
         except (
             PerceptionConfigurationError,
+            PhysicalCameraConfigurationError,
+            PhysicalCameraLifecycleError,
+            PhysicalCameraValidationError,
             VisualEvaluationConfigurationError,
             WorldModelValidationError,
             WorkingMemoryConfigurationError,
@@ -625,6 +741,8 @@ class AyyoWorldModelNode(LifecycleNode):
             self._pose_provenance = None
             self._diagnostic_provenance = None
             self._camera_provenance = None
+            self._camera_enabled = False
+            self._physical_camera_adapter = None
             self._visual_reference_adapter = None
             self._visual_evaluation_bundle = None
             self._visual_evaluation_report = None
@@ -645,6 +763,14 @@ class AyyoWorldModelNode(LifecycleNode):
             or self._camera_provenance is None
         ):
             return TransitionCallbackReturn.FAILURE
+        if self._physical_camera_adapter is not None:
+            try:
+                self._physical_camera_adapter.activate()
+            except PhysicalCameraLifecycleError as error:
+                self.get_logger().error(
+                    f'physical camera activation failed closed: {error}'
+                )
+                return TransitionCallbackReturn.FAILURE
         self._joint_subscription = self.create_subscription(
             JointState,
             JOINT_STATE_TOPIC,
@@ -674,18 +800,19 @@ class AyyoWorldModelNode(LifecycleNode):
             self._on_diagnostics,
             10,
         )
-        self._image_subscription = self.create_subscription(
-            Image,
-            IMAGE_TOPIC,
-            self._on_image,
-            qos_profile_sensor_data,
-        )
-        self._camera_info_subscription = self.create_subscription(
-            CameraInfo,
-            CAMERA_INFO_TOPIC,
-            self._on_camera_info,
-            qos_profile_sensor_data,
-        )
+        if self._camera_enabled:
+            self._image_subscription = self.create_subscription(
+                Image,
+                IMAGE_TOPIC,
+                self._on_image,
+                qos_profile_sensor_data,
+            )
+            self._camera_info_subscription = self.create_subscription(
+                CameraInfo,
+                CAMERA_INFO_TOPIC,
+                self._on_camera_info,
+                qos_profile_sensor_data,
+            )
         self._visual_evaluated_this_activation = False
         self._active = True
         return TransitionCallbackReturn.SUCCESS
@@ -715,12 +842,29 @@ class AyyoWorldModelNode(LifecycleNode):
         self._pending_camera_info = None
         self._visual_evaluated_this_activation = False
         self._pose_buffer = None
+        if (
+            self._physical_camera_adapter is not None
+            and self._physical_camera_adapter.state
+            is PhysicalCameraLifecycleState.ACTIVE
+        ):
+            self._physical_camera_adapter.deactivate()
+            if self._memory is not None:
+                self._memory.reset()
+            if self._trust_boundary is not None:
+                self._trust_boundary.reset()
         return TransitionCallbackReturn.SUCCESS
 
     def on_cleanup(self, state: State) -> TransitionCallbackReturn:
         del state
         self._active = False
         self._destroy_runtime_interfaces()
+        if self._physical_camera_adapter is not None:
+            if (
+                self._physical_camera_adapter.state
+                is PhysicalCameraLifecycleState.ACTIVE
+            ):
+                self._physical_camera_adapter.deactivate()
+            self._physical_camera_adapter.cleanup()
         if self._memory is not None:
             self._memory.reset()
         if self._trust_boundary is not None:
@@ -732,6 +876,8 @@ class AyyoWorldModelNode(LifecycleNode):
         self._pose_provenance = None
         self._diagnostic_provenance = None
         self._camera_provenance = None
+        self._camera_enabled = False
+        self._physical_camera_adapter = None
         self._visual_reference_adapter = None
         self._visual_evaluation_bundle = None
         self._visual_evaluation_report = None
@@ -743,6 +889,8 @@ class AyyoWorldModelNode(LifecycleNode):
         del state
         self._active = False
         self._destroy_runtime_interfaces()
+        if self._physical_camera_adapter is not None:
+            self._physical_camera_adapter.shutdown()
         if self._memory is not None:
             self._memory.reset()
         if self._trust_boundary is not None:
@@ -754,6 +902,8 @@ class AyyoWorldModelNode(LifecycleNode):
         self._pose_provenance = None
         self._diagnostic_provenance = None
         self._camera_provenance = None
+        self._camera_enabled = False
+        self._physical_camera_adapter = None
         self._visual_reference_adapter = None
         self._visual_evaluation_bundle = None
         self._visual_evaluation_report = None
@@ -868,14 +1018,120 @@ class AyyoWorldModelNode(LifecycleNode):
     def _on_image(self, message: Image) -> None:
         if not self._active or self._camera_provenance is None:
             return
+        if self._physical_camera_adapter is not None:
+            try:
+                session_id = self._physical_camera_adapter.active_session_id
+                source = self._physical_camera_adapter.source
+                if session_id is None or source is None:
+                    raise PhysicalCameraLifecycleError(
+                        'physical camera callback has no active source session'
+                    )
+                previous_rejected = (
+                    self._physical_camera_adapter.diagnostics.rejected_count
+                )
+                admission = self._physical_camera_adapter.submit_image(
+                    normalize_physical_image_metadata(
+                        message,
+                        source,
+                        session_id,
+                    ),
+                    now_ns=self.get_clock().now().nanoseconds,
+                )
+                self._handle_physical_camera_result(
+                    admission,
+                    previous_rejected=previous_rejected,
+                )
+            except (
+                PerceptionConfigurationError,
+                PhysicalCameraLifecycleError,
+                PhysicalCameraRosAdapterError,
+                PhysicalCameraValidationError,
+                WorldModelValidationError,
+                WorkingMemoryConfigurationError,
+            ) as error:
+                self._warn_bounded('invalid', str(error))
+            return
         self._pending_image = message
         self._try_visual_pair()
 
     def _on_camera_info(self, message: CameraInfo) -> None:
         if not self._active or self._camera_provenance is None:
             return
+        if self._physical_camera_adapter is not None:
+            try:
+                session_id = self._physical_camera_adapter.active_session_id
+                source = self._physical_camera_adapter.source
+                calibration = self._physical_camera_adapter.calibration
+                if session_id is None or source is None or calibration is None:
+                    raise PhysicalCameraLifecycleError(
+                        'physical CameraInfo callback has no active calibrated session'
+                    )
+                previous_rejected = (
+                    self._physical_camera_adapter.diagnostics.rejected_count
+                )
+                admission = self._physical_camera_adapter.submit_camera_info(
+                    normalize_physical_camera_info_metadata(
+                        message,
+                        source,
+                        session_id,
+                        calibration,
+                    ),
+                    now_ns=self.get_clock().now().nanoseconds,
+                )
+                self._handle_physical_camera_result(
+                    admission,
+                    previous_rejected=previous_rejected,
+                )
+            except (
+                PerceptionConfigurationError,
+                PhysicalCameraLifecycleError,
+                PhysicalCameraRosAdapterError,
+                PhysicalCameraValidationError,
+                WorldModelValidationError,
+                WorkingMemoryConfigurationError,
+            ) as error:
+                self._warn_bounded('invalid', str(error))
+            return
         self._pending_camera_info = message
         self._try_visual_pair()
+
+    def _handle_physical_camera_result(
+        self,
+        admission,
+        *,
+        previous_rejected: int,
+    ) -> None:
+        if self._physical_camera_adapter is None:
+            return
+        diagnostics = self._physical_camera_adapter.diagnostics
+        if admission is None:
+            if diagnostics.rejected_count != previous_rejected:
+                self._warn_bounded(
+                    'rejected',
+                    f'physical camera {diagnostics.event.value}',
+                )
+            return
+        if self._trust_boundary is None or not self._trust_boundary.authorize_physical_camera(
+            admission
+        ):
+            self._warn_bounded(
+                'rejected',
+                'sealed physical camera evidence did not match the trust policy',
+            )
+            return
+        frame_result = self._admit_and_retain(admission.frame)
+        if frame_result is None or frame_result.status is not AdmissionStatus.ACCEPTED:
+            self._warn_bounded(
+                'rejected',
+                'sealed physical camera frame did not enter trusted state',
+            )
+            return
+        health_result = self._admit_and_retain(admission.health)
+        if health_result is None or health_result.status is not AdmissionStatus.ACCEPTED:
+            self._warn_bounded(
+                'rejected',
+                'sealed physical camera diagnostics did not enter trusted state',
+            )
 
     def _evaluate_visual_frame(self, frame, rgb8: bytes) -> None:
         """Issue one sealed TEST-ONLY live result per lifecycle activation."""

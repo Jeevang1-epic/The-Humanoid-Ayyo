@@ -9,6 +9,10 @@ ament_python_install_package(
   PACKAGE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../../world_model/src/ayyo_world_model"
 )
 ament_python_install_package(
+  ayyo_physical_camera
+  PACKAGE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../../physical_camera/src/ayyo_physical_camera"
+)
+ament_python_install_package(
   ayyo_visual_evaluation
   PACKAGE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../../visual_evaluation/src/ayyo_visual_evaluation"
 )
@@ -25,6 +29,8 @@ install(
   PROGRAMS
     scripts/body_state_query.py
     scripts/localization_diagnostics.py
+    scripts/physical_camera_adapter.py
+    scripts/physical_camera_fixture_node.py
     scripts/visual_camera.py
     scripts/world_model_node.py
   DESTINATION lib/${PROJECT_NAME}
@@ -40,6 +46,8 @@ if(BUILD_TESTING)
     EXCLUDE
       scripts/body_state_query.py
       scripts/localization_diagnostics.py
+      scripts/physical_camera_adapter.py
+      scripts/physical_camera_fixture_node.py
       scripts/visual_camera.py
       scripts/world_model_node.py
       test/test_ros_adapter.py

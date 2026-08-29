@@ -61,6 +61,15 @@ def visual_module():
     return module
 
 
+def physical_camera_module():
+    path = PACKAGE_ROOT / 'scripts' / 'physical_camera_adapter.py'
+    spec = importlib.util.spec_from_file_location('ayyo_physical_camera_ros_test', path)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
 def test_read_only_service_contract_is_bounded_and_typed() -> None:
     interface = (INTERFACES_ROOT / 'srv' / 'GetRobotBodyState.srv').read_text(
         encoding='utf-8'
@@ -701,6 +710,59 @@ def test_camera_info_rejects_nonfinite_malformed_and_all_zero_calibration() -> N
             raise AssertionError('malformed CameraInfo was accepted')
 
 
+def test_physical_camera_ros_metadata_requires_exact_configured_calibration() -> None:
+    from ayyo_physical_camera import physical_camera_fixture_bundle
+
+    support = physical_camera_module()
+    bundle = physical_camera_fixture_bundle()
+    calibration = bundle.calibration.calibration
+    image = Image()
+    image.header.stamp.sec = 2
+    image.header.stamp.nanosec = 3
+    image.header.frame_id = bundle.source.camera.frame_id
+    image.width = calibration.width
+    image.height = calibration.height
+    image.encoding = 'rgb8'
+    image.step = calibration.width * 3
+    image.data = bytes(image.step * image.height)
+    info = CameraInfo()
+    info.header = image.header
+    info.width = calibration.width
+    info.height = calibration.height
+    info.distortion_model = calibration.distortion_model
+    info.d = list(calibration.d)
+    info.k = list(calibration.k)
+    info.r = list(calibration.r)
+    info.p = list(calibration.p)
+    session = 'physical-camera-session-sha256-' + '1' * 64
+    image_metadata = support.normalize_physical_image_metadata(
+        image,
+        bundle.source,
+        session,
+    )
+    info_metadata = support.normalize_physical_camera_info_metadata(
+        info,
+        bundle.source,
+        session,
+        bundle.calibration,
+    )
+    assert image_metadata.observed_at_ns == 2_000_000_003
+    assert image_metadata.data_size_bytes == calibration.width * calibration.height * 3
+    assert info_metadata.calibration == bundle.calibration
+    info.k[0] += 1.0
+    try:
+        support.normalize_physical_camera_info_metadata(
+            info,
+            bundle.source,
+            session,
+            bundle.calibration,
+        )
+    except support.PhysicalCameraRosAdapterError:
+        pass
+    else:
+        raise AssertionError('changed physical CameraInfo was accepted')
+
+
 def test_visual_pairing_retains_at_most_one_raw_message_without_worker() -> None:
     source = script_source('world_model_node.py')
     for expected in (
@@ -769,16 +831,63 @@ def test_adapter_learns_only_from_observation_not_control_request() -> None:
 def test_wrapper_installs_single_owned_core_packages_and_fixed_clients() -> None:
     cmake = (PACKAGE_ROOT / 'CMakeLists.txt').read_text(encoding='utf-8')
     assert '../../../world_model/src/ayyo_world_model' in cmake
+    assert '../../../physical_camera/src/ayyo_physical_camera' in cmake
     assert '../../../visual_evaluation/src/ayyo_visual_evaluation' in cmake
     assert '../../../working_memory/src/ayyo_working_memory' in cmake
     assert '../../../perception/src/ayyo_perception' in cmake
     assert 'scripts/world_model_node.py' in cmake
     assert 'scripts/body_state_query.py' in cmake
     assert 'scripts/localization_diagnostics.py' in cmake
+    assert 'scripts/physical_camera_adapter.py' in cmake
+    assert 'scripts/physical_camera_fixture_node.py' in cmake
     assert 'scripts/visual_camera.py' in cmake
     assert not (PACKAGE_ROOT / 'ayyo_world_model').exists()
     assert not (PACKAGE_ROOT / 'ayyo_working_memory').exists()
     assert not (PACKAGE_ROOT / 'ayyo_perception').exists()
+
+
+def test_physical_camera_fixture_composition_is_explicit_and_default_off() -> None:
+    source = (
+        SIMULATION_ROOT / 'launch' / 'physical_camera_fixture.launch.py'
+    ).read_text(encoding='utf-8')
+    for expected in (
+        "'enable_physical_camera_fixture',",
+        "default_value='false'",
+        "'physical_camera_profile',",
+        "default_value='unconfigured'",
+        "'source_profile': 'physical_camera_test_fixture_v1'",
+        "'enable_physical_camera_adapter': enable_fixture",
+        "executable='physical_camera_fixture_node.py'",
+        'condition=IfCondition(enable_fixture)',
+    ):
+        assert expected in source
+    for forbidden in ('gz sim', 'ros_gz', 'controller_manager', '/commands'):
+        assert forbidden not in source
+
+
+def test_physical_camera_adapter_is_sealed_lifecycle_scoped_and_query_compact() -> None:
+    source = script_source('world_model_node.py')
+    for expected in (
+        "declare_parameter('enable_physical_camera_adapter', False)",
+        "declare_parameter('physical_camera_profile', 'unconfigured')",
+        'PhysicalCameraLifecycleAdapter(',
+        'authorize_physical_camera(',
+        'normalize_physical_image_metadata(',
+        'normalize_physical_camera_info_metadata(',
+        'self._physical_camera_adapter.deactivate()',
+        'self._memory.reset()',
+        'self._trust_boundary.reset()',
+        'self._physical_camera_adapter.cleanup()',
+        'self._physical_camera_adapter.shutdown()',
+    ):
+        assert expected in source
+    interface = (INTERFACES_ROOT / 'srv' / 'GetRobotBodyState.srv').read_text(
+        encoding='utf-8'
+    )
+    assert 'string visual_calibration_id' in interface
+    assert 'string[] sensor_health_details' in interface
+    assert 'float64[] camera_calibration_matrix' not in interface
+    assert 'uint8[] visual_pixels' not in interface
 
 
 def test_ros_dependency_boundary_has_no_cognition_or_durable_memory() -> None:
@@ -1026,14 +1135,48 @@ def test_evaluated_visual_smoke_is_adversarial_bounded_and_process_owned() -> No
         assert forbidden not in fixture
     cmake = (PACKAGE_ROOT / 'CMakeLists.txt').read_text(encoding='utf-8')
     assert 'visual_producer_evaluation_test_fixture.py' not in cmake
+
+
+def test_physical_camera_smoke_is_default_off_adversarial_and_process_owned() -> None:
+    smoke_path = REPOSITORY_ROOT / 'scripts' / 'smoke_physical_camera_foundation.sh'
+    fixture_path = (
+        REPOSITORY_ROOT / 'scripts' / 'physical_camera_foundation_test_fixture.py'
+    )
+    smoke = smoke_path.read_text(encoding='utf-8')
+    fixture = fixture_path.read_text(encoding='utf-8')
+    for expected in (
+        'physical_camera_fixture.launch.py',
+        'enable_physical_camera_fixture:=false',
+        'enable_physical_camera_fixture:=true',
+        'physical_camera_profile:=test_fixture_v1',
+        '--scenario wrong_frame',
+        '--scenario malformed_calibration',
+        'ros2 lifecycle set /ayyo_world_model deactivate',
+        'ros2 lifecycle set /ayyo_world_model activate',
+        'ayyo_smoke_shutdown_owned_launch',
+        'owned-process set and isolated ROS graph are empty',
+    ):
+        assert expected in smoke
+    for expected in (
+        'CYCLE_COUNT = 5_000',
+        'bare_perception_bypass_rejected',
+        'malformed_calibration_rejected',
+        'simulation_spoof_rejected',
+        'tracemalloc.start()',
+    ):
+        assert expected in fixture
     assert smoke_path.stat().st_mode & 0o111
     assert fixture_path.stat().st_mode & 0o111
+    assert 'pkill' not in smoke
+    assert 'ros2 topic pub' not in smoke
 
 
 def test_owned_sources_retain_project_copyright() -> None:
     for relative in (
         'scripts/body_state_query.py',
         'scripts/localization_diagnostics.py',
+        'scripts/physical_camera_adapter.py',
+        'scripts/physical_camera_fixture_node.py',
         'scripts/visual_camera.py',
         'scripts/world_model_node.py',
         'test/test_ros_adapter.py',
