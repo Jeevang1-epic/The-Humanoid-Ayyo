@@ -6,6 +6,10 @@ from dataclasses import dataclass
 from enum import StrEnum
 import re
 
+from ayyo_physical_camera import (
+    MAX_PHYSICAL_CAMERA_SOURCES,
+    PhysicalCameraTrustRequirement,
+)
 from ayyo_world_model import (
     MAX_OBSERVATION_TIME_NS,
     Observation,
@@ -69,6 +73,9 @@ class AdmissionReason(StrEnum):
     EVALUATION_REQUIRED = "evaluation_required"
     EVALUATION_MISMATCH = "evaluation_mismatch"
     EVALUATION_NOT_AUTHORIZED = "evaluation_not_authorized"
+    PHYSICAL_CAMERA_REQUIRED = "physical_camera_required"
+    PHYSICAL_CAMERA_MISMATCH = "physical_camera_mismatch"
+    PHYSICAL_CAMERA_NOT_AUTHORIZED = "physical_camera_not_authorized"
 
 
 class EvidenceFailureKind(StrEnum):
@@ -129,6 +136,9 @@ class PerceptionTrustConfig:
     ] = ()
     visual_evaluation_requirements: tuple[
         VisualEvaluationRequirement, ...
+    ] = ()
+    physical_camera_requirements: tuple[
+        PhysicalCameraTrustRequirement, ...
     ] = ()
 
     def __post_init__(self) -> None:
@@ -221,6 +231,43 @@ class PerceptionTrustConfig:
             raise PerceptionConfigurationError(
                 "visual evaluation requirements must uniquely bind configured producers"
             )
+        if (
+            type(self.physical_camera_requirements) is not tuple
+            or len(self.physical_camera_requirements) > MAX_PHYSICAL_CAMERA_SOURCES
+            or any(
+                type(requirement) is not PhysicalCameraTrustRequirement
+                for requirement in self.physical_camera_requirements
+            )
+        ):
+            raise PerceptionConfigurationError(
+                "physical camera requirements must be a bounded typed tuple"
+            )
+        physical_source_keys = {
+            (source.sensor.sensor_id, source.provenance.source_id)
+            for source in self.sources
+            if source.sensor.kind is SensorKind.RGB_CAMERA
+            and source.provenance.source_kind.value == "physical_sensor"
+        }
+        physical_requirement_keys = {
+            (requirement.camera.sensor_id, requirement.source_id)
+            for requirement in self.physical_camera_requirements
+        }
+        if (
+            len(physical_requirement_keys) != len(self.physical_camera_requirements)
+            or physical_source_keys != physical_requirement_keys
+        ):
+            raise PerceptionConfigurationError(
+                "every physical RGB source requires one exact physical camera requirement"
+            )
+        for requirement in self.physical_camera_requirements:
+            if not any(
+                source.sensor == requirement.camera
+                and source.provenance == requirement.provenance
+                for source in self.sources
+            ):
+                raise PerceptionConfigurationError(
+                    "physical camera requirement does not bind a configured source"
+                )
 
 
 @dataclass(frozen=True, slots=True)
@@ -262,6 +309,7 @@ class PerceptionStats:
     configured_source_count: int
     tracked_visual_source_count: int = 0
     tracked_evaluated_visual_count: int = 0
+    tracked_physical_camera_count: int = 0
 
     def __post_init__(self) -> None:
         values = (
@@ -272,6 +320,7 @@ class PerceptionStats:
             self.configured_source_count,
             self.tracked_visual_source_count,
             self.tracked_evaluated_visual_count,
+            self.tracked_physical_camera_count,
         )
         if any(type(value) is not int or value < 0 for value in values):
             raise PerceptionConfigurationError("perception statistics are invalid")
@@ -288,6 +337,10 @@ class PerceptionStats:
         if self.tracked_evaluated_visual_count > MAX_VISUAL_SOURCE_REFERENCES:
             raise PerceptionConfigurationError(
                 "tracked evaluated visual authorizations exceed their hard bound"
+            )
+        if self.tracked_physical_camera_count > MAX_VISUAL_SOURCE_REFERENCES:
+            raise PerceptionConfigurationError(
+                "tracked physical camera authorizations exceed their hard bound"
             )
 
 

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from threading import RLock
 
+from ayyo_physical_camera import PhysicalCameraAdmission
 from ayyo_world_model import (
     BodyPoseObservation,
     EnvironmentEntityObservation,
@@ -46,6 +47,7 @@ class PerceptionTrustBoundary:
         "_last_now_ns",
         "_last_receipt_monotonic_ns",
         "_lock",
+        "_physical_camera_authorizations",
         "_rejected_count",
         "_visual_sources",
     )
@@ -64,6 +66,7 @@ class PerceptionTrustBoundary:
         self._evaluated_visual_authorizations: dict[
             str, VisualInterpretationObservation
         ] = {}
+        self._physical_camera_authorizations: dict[str, object] = {}
         self._lock = RLock()
 
     @property
@@ -80,6 +83,7 @@ class PerceptionTrustBoundary:
             self._rejected_count = 0
             self._visual_sources.clear()
             self._evaluated_visual_authorizations.clear()
+            self._physical_camera_authorizations.clear()
 
     def _reject(
         self,
@@ -233,6 +237,57 @@ class PerceptionTrustBoundary:
                 del self._evaluated_visual_authorizations[oldest_id]
             return True
 
+    def authorize_physical_camera(
+        self,
+        admission: PhysicalCameraAdmission,
+    ) -> bool:
+        """Bind one sealed physical frame and its health fact to admission attempts."""
+        if type(admission) is not PhysicalCameraAdmission:
+            return False
+        try:
+            frame = rebuild_observation(admission.frame)
+            health = rebuild_observation(admission.health)
+        except (ObservationIdentityError, WorldModelValidationError):
+            return False
+        if type(frame) is not VisualFrameObservation or type(health) is not SensorHealthObservation:
+            return False
+        with self._lock:
+            requirement = next(
+                (
+                    item
+                    for item in self._config.physical_camera_requirements
+                    if item.camera == frame.sensor
+                    and item.source_id == frame.provenance.source_id
+                ),
+                None,
+            )
+            source = self._source_for(frame)
+            if (
+                requirement is None
+                or source is None
+                or admission.requirement != requirement
+                or not requirement.matches(admission)
+                or health.robot_id != frame.robot_id
+                or health.sensor != frame.sensor
+                or health.provenance != frame.provenance
+                or health.observed_at_ns != frame.observed_at_ns
+            ):
+                return False
+            self._physical_camera_authorizations[frame.observation_id] = frame
+            self._physical_camera_authorizations[health.observation_id] = health
+            while len(self._physical_camera_authorizations) > MAX_VISUAL_SOURCE_REFERENCES:
+                oldest_id = min(
+                    self._physical_camera_authorizations,
+                    key=lambda observation_id: (
+                        self._physical_camera_authorizations[
+                            observation_id
+                        ].observed_at_ns,
+                        observation_id,
+                    ),
+                )
+                del self._physical_camera_authorizations[oldest_id]
+            return True
+
     def admit(
         self,
         observation,
@@ -310,6 +365,44 @@ class PerceptionTrustBoundary:
                     "observation does not match one exact reviewed source contract",
                     rebuilt.observation_id,
                 )
+            if (
+                type(rebuilt) in {VisualFrameObservation, SensorHealthObservation}
+                and getattr(rebuilt, "sensor", None).kind is SensorKind.RGB_CAMERA
+                and rebuilt.provenance.source_kind.value == "physical_sensor"
+            ):
+                requirement = next(
+                    (
+                        item
+                        for item in self._config.physical_camera_requirements
+                        if item.camera == rebuilt.sensor
+                        and item.source_id == rebuilt.provenance.source_id
+                    ),
+                    None,
+                )
+                if requirement is None:
+                    return self._reject(
+                        AdmissionReason.PHYSICAL_CAMERA_REQUIRED,
+                        "physical RGB evidence requires an exact adapter requirement",
+                        rebuilt.observation_id,
+                    )
+                if (
+                    type(rebuilt) is VisualFrameObservation
+                    and not requirement.matches_unsealed(rebuilt)
+                ):
+                    return self._reject(
+                        AdmissionReason.PHYSICAL_CAMERA_MISMATCH,
+                        "physical frame differs from its source/calibration requirement",
+                        rebuilt.observation_id,
+                    )
+                if self._physical_camera_authorizations.pop(
+                    rebuilt.observation_id,
+                    None,
+                ) != rebuilt:
+                    return self._reject(
+                        AdmissionReason.PHYSICAL_CAMERA_NOT_AUTHORIZED,
+                        "physical evidence was not sealed by the lifecycle adapter",
+                        rebuilt.observation_id,
+                    )
             if type(rebuilt) is VisualInterpretationObservation:
                 producer = next(
                     (
@@ -520,5 +613,8 @@ class PerceptionTrustBoundary:
                 tracked_visual_source_count=len(self._visual_sources),
                 tracked_evaluated_visual_count=len(
                     self._evaluated_visual_authorizations
+                ),
+                tracked_physical_camera_count=len(
+                    self._physical_camera_authorizations
                 ),
             )
