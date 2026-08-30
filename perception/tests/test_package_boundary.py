@@ -48,6 +48,7 @@ class PerceptionPackageBoundaryTest(unittest.TestCase):
             project = tomllib.load(stream)["project"]
         self.assertEqual(
             [
+                "ayyo-depth-camera==0.1.0",
                 "ayyo-physical-camera==0.1.0",
                 "ayyo-world-model==0.1.0",
                 "ayyo-visual-evaluation==0.1.0",

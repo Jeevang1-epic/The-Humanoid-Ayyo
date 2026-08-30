@@ -5,8 +5,10 @@ from __future__ import annotations
 from threading import RLock
 
 from ayyo_physical_camera import PhysicalCameraAdmission
+from ayyo_depth_camera import DepthCameraAdmission
 from ayyo_world_model import (
     BodyPoseObservation,
+    DepthFrameObservation,
     EnvironmentEntityObservation,
     ImuObservation,
     ObservationIdentityError,
@@ -43,6 +45,7 @@ class PerceptionTrustBoundary:
         "_accepted_count",
         "_config",
         "_duplicate_count",
+        "_depth_camera_authorizations",
         "_evaluated_visual_authorizations",
         "_last_by_key",
         "_last_now_ns",
@@ -68,6 +71,7 @@ class PerceptionTrustBoundary:
             str, VisualInterpretationObservation
         ] = {}
         self._physical_camera_authorizations: dict[str, object] = {}
+        self._depth_camera_authorizations: dict[str, object] = {}
         self._lock = RLock()
 
     @property
@@ -85,6 +89,7 @@ class PerceptionTrustBoundary:
             self._visual_sources.clear()
             self._evaluated_visual_authorizations.clear()
             self._physical_camera_authorizations.clear()
+            self._depth_camera_authorizations.clear()
 
     def _reject(
         self,
@@ -112,6 +117,7 @@ class PerceptionTrustBoundary:
         elif type(observation) in {
             ImuObservation,
             BodyPoseObservation,
+            DepthFrameObservation,
             VisualFrameObservation,
             VisualInterpretationObservation,
             SensorHealthObservation,
@@ -289,6 +295,54 @@ class PerceptionTrustBoundary:
                 del self._physical_camera_authorizations[oldest_id]
             return True
 
+    def authorize_depth_camera(self, admission: DepthCameraAdmission) -> bool:
+        """Bind one sealed depth reference and health fact to admission attempts."""
+        if type(admission) is not DepthCameraAdmission:
+            return False
+        try:
+            frame = rebuild_observation(admission.frame)
+            health = rebuild_observation(admission.health)
+        except (ObservationIdentityError, WorldModelValidationError):
+            return False
+        if type(frame) is not DepthFrameObservation or type(health) is not SensorHealthObservation:
+            return False
+        with self._lock:
+            requirement = next(
+                (
+                    item
+                    for item in self._config.depth_camera_requirements
+                    if item.sensor == frame.sensor
+                    and item.source_id == frame.provenance.source_id
+                ),
+                None,
+            )
+            source = self._source_for(frame)
+            if (
+                requirement is None
+                or source is None
+                or admission.requirement != requirement
+                or not requirement.matches(admission)
+                or health.robot_id != frame.robot_id
+                or health.sensor != frame.sensor
+                or health.provenance != frame.provenance
+                or health.observed_at_ns != frame.observed_at_ns
+            ):
+                return False
+            self._depth_camera_authorizations[frame.observation_id] = frame
+            self._depth_camera_authorizations[health.observation_id] = health
+            while len(self._depth_camera_authorizations) > MAX_VISUAL_SOURCE_REFERENCES:
+                oldest_id = min(
+                    self._depth_camera_authorizations,
+                    key=lambda observation_id: (
+                        self._depth_camera_authorizations[
+                            observation_id
+                        ].observed_at_ns,
+                        observation_id,
+                    ),
+                )
+                del self._depth_camera_authorizations[oldest_id]
+            return True
+
     def admit(
         self,
         observation,
@@ -403,6 +457,43 @@ class PerceptionTrustBoundary:
                     return self._reject(
                         AdmissionReason.PHYSICAL_CAMERA_NOT_AUTHORIZED,
                         "physical evidence was not sealed by the lifecycle adapter",
+                        rebuilt.observation_id,
+                    )
+            if (
+                type(rebuilt) in {DepthFrameObservation, SensorHealthObservation}
+                and getattr(rebuilt, "sensor", None).kind is SensorKind.DEPTH_CAMERA
+            ):
+                requirement = next(
+                    (
+                        item
+                        for item in self._config.depth_camera_requirements
+                        if item.sensor == rebuilt.sensor
+                        and item.source_id == rebuilt.provenance.source_id
+                    ),
+                    None,
+                )
+                if requirement is None:
+                    return self._reject(
+                        AdmissionReason.DEPTH_CAMERA_REQUIRED,
+                        "depth evidence requires an exact lifecycle adapter requirement",
+                        rebuilt.observation_id,
+                    )
+                if (
+                    type(rebuilt) is DepthFrameObservation
+                    and not requirement.matches_unsealed(rebuilt)
+                ):
+                    return self._reject(
+                        AdmissionReason.DEPTH_CAMERA_MISMATCH,
+                        "depth frame differs from its source/calibration requirement",
+                        rebuilt.observation_id,
+                    )
+                if self._depth_camera_authorizations.pop(
+                    rebuilt.observation_id,
+                    None,
+                ) != rebuilt:
+                    return self._reject(
+                        AdmissionReason.DEPTH_CAMERA_NOT_AUTHORIZED,
+                        "depth evidence was not sealed by the lifecycle adapter",
                         rebuilt.observation_id,
                     )
             if type(rebuilt) is VisualInterpretationObservation:
@@ -618,5 +709,8 @@ class PerceptionTrustBoundary:
                 ),
                 tracked_physical_camera_count=len(
                     self._physical_camera_authorizations
+                ),
+                tracked_depth_camera_count=len(
+                    self._depth_camera_authorizations
                 ),
             )

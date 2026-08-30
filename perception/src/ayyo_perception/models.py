@@ -10,6 +10,7 @@ from ayyo_physical_camera import (
     MAX_PHYSICAL_CAMERA_SOURCES,
     PhysicalCameraTrustRequirement,
 )
+from ayyo_depth_camera import MAX_DEPTH_CAMERA_SOURCES, DepthTrustRequirement
 from ayyo_world_model import (
     MAX_OBSERVATION_TIME_NS,
     Observation,
@@ -77,6 +78,9 @@ class AdmissionReason(StrEnum):
     PHYSICAL_CAMERA_REQUIRED = "physical_camera_required"
     PHYSICAL_CAMERA_MISMATCH = "physical_camera_mismatch"
     PHYSICAL_CAMERA_NOT_AUTHORIZED = "physical_camera_not_authorized"
+    DEPTH_CAMERA_REQUIRED = "depth_camera_required"
+    DEPTH_CAMERA_MISMATCH = "depth_camera_mismatch"
+    DEPTH_CAMERA_NOT_AUTHORIZED = "depth_camera_not_authorized"
 
 
 class EvidenceFailureKind(StrEnum):
@@ -141,6 +145,7 @@ class PerceptionTrustConfig:
     physical_camera_requirements: tuple[
         PhysicalCameraTrustRequirement, ...
     ] = ()
+    depth_camera_requirements: tuple[DepthTrustRequirement, ...] = ()
 
     def __post_init__(self) -> None:
         if (
@@ -269,6 +274,42 @@ class PerceptionTrustConfig:
                 raise PerceptionConfigurationError(
                     "physical camera requirement does not bind a configured source"
                 )
+        if (
+            type(self.depth_camera_requirements) is not tuple
+            or len(self.depth_camera_requirements) > MAX_DEPTH_CAMERA_SOURCES
+            or any(
+                type(requirement) is not DepthTrustRequirement
+                for requirement in self.depth_camera_requirements
+            )
+        ):
+            raise PerceptionConfigurationError(
+                "depth camera requirements must be a bounded typed tuple"
+            )
+        depth_source_keys = {
+            (source.sensor.sensor_id, source.provenance.source_id)
+            for source in self.sources
+            if source.sensor.kind is SensorKind.DEPTH_CAMERA
+        }
+        depth_requirement_keys = {
+            (requirement.sensor.sensor_id, requirement.source_id)
+            for requirement in self.depth_camera_requirements
+        }
+        if (
+            len(depth_requirement_keys) != len(self.depth_camera_requirements)
+            or depth_source_keys != depth_requirement_keys
+        ):
+            raise PerceptionConfigurationError(
+                "every depth source requires one exact lifecycle adapter requirement"
+            )
+        for requirement in self.depth_camera_requirements:
+            if not any(
+                source.sensor == requirement.sensor
+                and source.provenance == requirement.provenance
+                for source in self.sources
+            ):
+                raise PerceptionConfigurationError(
+                    "depth requirement does not bind a configured source"
+                )
 
 
 @dataclass(frozen=True, slots=True)
@@ -311,6 +352,7 @@ class PerceptionStats:
     tracked_visual_source_count: int = 0
     tracked_evaluated_visual_count: int = 0
     tracked_physical_camera_count: int = 0
+    tracked_depth_camera_count: int = 0
 
     def __post_init__(self) -> None:
         values = (
@@ -322,6 +364,7 @@ class PerceptionStats:
             self.tracked_visual_source_count,
             self.tracked_evaluated_visual_count,
             self.tracked_physical_camera_count,
+            self.tracked_depth_camera_count,
         )
         if any(type(value) is not int or value < 0 for value in values):
             raise PerceptionConfigurationError("perception statistics are invalid")
@@ -342,6 +385,10 @@ class PerceptionStats:
         if self.tracked_physical_camera_count > MAX_VISUAL_SOURCE_REFERENCES:
             raise PerceptionConfigurationError(
                 "tracked physical camera authorizations exceed their hard bound"
+            )
+        if self.tracked_depth_camera_count > MAX_VISUAL_SOURCE_REFERENCES:
+            raise PerceptionConfigurationError(
+                "tracked depth camera authorizations exceed their hard bound"
             )
 
 

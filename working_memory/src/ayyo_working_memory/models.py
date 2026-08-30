@@ -65,6 +65,7 @@ class StateKeyKind(StrEnum):
     ROBOT_BASE_POSE = "robot_base_pose"
     ROBOT_IMU = "robot_imu"
     ROBOT_VISUAL = "robot_visual"
+    ROBOT_DEPTH = "robot_depth"
     ROBOT_VISUAL_INTERPRETATION = "robot_visual_interpretation"
     SENSOR_HEALTH = "sensor_health"
     ENVIRONMENT_ENTITY = "environment_entity"
@@ -276,6 +277,7 @@ class WorkingMemoryStats:
     current_body_pose_count: int = 0
     current_sensor_health_count: int = 0
     current_visual_count: int = 0
+    current_depth_count: int = 0
     current_visual_interpretation_count: int = 0
 
     def __post_init__(self) -> None:
@@ -293,6 +295,7 @@ class WorkingMemoryStats:
             self.current_body_pose_count,
             self.current_sensor_health_count,
             self.current_visual_count,
+            self.current_depth_count,
             self.current_visual_interpretation_count,
         )
         if any(type(item) is not int or item < 0 for item in numeric):

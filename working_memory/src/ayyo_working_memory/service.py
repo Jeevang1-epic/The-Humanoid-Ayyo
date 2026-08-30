@@ -6,6 +6,7 @@ from threading import RLock
 
 from ayyo_world_model import (
     BodyPoseObservation,
+    DepthFrameObservation,
     EnvironmentEntityObservation,
     ImuObservation,
     MAX_OBSERVATION_TIME_NS,
@@ -60,6 +61,7 @@ class WorkingMemory:
         "_catalog",
         "_config",
         "_duplicate_count",
+        "_depth_evidence",
         "_entity_evidence",
         "_eviction_count",
         "_body_pose_evidence",
@@ -94,6 +96,7 @@ class WorkingMemory:
         self._joint_evidence: dict[str, RobotStateObservation] = {}
         self._pose_evidence: RobotStateObservation | None = None
         self._imu_evidence: dict[str, ImuObservation] = {}
+        self._depth_evidence: dict[str, DepthFrameObservation] = {}
         self._visual_evidence: dict[str, VisualFrameObservation] = {}
         self._visual_interpretation_evidence: dict[
             tuple[str, str], VisualInterpretationObservation
@@ -120,6 +123,7 @@ class WorkingMemory:
             self._joint_evidence.clear()
             self._pose_evidence = None
             self._imu_evidence.clear()
+            self._depth_evidence.clear()
             self._visual_evidence.clear()
             self._visual_interpretation_evidence.clear()
             self._body_pose_evidence.clear()
@@ -167,6 +171,11 @@ class WorkingMemory:
             for sensor_id, observation in self._imu_evidence.items()
             if observation.observed_at_ns >= threshold
         }
+        self._depth_evidence = {
+            sensor_id: observation
+            for sensor_id, observation in self._depth_evidence.items()
+            if observation.observed_at_ns >= threshold
+        }
         self._visual_evidence = {
             sensor_id: observation
             for sensor_id, observation in self._visual_evidence.items()
@@ -206,6 +215,9 @@ class WorkingMemory:
         if self._pose_evidence is not None:
             identities.add(self._pose_evidence.observation_id)
         identities.update(item.observation_id for item in self._imu_evidence.values())
+        identities.update(
+            item.observation_id for item in self._depth_evidence.values()
+        )
         identities.update(
             item.observation_id for item in self._visual_evidence.values()
         )
@@ -273,6 +285,7 @@ class WorkingMemory:
             if type(rebuilt) in {
                 ImuObservation,
                 BodyPoseObservation,
+                DepthFrameObservation,
                 VisualFrameObservation,
                 VisualInterpretationObservation,
                 SensorHealthObservation,
@@ -334,6 +347,7 @@ class WorkingMemory:
             if type(rebuilt) in {
                 ImuObservation,
                 BodyPoseObservation,
+                DepthFrameObservation,
                 VisualFrameObservation,
                 SensorHealthObservation,
                 VisualInterpretationObservation,
@@ -438,6 +452,7 @@ class WorkingMemory:
         observation: (
             ImuObservation
             | BodyPoseObservation
+            | DepthFrameObservation
             | VisualFrameObservation
             | VisualInterpretationObservation
             | SensorHealthObservation
@@ -448,6 +463,9 @@ class WorkingMemory:
         if type(observation) is ImuObservation:
             collection = self._imu_evidence
             key = StateKey(StateKeyKind.ROBOT_IMU, sensor_id)
+        elif type(observation) is DepthFrameObservation:
+            collection = self._depth_evidence
+            key = StateKey(StateKeyKind.ROBOT_DEPTH, sensor_id)
         elif type(observation) is VisualFrameObservation:
             collection = self._visual_evidence
             key = StateKey(StateKeyKind.ROBOT_VISUAL, sensor_id)
@@ -625,6 +643,7 @@ class WorkingMemory:
                 imu_evidence=dict(self._imu_evidence),
                 body_pose_evidence=dict(self._body_pose_evidence),
                 health_evidence=dict(self._health_evidence),
+                depth_evidence=dict(self._depth_evidence),
                 visual_evidence=dict(self._visual_evidence),
                 visual_interpretation_evidence=dict(
                     self._visual_interpretation_evidence
@@ -660,6 +679,8 @@ class WorkingMemory:
                     observation = self._pose_evidence
             elif key.kind is StateKeyKind.ROBOT_IMU:
                 observation = self._imu_evidence.get(key.identity)
+            elif key.kind is StateKeyKind.ROBOT_DEPTH:
+                observation = self._depth_evidence.get(key.identity)
             elif key.kind is StateKeyKind.ROBOT_VISUAL:
                 observation = self._visual_evidence.get(key.identity)
             elif key.kind is StateKeyKind.ROBOT_VISUAL_INTERPRETATION:
@@ -703,6 +724,7 @@ class WorkingMemory:
                 len(self._joint_evidence)
                 + int(self._pose_evidence is not None)
                 + len(self._imu_evidence)
+                + len(self._depth_evidence)
                 + len(self._visual_evidence)
                 + len(self._visual_interpretation_evidence)
                 + len(self._body_pose_evidence)
@@ -725,6 +747,7 @@ class WorkingMemory:
                 current_body_pose_count=len(self._body_pose_evidence),
                 current_sensor_health_count=len(self._health_evidence),
                 current_visual_count=len(self._visual_evidence),
+                current_depth_count=len(self._depth_evidence),
                 current_visual_interpretation_count=len(
                     self._visual_interpretation_evidence
                 ),
