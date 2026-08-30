@@ -8,10 +8,12 @@ from .catalog import RobotJointCatalog
 from .errors import WorldModelFailureCode, WorldModelValidationError
 from .models import (
     BodyPoseObservation,
+    DepthFrameObservation,
     EnvironmentEntityObservation,
     FreshnessState,
     ImuObservation,
     ObservedImuState,
+    ObservedDepthState,
     ObservedJointState,
     ObservedPoseState,
     ObservedSensorHealthState,
@@ -89,6 +91,7 @@ class WorldModelProjector:
         imu_evidence: Mapping[str, ImuObservation] | None = None,
         body_pose_evidence: Mapping[str, BodyPoseObservation] | None = None,
         health_evidence: Mapping[str, SensorHealthObservation] | None = None,
+        depth_evidence: Mapping[str, DepthFrameObservation] | None = None,
         visual_evidence: Mapping[str, VisualFrameObservation] | None = None,
         visual_interpretation_evidence: Mapping[
             tuple[str, str], VisualInterpretationObservation
@@ -100,6 +103,7 @@ class WorldModelProjector:
             {} if body_pose_evidence is None else dict(body_pose_evidence)
         )
         health_sources = {} if health_evidence is None else dict(health_evidence)
+        depth_sources = {} if depth_evidence is None else dict(depth_evidence)
         visual_sources = {} if visual_evidence is None else dict(visual_evidence)
         interpretation_sources = (
             {}
@@ -111,6 +115,7 @@ class WorldModelProjector:
             set(imu_sources)
             | set(body_pose_sources)
             | set(health_sources)
+            | set(depth_sources)
             | set(visual_sources)
             | {key[0] for key in interpretation_sources}
         )
@@ -190,6 +195,8 @@ class WorldModelProjector:
                 measurement = body_pose_sources.get(sensor.sensor_id)
             elif sensor.kind is SensorKind.RGB_CAMERA:
                 measurement = visual_sources.get(sensor.sensor_id)
+            elif sensor.kind is SensorKind.DEPTH_CAMERA:
+                measurement = depth_sources.get(sensor.sensor_id)
             health = health_sources.get(sensor.sensor_id)
             selected = (
                 health
@@ -221,6 +228,7 @@ class WorldModelProjector:
                     if type(selected) in {
                         ImuObservation,
                         BodyPoseObservation,
+                        DepthFrameObservation,
                         VisualFrameObservation,
                         SensorHealthObservation,
                     }
@@ -283,6 +291,32 @@ class WorldModelProjector:
                     availability=(
                         SensorAvailability.STALE
                         if freshness is FreshnessState.STALE
+                        else sensor_availability_by_id[sensor_id]
+                    ),
+                )
+            )
+
+        depth_states: list[ObservedDepthState] = []
+        for sensor_id in sorted(depth_sources):
+            rebuilt = rebuild_observation(depth_sources[sensor_id])
+            assert type(rebuilt) is DepthFrameObservation
+            if rebuilt.sensor.sensor_id != sensor_id:
+                raise WorldModelValidationError(
+                    WorldModelFailureCode.SNAPSHOT_INVARIANT,
+                    "depth evidence key and sensor identity disagree",
+                )
+            depth_freshness = freshness_for(
+                observed_at_ns=rebuilt.observed_at_ns,
+                now_ns=now_ns,
+                fresh_for_ns=fresh_for_ns,
+            )
+            depth_states.append(
+                ObservedDepthState(
+                    observation=rebuilt,
+                    freshness=depth_freshness,
+                    availability=(
+                        SensorAvailability.STALE
+                        if depth_freshness is FreshnessState.STALE
                         else sensor_availability_by_id[sensor_id]
                     ),
                 )
@@ -394,6 +428,7 @@ class WorldModelProjector:
             base_pose=observed_pose,
             availability=availability,
             imu_states=tuple(imu_states),
+            depth_states=tuple(depth_states),
             visual_states=tuple(visual_states),
             visual_interpretation_states=tuple(visual_interpretation_states),
             sensor_states=tuple(sensor_states),

@@ -38,6 +38,13 @@ _IDENTIFIER = re.compile(r"^[a-z0-9]+(?:[._-][a-z0-9]+)*$")
 _FRAME = re.compile(r"^[A-Za-z][A-Za-z0-9_/-]*$")
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
 _CALIBRATION_ID = re.compile(r"^camera-calibration-sha256-[0-9a-f]{64}$")
+_DEPTH_CALIBRATION_RECORD_ID = re.compile(
+    r"^depth-camera-calibration-sha256-[0-9a-f]{64}$"
+)
+_DEPTH_SOURCE_MANIFEST_ID = re.compile(
+    r"^depth-camera-source-sha256-[0-9a-f]{64}$"
+)
+_DEPTH_SESSION_ID = re.compile(r"^depth-camera-session-sha256-[0-9a-f]{64}$")
 _OBSERVATION_ID = re.compile(r"^world-observation-[0-9a-f]{64}$")
 
 
@@ -157,6 +164,7 @@ class SensorKind(StrEnum):
     IMU = "imu"
     BODY_POSE = "body_pose"
     RGB_CAMERA = "rgb_camera"
+    DEPTH_CAMERA = "depth_camera"
 
 
 class SensorAvailability(StrEnum):
@@ -1080,6 +1088,7 @@ class ObservationFingerprintKind(StrEnum):
     BODY_POSE = "body_pose"
     SENSOR_HEALTH = "sensor_health"
     VISUAL_FRAME = "visual_frame"
+    DEPTH_FRAME = "depth_frame"
     VISUAL_INTERPRETATION = "visual_interpretation"
     ENVIRONMENT_ENTITY = "environment_entity"
 
@@ -1609,6 +1618,265 @@ class VisualFrameObservation:
 
 
 @dataclass(frozen=True, slots=True, init=False)
+class DepthFrameObservation:
+    """Compact trusted depth reference; the source pixel buffer is absent."""
+
+    robot_id: str
+    sensor: SensorIdentity
+    width: int
+    height: int
+    encoding: str
+    step: int
+    data_size_bytes: int
+    is_bigendian: bool
+    calibration_id: str
+    calibration_record_id: str
+    source_manifest_id: str
+    session_id: str
+    valid_depth_count: int
+    invalid_depth_count: int
+    minimum_depth_m: float
+    maximum_depth_m: float
+    payload_sha256: str
+    observed_at_ns: int
+    provenance: ObservationProvenance
+    availability: SensorAvailability
+    observation_id: str
+    fingerprint: ObservationFingerprint
+
+    def __init__(
+        self,
+        *,
+        robot_id: str,
+        sensor: SensorIdentity,
+        width: int,
+        height: int,
+        encoding: str,
+        step: int,
+        data_size_bytes: int,
+        is_bigendian: bool,
+        calibration_id: str,
+        calibration_record_id: str,
+        source_manifest_id: str,
+        session_id: str,
+        valid_depth_count: int,
+        invalid_depth_count: int,
+        minimum_depth_m: float,
+        maximum_depth_m: float,
+        payload_sha256: str,
+        observed_at_ns: int,
+        provenance: ObservationProvenance,
+        availability: SensorAvailability,
+        observation_id: str | None = None,
+        fingerprint: ObservationFingerprint | None = None,
+    ) -> None:
+        canonical_identifier(robot_id, "robot_id")
+        if (
+            type(sensor) is not SensorIdentity
+            or sensor.kind is not SensorKind.DEPTH_CAMERA
+        ):
+            _invalid(
+                WorldModelFailureCode.MALFORMED_OBSERVATION,
+                "depth evidence requires a typed depth camera identity",
+            )
+        if (
+            type(width) is not int
+            or type(height) is not int
+            or not 1 <= width <= MAX_CAMERA_DIMENSION
+            or not 1 <= height <= MAX_CAMERA_DIMENSION
+            or width * height > MAX_CAMERA_PIXELS
+        ):
+            _invalid(
+                WorldModelFailureCode.MALFORMED_OBSERVATION,
+                "depth frame dimensions are outside reviewed bounds",
+            )
+        bytes_per_pixel = {"16UC1": 2, "32FC1": 4}.get(encoding)
+        if bytes_per_pixel is None:
+            _invalid(
+                WorldModelFailureCode.MALFORMED_OBSERVATION,
+                "depth encoding is outside the reviewed v1 allowlist",
+            )
+        if (
+            type(step) is not int
+            or step < width * bytes_per_pixel
+            or step > MAX_IMAGE_DATA_BYTES
+            or type(data_size_bytes) is not int
+            or data_size_bytes != step * height
+            or not 1 <= data_size_bytes <= MAX_IMAGE_DATA_BYTES
+        ):
+            _invalid(
+                WorldModelFailureCode.MALFORMED_OBSERVATION,
+                "depth row stride or byte-count metadata is inconsistent",
+            )
+        if type(is_bigendian) is not bool:
+            _invalid(
+                WorldModelFailureCode.MALFORMED_OBSERVATION,
+                "depth endian metadata must be boolean",
+            )
+        if type(calibration_id) is not str or _CALIBRATION_ID.fullmatch(
+            calibration_id
+        ) is None:
+            _invalid(
+                WorldModelFailureCode.MALFORMED_OBSERVATION,
+                "depth calibration identity is malformed",
+            )
+        if (
+            type(calibration_record_id) is not str
+            or _DEPTH_CALIBRATION_RECORD_ID.fullmatch(calibration_record_id) is None
+        ):
+            _invalid(
+                WorldModelFailureCode.MALFORMED_OBSERVATION,
+                "depth calibration record identity is malformed",
+            )
+        if (
+            type(source_manifest_id) is not str
+            or _DEPTH_SOURCE_MANIFEST_ID.fullmatch(source_manifest_id) is None
+        ):
+            _invalid(
+                WorldModelFailureCode.MALFORMED_PROVENANCE,
+                "depth source manifest identity is malformed",
+            )
+        if type(session_id) is not str or _DEPTH_SESSION_ID.fullmatch(session_id) is None:
+            _invalid(
+                WorldModelFailureCode.MALFORMED_PROVENANCE,
+                "depth source session identity is malformed",
+            )
+        pixel_count = width * height
+        if (
+            type(valid_depth_count) is not int
+            or type(invalid_depth_count) is not int
+            or not 1 <= valid_depth_count <= pixel_count
+            or not 0 <= invalid_depth_count < pixel_count
+            or valid_depth_count + invalid_depth_count != pixel_count
+        ):
+            _invalid(
+                WorldModelFailureCode.MALFORMED_OBSERVATION,
+                "depth validity summary is inconsistent with frame geometry",
+            )
+        minimum = _finite(minimum_depth_m, "minimum depth")
+        maximum = _finite(maximum_depth_m, "maximum depth")
+        if not 0.0 < minimum <= maximum <= 10_000.0:
+            _invalid(
+                WorldModelFailureCode.MALFORMED_OBSERVATION,
+                "depth range summary is invalid",
+            )
+        if type(payload_sha256) is not str or _SHA256.fullmatch(payload_sha256) is None:
+            _invalid(
+                WorldModelFailureCode.MALFORMED_OBSERVATION,
+                "depth payload fingerprint is malformed",
+            )
+        if (
+            type(observed_at_ns) is not int
+            or not 1 <= observed_at_ns <= MAX_OBSERVATION_TIME_NS
+        ):
+            _invalid(
+                WorldModelFailureCode.MALFORMED_OBSERVATION,
+                "depth acquisition time must be nonzero bounded source time",
+            )
+        if type(provenance) is not ObservationProvenance:
+            _invalid(
+                WorldModelFailureCode.MALFORMED_PROVENANCE,
+                "depth provenance is required",
+            )
+        if availability not in {
+            SensorAvailability.AVAILABLE,
+            SensorAvailability.DEGRADED,
+        }:
+            _invalid(
+                WorldModelFailureCode.MALFORMED_OBSERVATION,
+                "measurement-bearing depth evidence must be available or degraded",
+            )
+        payload: dict[str, JSONValue] = {
+            "availability": availability.value,
+            "calibration_id": calibration_id,
+            "calibration_record_id": calibration_record_id,
+            "data_size_bytes": data_size_bytes,
+            "encoding": encoding,
+            "height": height,
+            "invalid_depth_count": invalid_depth_count,
+            "is_bigendian": is_bigendian,
+            "maximum_depth_m": maximum,
+            "minimum_depth_m": minimum,
+            "payload_sha256": payload_sha256,
+            "sensor": sensor.document(),
+            "session_id": session_id,
+            "source_manifest_id": source_manifest_id,
+            "step": step,
+            "valid_depth_count": valid_depth_count,
+            "width": width,
+        }
+        document = _observation_document(
+            kind=ObservationFingerprintKind.DEPTH_FRAME,
+            robot_id=robot_id,
+            observed_at_ns=observed_at_ns,
+            provenance=provenance,
+            confidence=None,
+            payload=payload,
+        )
+        derived = ObservationFingerprint(
+            kind=ObservationFingerprintKind.DEPTH_FRAME,
+            digest=sha256_document(document),
+        )
+        derived_id = f"world-observation-{derived.digest}"
+        if fingerprint is not None and fingerprint != derived:
+            raise ObservationIdentityError(
+                WorldModelFailureCode.IDENTITY_MISMATCH,
+                "depth frame fingerprint does not match its metadata",
+            )
+        if observation_id is not None and observation_id != derived_id:
+            raise ObservationIdentityError(
+                WorldModelFailureCode.IDENTITY_MISMATCH,
+                "depth frame observation ID does not match its metadata",
+            )
+        for field_name, value in (
+            ("robot_id", robot_id),
+            ("sensor", sensor),
+            ("width", width),
+            ("height", height),
+            ("encoding", encoding),
+            ("step", step),
+            ("data_size_bytes", data_size_bytes),
+            ("is_bigendian", is_bigendian),
+            ("calibration_id", calibration_id),
+            ("calibration_record_id", calibration_record_id),
+            ("source_manifest_id", source_manifest_id),
+            ("session_id", session_id),
+            ("valid_depth_count", valid_depth_count),
+            ("invalid_depth_count", invalid_depth_count),
+            ("minimum_depth_m", minimum),
+            ("maximum_depth_m", maximum),
+            ("payload_sha256", payload_sha256),
+            ("observed_at_ns", observed_at_ns),
+            ("provenance", provenance),
+            ("availability", availability),
+            ("observation_id", derived_id),
+            ("fingerprint", derived),
+        ):
+            object.__setattr__(self, field_name, value)
+
+    def payload_document(self) -> dict[str, JSONValue]:
+        return {
+            "availability": self.availability.value,
+            "calibration_id": self.calibration_id,
+            "calibration_record_id": self.calibration_record_id,
+            "data_size_bytes": self.data_size_bytes,
+            "encoding": self.encoding,
+            "height": self.height,
+            "invalid_depth_count": self.invalid_depth_count,
+            "is_bigendian": self.is_bigendian,
+            "maximum_depth_m": self.maximum_depth_m,
+            "minimum_depth_m": self.minimum_depth_m,
+            "payload_sha256": self.payload_sha256,
+            "sensor": self.sensor.document(),
+            "session_id": self.session_id,
+            "source_manifest_id": self.source_manifest_id,
+            "step": self.step,
+            "valid_depth_count": self.valid_depth_count,
+            "width": self.width,
+        }
+
+
+@dataclass(frozen=True, slots=True, init=False)
 class VisualInterpretationObservation:
     """Bounded semantic evidence derived from one exact admitted visual frame."""
 
@@ -2111,6 +2379,7 @@ Observation: TypeAlias = (
     RobotStateObservation
     | ImuObservation
     | VisualFrameObservation
+    | DepthFrameObservation
     | VisualInterpretationObservation
     | BodyPoseObservation
     | SensorHealthObservation
@@ -2170,6 +2439,31 @@ def rebuild_observation(observation: Observation) -> Observation:
             data_size_bytes=observation.data_size_bytes,
             is_bigendian=observation.is_bigendian,
             calibration_id=observation.calibration_id,
+            observed_at_ns=observation.observed_at_ns,
+            provenance=observation.provenance,
+            availability=observation.availability,
+            observation_id=observation.observation_id,
+            fingerprint=observation.fingerprint,
+        )
+    if type(observation) is DepthFrameObservation:
+        return DepthFrameObservation(
+            robot_id=observation.robot_id,
+            sensor=observation.sensor,
+            width=observation.width,
+            height=observation.height,
+            encoding=observation.encoding,
+            step=observation.step,
+            data_size_bytes=observation.data_size_bytes,
+            is_bigendian=observation.is_bigendian,
+            calibration_id=observation.calibration_id,
+            calibration_record_id=observation.calibration_record_id,
+            source_manifest_id=observation.source_manifest_id,
+            session_id=observation.session_id,
+            valid_depth_count=observation.valid_depth_count,
+            invalid_depth_count=observation.invalid_depth_count,
+            minimum_depth_m=observation.minimum_depth_m,
+            maximum_depth_m=observation.maximum_depth_m,
+            payload_sha256=observation.payload_sha256,
             observed_at_ns=observation.observed_at_ns,
             provenance=observation.provenance,
             availability=observation.availability,
@@ -2398,6 +2692,49 @@ class ObservedImuState:
 
 
 @dataclass(frozen=True, slots=True)
+class ObservedDepthState:
+    observation: DepthFrameObservation
+    freshness: FreshnessState
+    availability: SensorAvailability
+
+    def __post_init__(self) -> None:
+        if type(self.observation) is not DepthFrameObservation:
+            _invalid(
+                WorldModelFailureCode.SNAPSHOT_INVARIANT,
+                "depth state is untyped",
+            )
+        if not isinstance(self.freshness, FreshnessState):
+            _invalid(
+                WorldModelFailureCode.SNAPSHOT_INVARIANT,
+                "depth freshness is invalid",
+            )
+        if not isinstance(self.availability, SensorAvailability):
+            _invalid(
+                WorldModelFailureCode.SNAPSHOT_INVARIANT,
+                "depth availability is invalid",
+            )
+        if (
+            self.freshness is FreshnessState.STALE
+            and self.availability is not SensorAvailability.STALE
+        ):
+            _invalid(
+                WorldModelFailureCode.SNAPSHOT_INVARIANT,
+                "stale depth evidence must be explicitly marked stale",
+            )
+
+    def document(self) -> dict[str, JSONValue]:
+        return {
+            "availability": self.availability.value,
+            "fingerprint": str(self.observation.fingerprint),
+            "freshness": self.freshness.value,
+            "observation_id": self.observation.observation_id,
+            "observed_at_ns": self.observation.observed_at_ns,
+            "payload": self.observation.payload_document(),
+            "provenance": self.observation.provenance.document(),
+        }
+
+
+@dataclass(frozen=True, slots=True)
 class ObservedVisualState:
     observation: VisualFrameObservation
     freshness: FreshnessState
@@ -2568,6 +2905,7 @@ class RobotBodyState:
     base_pose: ObservedPoseState | None
     availability: RobotAvailability
     imu_states: tuple[ObservedImuState, ...] = ()
+    depth_states: tuple[ObservedDepthState, ...] = ()
     visual_states: tuple[ObservedVisualState, ...] = ()
     visual_interpretation_states: tuple[
         ObservedVisualInterpretationState, ...
@@ -2618,6 +2956,19 @@ class RobotBodyState:
         imu_ids = tuple(item.observation.sensor.sensor_id for item in self.imu_states)
         if imu_ids != tuple(sorted(set(imu_ids))):
             _invalid(WorldModelFailureCode.SNAPSHOT_INVARIANT, "IMU states must be unique and sorted")
+        if any(type(item) is not ObservedDepthState for item in self.depth_states):
+            _invalid(
+                WorldModelFailureCode.SNAPSHOT_INVARIANT,
+                "depth states must be typed",
+            )
+        depth_ids = tuple(
+            item.observation.sensor.sensor_id for item in self.depth_states
+        )
+        if depth_ids != tuple(sorted(set(depth_ids))):
+            _invalid(
+                WorldModelFailureCode.SNAPSHOT_INVARIANT,
+                "depth states must be unique and sorted",
+            )
         if any(type(item) is not ObservedVisualState for item in self.visual_states):
             _invalid(
                 WorldModelFailureCode.SNAPSHOT_INVARIANT,
@@ -2683,6 +3034,7 @@ class RobotBodyState:
             "known_joint_names": list(self.known_joint_names),
             "robot_id": self.robot_id,
             "imu_states": [item.document() for item in self.imu_states],
+            "depth_states": [item.document() for item in self.depth_states],
             "visual_states": [item.document() for item in self.visual_states],
             "visual_interpretation_states": [
                 item.document() for item in self.visual_interpretation_states
