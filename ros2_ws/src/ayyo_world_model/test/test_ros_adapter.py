@@ -70,6 +70,15 @@ def physical_camera_module():
     return module
 
 
+def depth_camera_module():
+    path = PACKAGE_ROOT / 'scripts' / 'depth_camera_adapter.py'
+    spec = importlib.util.spec_from_file_location('ayyo_depth_camera_ros_test', path)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
 def test_read_only_service_contract_is_bounded_and_typed() -> None:
     interface = (INTERFACES_ROOT / 'srv' / 'GetRobotBodyState.srv').read_text(
         encoding='utf-8'
@@ -99,6 +108,21 @@ def test_read_only_service_contract_is_bounded_and_typed() -> None:
         'bool has_visual_frame',
         'string visual_calibration_id',
         'string visual_observation_fingerprint',
+        'uint32 current_depth_count',
+        'bool has_depth_frame',
+        'string depth_sensor_id',
+        'string depth_frame_id',
+        'string depth_encoding',
+        'string depth_calibration_id',
+        'string depth_calibration_record_id',
+        'string depth_source_manifest_id',
+        'string depth_session_id',
+        'uint32 depth_valid_count',
+        'uint32 depth_invalid_count',
+        'float64 depth_minimum_m',
+        'float64 depth_maximum_m',
+        'string depth_payload_sha256',
+        'string depth_observation_fingerprint',
         'uint32 current_visual_interpretation_count',
         'bool has_visual_interpretation',
         'string visual_interpretation_source_visual_observation_id',
@@ -121,6 +145,8 @@ def test_read_only_service_contract_is_bounded_and_typed() -> None:
     assert 'string query' not in interface
     assert 'string visual_interpretation_report_json' not in interface
     assert 'uint8[] visual_interpretation_pixels' not in interface
+    assert 'uint8[] depth_data' not in interface
+    assert 'float32[] depth_pixels' not in interface
 
 
 def test_query_exposes_only_compact_evaluation_and_model_provenance() -> None:
@@ -763,6 +789,124 @@ def test_physical_camera_ros_metadata_requires_exact_configured_calibration() ->
         raise AssertionError('changed physical CameraInfo was accepted')
 
 
+def depth_messages(*, stamp=2_000_000_003, frame=None, encoding='16UC1'):
+    from ayyo_depth_camera import depth_test_fixture_bundle, fixture_depth_bytes
+
+    bundle = depth_test_fixture_bundle()
+    calibration = bundle.calibration.calibration
+    frame_id = bundle.source.sensor.frame_id if frame is None else frame
+    image = Image()
+    image.header.stamp.sec = stamp // 1_000_000_000
+    image.header.stamp.nanosec = stamp % 1_000_000_000
+    image.header.frame_id = frame_id
+    image.width = calibration.width
+    image.height = calibration.height
+    image.encoding = encoding
+    image.is_bigendian = 0
+    image.step = calibration.width * (2 if encoding == '16UC1' else 4)
+    image.data = fixture_depth_bytes(
+        calibration.width,
+        calibration.height,
+        encoding=encoding,
+    )
+    info = CameraInfo()
+    info.header = image.header
+    info.width = calibration.width
+    info.height = calibration.height
+    info.distortion_model = calibration.distortion_model
+    info.d = list(calibration.d)
+    info.k = list(calibration.k)
+    info.r = list(calibration.r)
+    info.p = list(calibration.p)
+    info.binning_x = calibration.binning_x
+    info.binning_y = calibration.binning_y
+    (
+        info.roi.x_offset,
+        info.roi.y_offset,
+        info.roi.width,
+        info.roi.height,
+        info.roi.do_rectify,
+    ) = calibration.roi
+    return bundle, image, info
+
+
+def test_depth_ros_normalization_is_exact_compact_and_calibration_bound() -> None:
+    support = depth_camera_module()
+    bundle, image, info = depth_messages()
+    session = 'depth-camera-session-sha256-' + '1' * 64
+    image_metadata = support.normalize_depth_image(image, bundle.source, session)
+    info_metadata = support.normalize_depth_camera_info(
+        info,
+        bundle.source,
+        session,
+        bundle.calibration,
+    )
+    assert image_metadata.observed_at_ns == 2_000_000_003
+    assert image_metadata.valid_depth_count == 8
+    assert image_metadata.invalid_depth_count == 0
+    assert image_metadata.minimum_depth_m == 1.0
+    assert image_metadata.maximum_depth_m == 1.7
+    assert info_metadata.calibration == bundle.calibration
+    assert not hasattr(image_metadata, 'data')
+
+
+def test_depth_ros_normalization_rejects_wrong_frame_and_malformed_payload() -> None:
+    support = depth_camera_module()
+    session = 'depth-camera-session-sha256-' + '2' * 64
+    cases = []
+    bundle, image, _ = depth_messages(frame='head_camera_optical_frame')
+    cases.append((bundle, image))
+    bundle, image, _ = depth_messages()
+    image.encoding = 'mono16'
+    cases.append((bundle, image))
+    bundle, image, _ = depth_messages()
+    image.step -= 1
+    cases.append((bundle, image))
+    bundle, image, _ = depth_messages()
+    image.data = image.data[:-1]
+    cases.append((bundle, image))
+    bundle, image, _ = depth_messages()
+    image.data = []
+    cases.append((bundle, image))
+    for bundle, image in cases:
+        try:
+            support.normalize_depth_image(image, bundle.source, session)
+        except support.DepthCameraRosAdapterError:
+            pass
+        else:
+            raise AssertionError('malformed depth Image was accepted')
+
+
+def test_depth_ros_camera_info_rejects_frame_or_calibration_conflict() -> None:
+    support = depth_camera_module()
+    session = 'depth-camera-session-sha256-' + '3' * 64
+    bundle, _, info = depth_messages(frame='head_camera_optical_frame')
+    try:
+        support.normalize_depth_camera_info(
+            info,
+            bundle.source,
+            session,
+            bundle.calibration,
+        )
+    except support.DepthCameraRosAdapterError:
+        pass
+    else:
+        raise AssertionError('wrong depth CameraInfo frame was accepted')
+    bundle, _, info = depth_messages()
+    info.k[0] += 1.0
+    try:
+        support.normalize_depth_camera_info(
+            info,
+            bundle.source,
+            session,
+            bundle.calibration,
+        )
+    except support.DepthCameraRosAdapterError:
+        pass
+    else:
+        raise AssertionError('changed depth CameraInfo was accepted')
+
+
 def test_visual_pairing_retains_at_most_one_raw_message_without_worker() -> None:
     source = script_source('world_model_node.py')
     for expected in (
@@ -832,6 +976,7 @@ def test_wrapper_installs_single_owned_core_packages_and_fixed_clients() -> None
     cmake = (PACKAGE_ROOT / 'CMakeLists.txt').read_text(encoding='utf-8')
     assert '../../../world_model/src/ayyo_world_model' in cmake
     assert '../../../physical_camera/src/ayyo_physical_camera' in cmake
+    assert '../../../depth_camera/src/ayyo_depth_camera' in cmake
     assert '../../../visual_evaluation/src/ayyo_visual_evaluation' in cmake
     assert '../../../working_memory/src/ayyo_working_memory' in cmake
     assert '../../../perception/src/ayyo_perception' in cmake
@@ -840,6 +985,8 @@ def test_wrapper_installs_single_owned_core_packages_and_fixed_clients() -> None
     assert 'scripts/localization_diagnostics.py' in cmake
     assert 'scripts/physical_camera_adapter.py' in cmake
     assert 'scripts/physical_camera_fixture_node.py' in cmake
+    assert 'scripts/depth_camera_adapter.py' in cmake
+    assert 'scripts/depth_camera_fixture_node.py' in cmake
     assert 'scripts/visual_camera.py' in cmake
     assert not (PACKAGE_ROOT / 'ayyo_world_model').exists()
     assert not (PACKAGE_ROOT / 'ayyo_working_memory').exists()
@@ -858,6 +1005,25 @@ def test_physical_camera_fixture_composition_is_explicit_and_default_off() -> No
         "'source_profile': 'physical_camera_test_fixture_v1'",
         "'enable_physical_camera_adapter': enable_fixture",
         "executable='physical_camera_fixture_node.py'",
+        'condition=IfCondition(enable_fixture)',
+    ):
+        assert expected in source
+    for forbidden in ('gz sim', 'ros_gz', 'controller_manager', '/commands'):
+        assert forbidden not in source
+
+
+def test_depth_fixture_composition_is_explicit_default_off_and_authority_free() -> None:
+    source = (
+        SIMULATION_ROOT / 'launch' / 'head_depth_fixture.launch.py'
+    ).read_text(encoding='utf-8')
+    for expected in (
+        "'enable_head_depth_fixture',",
+        "default_value='false'",
+        "'depth_camera_profile',",
+        "default_value='unconfigured'",
+        "'source_profile': 'depth_camera_test_fixture_v1'",
+        "'enable_depth_camera_adapter': enable_fixture",
+        "executable='depth_camera_fixture_node.py'",
         'condition=IfCondition(enable_fixture)',
     ):
         assert expected in source
@@ -888,6 +1054,35 @@ def test_physical_camera_adapter_is_sealed_lifecycle_scoped_and_query_compact() 
     assert 'string[] sensor_health_details' in interface
     assert 'float64[] camera_calibration_matrix' not in interface
     assert 'uint8[] visual_pixels' not in interface
+
+
+def test_depth_adapter_is_sealed_lifecycle_scoped_and_query_compact() -> None:
+    source = script_source('world_model_node.py')
+    for expected in (
+        "declare_parameter('enable_depth_camera_adapter', False)",
+        "declare_parameter('depth_camera_profile', 'unconfigured')",
+        'DepthLifecycleAdapter(',
+        'authorize_depth_camera(',
+        'normalize_depth_image(',
+        'normalize_depth_camera_info(',
+        'self._depth_camera_adapter.deactivate()',
+        'self._memory.reset()',
+        'self._trust_boundary.reset()',
+        'self._depth_camera_adapter.cleanup()',
+        'self._depth_camera_adapter.shutdown()',
+    ):
+        assert expected in source
+    query = script_source('body_state_query.py')
+    for expected in (
+        "'depth_frame': (",
+        "'payload_sha256': response.depth_payload_sha256",
+        "'source_manifest_id': response.depth_source_manifest_id",
+        "'session_id': response.depth_session_id",
+        "'valid_count': response.depth_valid_count",
+    ):
+        assert expected in query
+    for forbidden in ('depth_pixels', "'data':", 'point_cloud'):
+        assert forbidden not in query
 
 
 def test_ros_dependency_boundary_has_no_cognition_or_durable_memory() -> None:
@@ -1171,9 +1366,51 @@ def test_physical_camera_smoke_is_default_off_adversarial_and_process_owned() ->
     assert 'ros2 topic pub' not in smoke
 
 
+def test_head_depth_smoke_is_nonempty_adversarial_bounded_and_process_owned() -> None:
+    smoke_path = REPOSITORY_ROOT / 'scripts' / 'smoke_head_depth_rgbd.sh'
+    fixture_path = REPOSITORY_ROOT / 'scripts' / 'head_depth_rgbd_test_fixture.py'
+    smoke = smoke_path.read_text(encoding='utf-8')
+    fixture = fixture_path.read_text(encoding='utf-8')
+    for expected in (
+        'head_depth_fixture.launch.py',
+        'enable_head_depth_fixture:=false',
+        'enable_head_depth_fixture:=true',
+        'depth_camera_profile:=test_fixture_v1',
+        'sensor_msgs/msg/Image',
+        'sensor_msgs/msg/CameraInfo',
+        '--scenario wrong_frame',
+        '--scenario malformed_payload',
+        'valid_count',
+        'payload_sha256',
+        'ros2 lifecycle set /ayyo_world_model deactivate',
+        'ros2 lifecycle set /ayyo_world_model activate',
+        'ayyo_smoke_shutdown_owned_launch',
+        'owned-process set and isolated ROS graph are empty',
+    ):
+        assert expected in smoke
+    for expected in (
+        'CYCLE_COUNT = 5_000',
+        'bare_perception_bypass_rejected',
+        'recorded_live_substitution_rejected',
+        'simulation_spoof_rejected',
+        'spoofed_physical_rejected',
+        'tracemalloc.start()',
+        "choices=('offline', 'wrong_frame', 'malformed_payload')",
+    ):
+        assert expected in fixture
+    for forbidden in ('pkill', 'ros2 topic pub', 'PointCloud2'):
+        assert forbidden not in smoke
+    assert smoke_path.stat().st_mode & 0o111
+    assert fixture_path.stat().st_mode & 0o111
+    cmake = (PACKAGE_ROOT / 'CMakeLists.txt').read_text(encoding='utf-8')
+    assert 'head_depth_rgbd_test_fixture.py' not in cmake
+
+
 def test_owned_sources_retain_project_copyright() -> None:
     for relative in (
         'scripts/body_state_query.py',
+        'scripts/depth_camera_adapter.py',
+        'scripts/depth_camera_fixture_node.py',
         'scripts/localization_diagnostics.py',
         'scripts/physical_camera_adapter.py',
         'scripts/physical_camera_fixture_node.py',
