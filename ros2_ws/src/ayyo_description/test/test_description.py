@@ -45,7 +45,7 @@ def test_complete_validation_command_passes() -> None:
     )
     assert result.returncode == 0, result.stderr
     assert result.stdout == (
-        'PASS: Ayyo description (37 links, 36 joints, 18 movable, '
+        'PASS: Ayyo description (39 links, 38 joints, 18 movable, '
         '33 mesh contracts)\n'
     )
 
@@ -56,7 +56,7 @@ def test_default_expansion_is_byte_deterministic() -> None:
 
 
 def test_canonical_topology(proxy_robot: ET.Element) -> None:
-    assert validate_tree(proxy_robot) == (37, 36, 18)
+    assert validate_tree(proxy_robot) == (39, 38, 18)
 
 
 def test_head_camera_mount_and_optical_frame_contract(proxy_robot: ET.Element) -> None:
@@ -80,6 +80,27 @@ def test_head_camera_mount_and_optical_frame_contract(proxy_robot: ET.Element) -
         0.0,
         -1.5707963267948966,
     )
+
+    depth_mount = proxy_robot.find("./joint[@name='head_depth_camera_mount_joint']")
+    assert depth_mount is not None
+    assert depth_mount.get('type') == 'fixed'
+    assert depth_mount.find('parent').get('link') == 'head_camera_frame'
+    assert depth_mount.find('child').get('link') == 'head_depth_camera_frame'
+    assert depth_mount.find('origin').get('xyz') == '0 0 0'
+    assert depth_mount.find('origin').get('rpy') == '0 0 0'
+
+    depth_optical = proxy_robot.find(
+        "./joint[@name='head_depth_camera_optical_joint']"
+    )
+    assert depth_optical is not None
+    assert depth_optical.get('type') == 'fixed'
+    assert depth_optical.find('parent').get('link') == 'head_depth_camera_frame'
+    assert depth_optical.find('child').get('link') == (
+        'head_depth_camera_optical_frame'
+    )
+    assert tuple(
+        float(value) for value in depth_optical.find('origin').get('rpy').split()
+    ) == (-1.5707963267948966, 0.0, -1.5707963267948966)
 
 
 def test_expected_major_frames_are_present(proxy_robot: ET.Element) -> None:
@@ -195,6 +216,32 @@ def test_camera_mode_adds_only_exact_simulation_rgb_source() -> None:
     )
     assert camera.findtext('camera/camera_info_topic') == (
         '/ayyo/camera/head/camera_info'
+    )
+
+
+def test_depth_camera_mode_adds_only_exact_simulation_depth_source() -> None:
+    robot = parse_robot(
+        expand_xacro(
+            PACKAGE_ROOT / 'urdf' / 'ayyo.urdf.xacro',
+            'simulation_mode:=true',
+            'simulation_depth_camera:=true',
+        )
+    )
+    depth_camera = robot.find(
+        "./gazebo[@reference='head_depth_camera_optical_frame']"
+        "/sensor[@type='depth_camera']"
+    )
+    assert depth_camera is not None
+    assert depth_camera.get('name') == 'head_depth_camera'
+    assert depth_camera.findtext('topic') == '/ayyo/camera/head/depth/image_raw'
+    assert depth_camera.findtext('gz_frame_id') == (
+        'head_depth_camera_optical_frame'
+    )
+    assert depth_camera.findtext('camera/image/format') == 'R_FLOAT32'
+    assert depth_camera.findtext('camera/clip/near') == '0.1'
+    assert depth_camera.findtext('camera/clip/far') == '30.0'
+    assert depth_camera.findtext('camera/camera_info_topic') == (
+        '/ayyo/camera/head/depth/camera_info'
     )
 
 
@@ -325,7 +372,7 @@ def test_owned_python_sources_retain_project_copyright() -> None:
 
 
 def test_validation_api_reports_expected_counts() -> None:
-    assert validate_package(PACKAGE_ROOT) == (37, 36, 18, 33)
+    assert validate_package(PACKAGE_ROOT) == (39, 38, 18, 33)
 
 
 def test_rviz_launch_has_only_description_display_nodes() -> None:

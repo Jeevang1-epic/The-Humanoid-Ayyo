@@ -34,6 +34,7 @@ def generate_launch_description() -> LaunchDescription:
     enable_world_model = LaunchConfiguration('enable_world_model')
     enable_localization = LaunchConfiguration('enable_localization')
     enable_camera = LaunchConfiguration('enable_camera')
+    enable_depth_camera = LaunchConfiguration('enable_depth_camera')
     enable_visual_reference_interpreter = LaunchConfiguration(
         'enable_visual_reference_interpreter'
     )
@@ -62,6 +63,13 @@ def generate_launch_description() -> LaunchDescription:
             'ros_gz_camera_bridge.yaml',
         ]
     )
+    depth_camera_bridge_config = PathJoinSubstitution(
+        [
+            FindPackageShare('ayyo_simulation'),
+            'config',
+            'ros_gz_depth_camera_bridge.yaml',
+        ]
+    )
     controller_config = PathJoinSubstitution(
         [FindPackageShare('ayyo_simulation'), 'config', 'controllers.yaml']
     )
@@ -83,6 +91,8 @@ def generate_launch_description() -> LaunchDescription:
                 enable_localization,
                 ' simulation_camera:=',
                 enable_camera,
+                ' simulation_depth_camera:=',
+                enable_depth_camera,
                 ' simulation_controller_config:=',
                 controller_config,
             ]
@@ -220,6 +230,8 @@ def generate_launch_description() -> LaunchDescription:
                 'enable_visual_producer_evaluation_fixture': (
                     enable_visual_producer_evaluation_fixture
                 ),
+                'enable_depth_camera_adapter': enable_depth_camera,
+                'depth_camera_profile': 'simulation_gazebo_v1',
                 'retention_ttl_ms': ParameterValue(
                     world_model_retention_ttl_ms,
                     value_type=int,
@@ -274,6 +286,13 @@ def generate_launch_description() -> LaunchDescription:
                 default_value='false',
                 description=(
                     'Expose the simulation-only head RGB observation source.'
+                ),
+            ),
+            DeclareLaunchArgument(
+                'enable_depth_camera',
+                default_value='false',
+                description=(
+                    'Expose the simulation-only head depth observation source.'
                 ),
             ),
             DeclareLaunchArgument(
@@ -338,6 +357,23 @@ def generate_launch_description() -> LaunchDescription:
                 arguments=['/ayyo/camera/head/image_raw'],
                 parameters=[{'use_sim_time': True}],
                 condition=IfCondition(enable_camera),
+            ),
+            Node(
+                package='ros_gz_image',
+                executable='image_bridge',
+                name='ayyo_head_depth_image_bridge',
+                output='screen',
+                arguments=['/ayyo/camera/head/depth/image_raw'],
+                parameters=[{'use_sim_time': True}],
+                condition=IfCondition(enable_depth_camera),
+            ),
+            Node(
+                package='ros_gz_bridge',
+                executable='parameter_bridge',
+                name='ayyo_head_depth_camera_info_bridge',
+                output='screen',
+                parameters=[{'config_file': depth_camera_bridge_config}],
+                condition=IfCondition(enable_depth_camera),
             ),
             Node(
                 package='ros_gz_bridge',

@@ -6,6 +6,7 @@
   <xacro:arg name="simulation_control" default="false"/>
   <xacro:arg name="simulation_localization" default="false"/>
   <xacro:arg name="simulation_camera" default="false"/>
+  <xacro:arg name="simulation_depth_camera" default="false"/>
   <xacro:arg name="simulation_controller_config" default=""/>
 
   <xacro:include filename="ayyo_materials.xacro"/>
@@ -22,6 +23,7 @@
       control_enabled="$(arg simulation_control)"
       localization_enabled="$(arg simulation_localization)"
       camera_enabled="$(arg simulation_camera)"
+      depth_camera_enabled="$(arg simulation_depth_camera)"
       controller_config="$(arg simulation_controller_config)"/>
     <xacro:if value="$(arg simulation_control)">
       <xacro:ayyo_ros2_control_system

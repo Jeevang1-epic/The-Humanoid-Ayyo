@@ -51,6 +51,18 @@
       parent="head_camera_frame" child="head_camera_optical_frame"
       xyz="0 0 0" rpy="-1.5707963267948966 0 -1.5707963267948966"/>
 
+    <!-- Co-located depth datum remains a distinct semantic sensor/frame identity. -->
+    <xacro:ayyo_frame_link name="head_depth_camera_frame"/>
+    <xacro:ayyo_fixed_joint name="head_depth_camera_mount_joint"
+      parent="head_camera_frame" child="head_depth_camera_frame"
+      xyz="0 0 0" rpy="0 0 0"/>
+
+    <!-- REP-103 camera optical datum: z forward, x right, y down. -->
+    <xacro:ayyo_frame_link name="head_depth_camera_optical_frame"/>
+    <xacro:ayyo_fixed_joint name="head_depth_camera_optical_joint"
+      parent="head_depth_camera_frame" child="head_depth_camera_optical_frame"
+      xyz="0 0 0" rpy="-1.5707963267948966 0 -1.5707963267948966"/>
+
     <xacro:ayyo_arm side="left" side_sign="1" use_meshes="${use_meshes}"/>
     <xacro:ayyo_arm side="right" side_sign="-1" use_meshes="${use_meshes}"/>
     <xacro:ayyo_leg side="left" side_sign="1" use_meshes="${use_meshes}"/>

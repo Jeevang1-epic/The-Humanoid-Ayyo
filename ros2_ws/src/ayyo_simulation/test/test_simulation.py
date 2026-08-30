@@ -286,6 +286,23 @@ def test_bridge_allowlist_contains_only_reviewed_observation_topics() -> None:
             'subscriber_queue': 2,
         }
     ]
+    depth_camera_config = yaml.safe_load(
+        (PACKAGE_ROOT / 'config' / 'ros_gz_depth_camera_bridge.yaml').read_text(
+            encoding='utf-8'
+        )
+    )
+    assert depth_camera_config == [
+        {
+            'ros_topic_name': '/ayyo/camera/head/depth/camera_info',
+            'gz_topic_name': '/ayyo/camera/head/depth/camera_info',
+            'ros_type_name': 'sensor_msgs/msg/CameraInfo',
+            'gz_type_name': 'gz.msgs.CameraInfo',
+            'direction': 'GZ_TO_ROS',
+            'lazy': False,
+            'publisher_queue': 2,
+            'subscriber_queue': 2,
+        }
+    ]
 
 
 def test_launch_uses_bounded_simulation_nodes() -> None:
@@ -341,6 +358,7 @@ def test_launch_spawns_authoritative_description_as_static() -> None:
     assert "' simulation_control:='" in source
     assert "' simulation_localization:='" in source
     assert "' simulation_camera:='" in source
+    assert "' simulation_depth_camera:='" in source
     assert "' simulation_controller_config:='" in source
     assert "'topic': 'robot_description'" in source
     assert "'allow_renaming': False" in source
@@ -369,6 +387,7 @@ def test_launch_defaults_to_headless_proxy_ground_contact() -> None:
     assert defaults['enable_world_model'] == 'false'
     assert defaults['enable_localization'] == 'false'
     assert defaults['enable_camera'] == 'false'
+    assert defaults['enable_depth_camera'] == 'false'
     assert defaults['enable_visual_reference_interpreter'] == 'false'
     assert defaults['enable_visual_producer_evaluation_fixture'] == 'false'
     assert defaults['world_model_retention_ttl_ms'] == '2000'
@@ -456,6 +475,22 @@ def test_camera_bridges_are_one_way_fixed_and_default_off() -> None:
     assert source.count('condition=IfCondition(enable_camera)') == 2
     assert 'GZ_TO_ROS' in (
         PACKAGE_ROOT / 'config' / 'ros_gz_camera_bridge.yaml'
+    ).read_text(encoding='utf-8')
+    assert 'ROS_TO_GZ' not in source
+
+
+def test_depth_camera_bridges_are_one_way_fixed_and_default_off() -> None:
+    source = (PACKAGE_ROOT / 'launch' / 'simulation.launch.py').read_text(
+        encoding='utf-8'
+    )
+    assert "enable_depth_camera = LaunchConfiguration('enable_depth_camera')" in source
+    assert "arguments=['/ayyo/camera/head/depth/image_raw']" in source
+    assert "'ros_gz_depth_camera_bridge.yaml'" in source
+    assert "name='ayyo_head_depth_image_bridge'" in source
+    assert "name='ayyo_head_depth_camera_info_bridge'" in source
+    assert source.count('condition=IfCondition(enable_depth_camera)') == 2
+    assert 'GZ_TO_ROS' in (
+        PACKAGE_ROOT / 'config' / 'ros_gz_depth_camera_bridge.yaml'
     ).read_text(encoding='utf-8')
     assert 'ROS_TO_GZ' not in source
 
