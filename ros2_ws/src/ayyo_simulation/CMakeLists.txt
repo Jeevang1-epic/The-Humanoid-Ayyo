@@ -19,6 +19,7 @@ if(BUILD_TESTING)
   find_package(ament_cmake_copyright REQUIRED)
   ament_copyright(
     EXCLUDE
+      launch/head_depth_fixture.launch.py
       launch/physical_camera_fixture.launch.py
       launch/simulation.launch.py
       test/test_simulation.py

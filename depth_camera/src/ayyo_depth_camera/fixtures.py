@@ -154,10 +154,10 @@ def fixture_depth_bytes(
     count = width * height
     prefix = ">" if is_bigendian else "<"
     if encoding == "16UC1":
-        values = tuple(1_000 + index * 100 for index in range(count))
+        values = tuple(1_000 + (index % 100) * 100 for index in range(count))
         return struct.pack(f"{prefix}{count}H", *values)
     if encoding == "32FC1":
-        values = tuple(1.0 + index * 0.1 for index in range(count))
+        values = tuple(1.0 + (index % 100) * 0.1 for index in range(count))
         return struct.pack(f"{prefix}{count}f", *values)
     raise ValueError("fixture depth encoding is unsupported")
 

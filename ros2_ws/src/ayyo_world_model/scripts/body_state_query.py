@@ -89,6 +89,7 @@ def main() -> None:
             ),
             'base_pose_availability': response.base_pose_availability,
             'detail': response.detail,
+            'current_depth_count': response.current_depth_count,
             'current_visual_count': response.current_visual_count,
             'current_visual_interpretation_count': (
                 response.current_visual_interpretation_count
@@ -215,6 +216,41 @@ def main() -> None:
             'source_kind': response.source_kind,
             'source_transport': response.source_transport,
             'status': response.status,
+            'depth_frame': (
+                {
+                    'availability': response.depth_availability,
+                    'calibration_id': response.depth_calibration_id,
+                    'calibration_record_id': response.depth_calibration_record_id,
+                    'data_size_bytes': response.depth_data_size_bytes,
+                    'encoding': response.depth_encoding,
+                    'frame_id': response.depth_frame_id,
+                    'freshness': response.depth_freshness,
+                    'height': response.depth_height,
+                    'invalid_count': response.depth_invalid_count,
+                    'is_bigendian': response.depth_is_bigendian,
+                    'maximum_m': response.depth_maximum_m,
+                    'minimum_m': response.depth_minimum_m,
+                    'observation_fingerprint': (
+                        response.depth_observation_fingerprint
+                    ),
+                    'observation_id': response.depth_observation_id,
+                    'observed_at_ns': _nanoseconds(response.depth_observed_at),
+                    'payload_sha256': response.depth_payload_sha256,
+                    'sensor_id': response.depth_sensor_id,
+                    'session_id': response.depth_session_id,
+                    'source_clock': response.depth_source_clock,
+                    'source_id': response.depth_source_id,
+                    'source_interface': response.depth_source_interface,
+                    'source_kind': response.depth_source_kind,
+                    'source_manifest_id': response.depth_source_manifest_id,
+                    'source_transport': response.depth_source_transport,
+                    'step': response.depth_step,
+                    'valid_count': response.depth_valid_count,
+                    'width': response.depth_width,
+                }
+                if response.has_depth_frame
+                else None
+            ),
             'visual_frame': (
                 {
                     'availability': response.visual_availability,

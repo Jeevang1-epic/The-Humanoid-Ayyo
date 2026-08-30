@@ -231,7 +231,7 @@ def generate_launch_description() -> LaunchDescription:
                     enable_visual_producer_evaluation_fixture
                 ),
                 'enable_depth_camera_adapter': enable_depth_camera,
-                'depth_camera_profile': 'simulation_gazebo_v1',
+                'depth_camera_profile': 'simulation_depth_v1',
                 'retention_ttl_ms': ParameterValue(
                     world_model_retention_ttl_ms,
                     value_type=int,

@@ -44,14 +44,18 @@ def message_time_ns(message) -> int:
     return value
 
 
-def normalize_camera_info(message: CameraInfo) -> CameraCalibration:
+def normalize_camera_info(
+    message: CameraInfo,
+    *,
+    expected_frame_id: str = HEAD_CAMERA_SENSOR.frame_id,
+) -> CameraCalibration:
     """Validate bounded calibration metadata and derive its immutable identity."""
     if not isinstance(message, CameraInfo):
         raise VisualCameraAdapterError(
             'camera calibration must be sensor_msgs/CameraInfo'
         )
     message_time_ns(message)
-    if message.header.frame_id != HEAD_CAMERA_SENSOR.frame_id:
+    if message.header.frame_id != expected_frame_id:
         raise VisualCameraAdapterError(
             'CameraInfo frame does not match the reviewed optical frame'
         )

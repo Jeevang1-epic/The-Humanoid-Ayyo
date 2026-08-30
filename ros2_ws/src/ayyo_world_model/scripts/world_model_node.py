@@ -31,6 +31,21 @@ from ayyo_physical_camera import (
     PhysicalCameraSourceRegistry,
     PhysicalCameraValidationError,
 )
+from ayyo_depth_camera import (
+    DEPTH_CAMERA_INFO_TOPIC,
+    DEPTH_IMAGE_TOPIC,
+    HEAD_DEPTH_SENSOR,
+    SIMULATION_DEPTH_PROVENANCE,
+    TEST_DEPTH_PROVENANCE,
+    DepthCameraConfigurationError,
+    DepthCameraLifecycleError,
+    DepthCameraValidationError,
+    DepthLifecycleAdapter,
+    DepthLifecycleState,
+    DepthSourceRegistry,
+    depth_simulation_bundle,
+    depth_test_fixture_bundle,
+)
 from ayyo_visual_evaluation import (
     DeterministicFixtureInvoker,
     fixture_bundle_for_live_profile,
@@ -86,6 +101,11 @@ from physical_camera_adapter import (
     normalize_physical_image_metadata,
     PhysicalCameraRosAdapterError,
 )
+from depth_camera_adapter import (
+    DepthCameraRosAdapterError,
+    normalize_depth_camera_info,
+    normalize_depth_image,
+)
 import rclpy
 from rclpy.duration import Duration
 from rclpy.executors import ExternalShutdownException, SingleThreadedExecutor
@@ -112,6 +132,7 @@ QUERY_SERVICE = '/ayyo/world_model/get_robot_body_state'
 SIMULATION_SOURCE_PROFILE = 'simulation_ros2_control_v1'
 PHYSICAL_SOURCE_PROFILE = 'physical_ros2_control_v1'
 PHYSICAL_CAMERA_FIXTURE_SOURCE_PROFILE = 'physical_camera_test_fixture_v1'
+DEPTH_CAMERA_FIXTURE_SOURCE_PROFILE = 'depth_camera_test_fixture_v1'
 SOURCE_PROFILES = {
     SIMULATION_SOURCE_PROFILE: ObservationProvenance(
         source_kind=ObservationSourceKind.SIMULATION,
@@ -131,6 +152,13 @@ SOURCE_PROFILES = {
         source_kind=ObservationSourceKind.PHYSICAL_SENSOR,
         source_id='ros.joint-states.physical.test-fixture.v1',
         clock=ObservationClock.ROS_SYSTEM_TIME,
+        transport=ObservationTransport.ROS2,
+        interface='sensor-msgs.joint-state.v1',
+    ),
+    DEPTH_CAMERA_FIXTURE_SOURCE_PROFILE: ObservationProvenance(
+        source_kind=ObservationSourceKind.TEST_FIXTURE,
+        source_id='ros.joint-states.depth.test-fixture.v1',
+        clock=ObservationClock.TEST_TIME,
         transport=ObservationTransport.ROS2,
         interface='sensor-msgs.joint-state.v1',
     ),
@@ -157,6 +185,13 @@ IMU_SOURCE_PROFILES = {
         transport=ObservationTransport.ROS2,
         interface='sensor-msgs.imu.v1',
     ),
+    DEPTH_CAMERA_FIXTURE_SOURCE_PROFILE: ObservationProvenance(
+        source_kind=ObservationSourceKind.TEST_FIXTURE,
+        source_id='ros.imu.depth.test-fixture.v1',
+        clock=ObservationClock.TEST_TIME,
+        transport=ObservationTransport.ROS2,
+        interface='sensor-msgs.imu.v1',
+    ),
 }
 POSE_SOURCE_PROFILES = {
     SIMULATION_SOURCE_PROFILE: ObservationProvenance(
@@ -177,6 +212,13 @@ POSE_SOURCE_PROFILES = {
         source_kind=ObservationSourceKind.PHYSICAL_SENSOR,
         source_id='ros.body-pose.physical.test-fixture.v1',
         clock=ObservationClock.ROS_SYSTEM_TIME,
+        transport=ObservationTransport.ROS2,
+        interface='nav-msgs.odometry-tf2.v1',
+    ),
+    DEPTH_CAMERA_FIXTURE_SOURCE_PROFILE: ObservationProvenance(
+        source_kind=ObservationSourceKind.TEST_FIXTURE,
+        source_id='ros.body-pose.depth.test-fixture.v1',
+        clock=ObservationClock.TEST_TIME,
         transport=ObservationTransport.ROS2,
         interface='nav-msgs.odometry-tf2.v1',
     ),
@@ -203,6 +245,13 @@ DIAGNOSTIC_SOURCE_PROFILES = {
         transport=ObservationTransport.ROS2,
         interface='diagnostic-msgs.diagnostic-array.v1',
     ),
+    DEPTH_CAMERA_FIXTURE_SOURCE_PROFILE: ObservationProvenance(
+        source_kind=ObservationSourceKind.TEST_FIXTURE,
+        source_id='ros.diagnostics.depth.test-fixture.v1',
+        clock=ObservationClock.TEST_TIME,
+        transport=ObservationTransport.ROS2,
+        interface='diagnostic-msgs.diagnostic-array.v1',
+    ),
 }
 CAMERA_SOURCE_PROFILES = {
     SIMULATION_SOURCE_PROFILE: ObservationProvenance(
@@ -220,6 +269,31 @@ CAMERA_SOURCE_PROFILES = {
         interface='sensor-msgs.image-camera-info.v1',
     ),
     PHYSICAL_CAMERA_FIXTURE_SOURCE_PROFILE: PHYSICAL_CAMERA_FIXTURE_PROVENANCE,
+    DEPTH_CAMERA_FIXTURE_SOURCE_PROFILE: ObservationProvenance(
+        source_kind=ObservationSourceKind.TEST_FIXTURE,
+        source_id='ros.camera.head.rgb.depth.test-fixture.v1',
+        clock=ObservationClock.TEST_TIME,
+        transport=ObservationTransport.ROS2,
+        interface='sensor-msgs.image-camera-info.v1',
+    ),
+}
+DEPTH_SOURCE_PROFILES = {
+    SIMULATION_SOURCE_PROFILE: SIMULATION_DEPTH_PROVENANCE,
+    PHYSICAL_SOURCE_PROFILE: ObservationProvenance(
+        source_kind=ObservationSourceKind.PHYSICAL_SENSOR,
+        source_id='ros.camera.head.depth.physical.unconfigured.v1',
+        clock=ObservationClock.ROS_SYSTEM_TIME,
+        transport=ObservationTransport.ROS2,
+        interface='sensor-msgs.image-camera-info.depth.v1',
+    ),
+    PHYSICAL_CAMERA_FIXTURE_SOURCE_PROFILE: ObservationProvenance(
+        source_kind=ObservationSourceKind.PHYSICAL_SENSOR,
+        source_id='ros.camera.head.depth.physical.unconfigured.v1',
+        clock=ObservationClock.ROS_SYSTEM_TIME,
+        transport=ObservationTransport.ROS2,
+        interface='sensor-msgs.image-camera-info.depth.v1',
+    ),
+    DEPTH_CAMERA_FIXTURE_SOURCE_PROFILE: TEST_DEPTH_PROVENANCE,
 }
 JOINT_SENSOR = SensorIdentity(
     'ayyo.joint-state.body.v1',
@@ -402,6 +476,8 @@ class AyyoWorldModelNode(LifecycleNode):
         )
         self.declare_parameter('enable_physical_camera_adapter', False)
         self.declare_parameter('physical_camera_profile', 'unconfigured')
+        self.declare_parameter('enable_depth_camera_adapter', False)
+        self.declare_parameter('depth_camera_profile', 'unconfigured')
         self._memory: WorkingMemory | None = None
         self._trust_boundary: PerceptionTrustBoundary | None = None
         self._provenance: ObservationProvenance | None = None
@@ -409,8 +485,11 @@ class AyyoWorldModelNode(LifecycleNode):
         self._pose_provenance: ObservationProvenance | None = None
         self._diagnostic_provenance: ObservationProvenance | None = None
         self._camera_provenance: ObservationProvenance | None = None
+        self._depth_provenance: ObservationProvenance | None = None
         self._camera_enabled = False
+        self._depth_enabled = False
         self._physical_camera_adapter: PhysicalCameraLifecycleAdapter | None = None
+        self._depth_camera_adapter: DepthLifecycleAdapter | None = None
         self._visual_reference_adapter: (
             DeterministicVisualReferenceAdapter | None
         ) = None
@@ -424,6 +503,8 @@ class AyyoWorldModelNode(LifecycleNode):
         self._diagnostics_subscription = None
         self._image_subscription = None
         self._camera_info_subscription = None
+        self._depth_image_subscription = None
+        self._depth_camera_info_subscription = None
         self._pending_image: Image | None = None
         self._pending_camera_info: CameraInfo | None = None
         self._pose_buffer: Buffer | None = None
@@ -452,6 +533,12 @@ class AyyoWorldModelNode(LifecycleNode):
         if self._camera_info_subscription is not None:
             self.destroy_subscription(self._camera_info_subscription)
             self._camera_info_subscription = None
+        if self._depth_image_subscription is not None:
+            self.destroy_subscription(self._depth_image_subscription)
+            self._depth_image_subscription = None
+        if self._depth_camera_info_subscription is not None:
+            self.destroy_subscription(self._depth_camera_info_subscription)
+            self._depth_camera_info_subscription = None
         self._pending_image = None
         self._pending_camera_info = None
         self._pose_buffer = None
@@ -468,12 +555,14 @@ class AyyoWorldModelNode(LifecycleNode):
             pose_provenance = POSE_SOURCE_PROFILES.get(profile_name)
             diagnostic_provenance = DIAGNOSTIC_SOURCE_PROFILES.get(profile_name)
             camera_provenance = CAMERA_SOURCE_PROFILES.get(profile_name)
+            depth_provenance = DEPTH_SOURCE_PROFILES.get(profile_name)
             if (
                 provenance is None
                 or imu_provenance is None
                 or pose_provenance is None
                 or diagnostic_provenance is None
                 or camera_provenance is None
+                or depth_provenance is None
             ):
                 raise WorkingMemoryConfigurationError(
                     'source_profile must select one reviewed observation profile'
@@ -565,6 +654,58 @@ class AyyoWorldModelNode(LifecycleNode):
                 raise PhysicalCameraConfigurationError(
                     'physical camera profile must remain unconfigured while disabled'
                 )
+            enable_depth_camera = bool(
+                self.get_parameter('enable_depth_camera_adapter').value
+            )
+            depth_camera_profile = self.get_parameter(
+                'depth_camera_profile'
+            ).value
+            depth_camera_bundle = None
+            depth_camera_adapter = None
+            depth_camera_requirements = ()
+            if enable_depth_camera:
+                if (
+                    profile_name == SIMULATION_SOURCE_PROFILE
+                    and depth_camera_profile == 'simulation_depth_v1'
+                ):
+                    depth_camera_bundle = depth_simulation_bundle()
+                elif (
+                    profile_name == DEPTH_CAMERA_FIXTURE_SOURCE_PROFILE
+                    and depth_camera_profile == 'test_fixture_v1'
+                ):
+                    depth_camera_bundle = depth_test_fixture_bundle()
+                else:
+                    raise DepthCameraConfigurationError(
+                        'depth adapter requires one exact reviewed composition profile'
+                    )
+                if depth_camera_bundle.source.provenance != depth_provenance:
+                    raise DepthCameraConfigurationError(
+                        'depth source provenance differs from its composition'
+                    )
+                depth_registry = DepthSourceRegistry()
+                depth_registry.register(depth_camera_bundle.source)
+                depth_camera_adapter = DepthLifecycleAdapter(
+                    depth_registry,
+                    retention_ns=int(
+                        self.get_parameter('retention_ttl_ms').value
+                    )
+                    * 1_000_000,
+                    future_skew_ns=int(
+                        self.get_parameter('permitted_future_skew_ms').value
+                    )
+                    * 1_000_000,
+                )
+                depth_camera_adapter.configure(
+                    depth_camera_bundle.source.source_id,
+                    depth_camera_bundle.calibration,
+                )
+                depth_camera_requirements = (
+                    depth_camera_bundle.source.requirement(),
+                )
+            elif depth_camera_profile != 'unconfigured':
+                raise DepthCameraConfigurationError(
+                    'depth profile must remain unconfigured while disabled'
+                )
             camera_enabled = (
                 camera_provenance.source_kind is ObservationSourceKind.SIMULATION
                 or physical_camera_adapter is not None
@@ -636,6 +777,15 @@ class AyyoWorldModelNode(LifecycleNode):
                 )
                 if camera_enabled
                 else ()
+            ) + (
+                (
+                    PerceptionSourceContract(
+                        HEAD_DEPTH_SENSOR,
+                        depth_provenance,
+                    ),
+                )
+                if depth_camera_adapter is not None
+                else ()
             )
             self._memory = WorkingMemory(
                 catalog,
@@ -648,6 +798,7 @@ class AyyoWorldModelNode(LifecycleNode):
                         pose_provenance,
                         diagnostic_provenance,
                         camera_provenance,
+                        depth_provenance,
                     ),
                     sensors=tuple(
                         sorted(
@@ -656,6 +807,7 @@ class AyyoWorldModelNode(LifecycleNode):
                                 IMU_SENSOR,
                                 BODY_POSE_SENSOR,
                                 HEAD_CAMERA_SENSOR,
+                                HEAD_DEPTH_SENSOR,
                             ),
                             key=lambda item: item.sensor_id,
                         )
@@ -698,6 +850,7 @@ class AyyoWorldModelNode(LifecycleNode):
                     visual_interpretation_producers=visual_producers,
                     visual_evaluation_requirements=visual_requirements,
                     physical_camera_requirements=physical_camera_requirements,
+                    depth_camera_requirements=depth_camera_requirements,
                 )
             )
             self._provenance = provenance
@@ -705,8 +858,11 @@ class AyyoWorldModelNode(LifecycleNode):
             self._pose_provenance = pose_provenance
             self._diagnostic_provenance = diagnostic_provenance
             self._camera_provenance = camera_provenance
+            self._depth_provenance = depth_provenance
             self._camera_enabled = camera_enabled
+            self._depth_enabled = depth_camera_adapter is not None
             self._physical_camera_adapter = physical_camera_adapter
+            self._depth_camera_adapter = depth_camera_adapter
             self._visual_reference_adapter = (
                 DeterministicVisualReferenceAdapter()
                 if enable_visual_reference
@@ -729,6 +885,9 @@ class AyyoWorldModelNode(LifecycleNode):
             PhysicalCameraConfigurationError,
             PhysicalCameraLifecycleError,
             PhysicalCameraValidationError,
+            DepthCameraConfigurationError,
+            DepthCameraLifecycleError,
+            DepthCameraValidationError,
             VisualEvaluationConfigurationError,
             WorldModelValidationError,
             WorkingMemoryConfigurationError,
@@ -741,8 +900,11 @@ class AyyoWorldModelNode(LifecycleNode):
             self._pose_provenance = None
             self._diagnostic_provenance = None
             self._camera_provenance = None
+            self._depth_provenance = None
             self._camera_enabled = False
+            self._depth_enabled = False
             self._physical_camera_adapter = None
+            self._depth_camera_adapter = None
             self._visual_reference_adapter = None
             self._visual_evaluation_bundle = None
             self._visual_evaluation_report = None
@@ -761,6 +923,7 @@ class AyyoWorldModelNode(LifecycleNode):
             or self._pose_provenance is None
             or self._diagnostic_provenance is None
             or self._camera_provenance is None
+            or self._depth_provenance is None
         ):
             return TransitionCallbackReturn.FAILURE
         if self._physical_camera_adapter is not None:
@@ -770,6 +933,20 @@ class AyyoWorldModelNode(LifecycleNode):
                 self.get_logger().error(
                     f'physical camera activation failed closed: {error}'
                 )
+                return TransitionCallbackReturn.FAILURE
+        if self._depth_camera_adapter is not None:
+            try:
+                self._depth_camera_adapter.activate()
+            except DepthCameraLifecycleError as error:
+                self.get_logger().error(
+                    f'depth camera activation failed closed: {error}'
+                )
+                if (
+                    self._physical_camera_adapter is not None
+                    and self._physical_camera_adapter.state
+                    is PhysicalCameraLifecycleState.ACTIVE
+                ):
+                    self._physical_camera_adapter.deactivate()
                 return TransitionCallbackReturn.FAILURE
         self._joint_subscription = self.create_subscription(
             JointState,
@@ -813,6 +990,19 @@ class AyyoWorldModelNode(LifecycleNode):
                 self._on_camera_info,
                 qos_profile_sensor_data,
             )
+        if self._depth_enabled:
+            self._depth_image_subscription = self.create_subscription(
+                Image,
+                DEPTH_IMAGE_TOPIC,
+                self._on_depth_image,
+                qos_profile_sensor_data,
+            )
+            self._depth_camera_info_subscription = self.create_subscription(
+                CameraInfo,
+                DEPTH_CAMERA_INFO_TOPIC,
+                self._on_depth_camera_info,
+                qos_profile_sensor_data,
+            )
         self._visual_evaluated_this_activation = False
         self._active = True
         return TransitionCallbackReturn.SUCCESS
@@ -838,6 +1028,12 @@ class AyyoWorldModelNode(LifecycleNode):
         if self._camera_info_subscription is not None:
             self.destroy_subscription(self._camera_info_subscription)
             self._camera_info_subscription = None
+        if self._depth_image_subscription is not None:
+            self.destroy_subscription(self._depth_image_subscription)
+            self._depth_image_subscription = None
+        if self._depth_camera_info_subscription is not None:
+            self.destroy_subscription(self._depth_camera_info_subscription)
+            self._depth_camera_info_subscription = None
         self._pending_image = None
         self._pending_camera_info = None
         self._visual_evaluated_this_activation = False
@@ -848,6 +1044,15 @@ class AyyoWorldModelNode(LifecycleNode):
             is PhysicalCameraLifecycleState.ACTIVE
         ):
             self._physical_camera_adapter.deactivate()
+            if self._memory is not None:
+                self._memory.reset()
+            if self._trust_boundary is not None:
+                self._trust_boundary.reset()
+        if (
+            self._depth_camera_adapter is not None
+            and self._depth_camera_adapter.state is DepthLifecycleState.ACTIVE
+        ):
+            self._depth_camera_adapter.deactivate()
             if self._memory is not None:
                 self._memory.reset()
             if self._trust_boundary is not None:
@@ -865,6 +1070,10 @@ class AyyoWorldModelNode(LifecycleNode):
             ):
                 self._physical_camera_adapter.deactivate()
             self._physical_camera_adapter.cleanup()
+        if self._depth_camera_adapter is not None:
+            if self._depth_camera_adapter.state is DepthLifecycleState.ACTIVE:
+                self._depth_camera_adapter.deactivate()
+            self._depth_camera_adapter.cleanup()
         if self._memory is not None:
             self._memory.reset()
         if self._trust_boundary is not None:
@@ -876,8 +1085,11 @@ class AyyoWorldModelNode(LifecycleNode):
         self._pose_provenance = None
         self._diagnostic_provenance = None
         self._camera_provenance = None
+        self._depth_provenance = None
         self._camera_enabled = False
+        self._depth_enabled = False
         self._physical_camera_adapter = None
+        self._depth_camera_adapter = None
         self._visual_reference_adapter = None
         self._visual_evaluation_bundle = None
         self._visual_evaluation_report = None
@@ -891,6 +1103,8 @@ class AyyoWorldModelNode(LifecycleNode):
         self._destroy_runtime_interfaces()
         if self._physical_camera_adapter is not None:
             self._physical_camera_adapter.shutdown()
+        if self._depth_camera_adapter is not None:
+            self._depth_camera_adapter.shutdown()
         if self._memory is not None:
             self._memory.reset()
         if self._trust_boundary is not None:
@@ -902,8 +1116,11 @@ class AyyoWorldModelNode(LifecycleNode):
         self._pose_provenance = None
         self._diagnostic_provenance = None
         self._camera_provenance = None
+        self._depth_provenance = None
         self._camera_enabled = False
+        self._depth_enabled = False
         self._physical_camera_adapter = None
+        self._depth_camera_adapter = None
         self._visual_reference_adapter = None
         self._visual_evaluation_bundle = None
         self._visual_evaluation_report = None
@@ -1131,6 +1348,109 @@ class AyyoWorldModelNode(LifecycleNode):
             self._warn_bounded(
                 'rejected',
                 'sealed physical camera diagnostics did not enter trusted state',
+            )
+
+    def _on_depth_image(self, message: Image) -> None:
+        if not self._active or self._depth_camera_adapter is None:
+            return
+        try:
+            session_id = self._depth_camera_adapter.active_session_id
+            source = self._depth_camera_adapter.source
+            if session_id is None or source is None:
+                raise DepthCameraLifecycleError(
+                    'depth callback has no active source session'
+                )
+            previous_rejected = self._depth_camera_adapter.diagnostics.rejected_count
+            admission = self._depth_camera_adapter.submit_image(
+                normalize_depth_image(message, source, session_id),
+                now_ns=self.get_clock().now().nanoseconds,
+            )
+            self._handle_depth_camera_result(
+                admission,
+                previous_rejected=previous_rejected,
+            )
+        except (
+            DepthCameraLifecycleError,
+            DepthCameraRosAdapterError,
+            DepthCameraValidationError,
+            PerceptionConfigurationError,
+            WorldModelValidationError,
+            WorkingMemoryConfigurationError,
+        ) as error:
+            self._warn_bounded('invalid', str(error))
+
+    def _on_depth_camera_info(self, message: CameraInfo) -> None:
+        if not self._active or self._depth_camera_adapter is None:
+            return
+        try:
+            session_id = self._depth_camera_adapter.active_session_id
+            source = self._depth_camera_adapter.source
+            calibration = self._depth_camera_adapter.calibration
+            if session_id is None or source is None or calibration is None:
+                raise DepthCameraLifecycleError(
+                    'depth CameraInfo callback has no active calibrated session'
+                )
+            previous_rejected = self._depth_camera_adapter.diagnostics.rejected_count
+            admission = self._depth_camera_adapter.submit_camera_info(
+                normalize_depth_camera_info(
+                    message,
+                    source,
+                    session_id,
+                    calibration,
+                ),
+                now_ns=self.get_clock().now().nanoseconds,
+            )
+            self._handle_depth_camera_result(
+                admission,
+                previous_rejected=previous_rejected,
+            )
+        except (
+            DepthCameraLifecycleError,
+            DepthCameraRosAdapterError,
+            DepthCameraValidationError,
+            PerceptionConfigurationError,
+            WorldModelValidationError,
+            WorkingMemoryConfigurationError,
+        ) as error:
+            self._warn_bounded('invalid', str(error))
+
+    def _handle_depth_camera_result(
+        self,
+        admission,
+        *,
+        previous_rejected: int,
+    ) -> None:
+        if self._depth_camera_adapter is None:
+            return
+        diagnostics = self._depth_camera_adapter.diagnostics
+        if admission is None:
+            if diagnostics.rejected_count != previous_rejected:
+                self._warn_bounded(
+                    'rejected',
+                    f'depth camera {diagnostics.event.value}',
+                )
+            return
+        if (
+            self._trust_boundary is None
+            or not self._trust_boundary.authorize_depth_camera(admission)
+        ):
+            self._warn_bounded(
+                'rejected',
+                'sealed depth evidence did not match the trust policy',
+            )
+            return
+        frame_result = self._admit_and_retain(admission.frame)
+        if frame_result is None or frame_result.status is not AdmissionStatus.ACCEPTED:
+            self._warn_bounded(
+                'rejected',
+                'sealed depth frame did not enter trusted state',
+            )
+            return
+        health_result = self._admit_and_retain(admission.health)
+        if health_result is None or health_result.status is not AdmissionStatus.ACCEPTED:
+            self._warn_bounded(
+                'rejected',
+                'sealed depth diagnostics did not enter trusted state',
             )
 
     def _evaluate_visual_frame(self, frame, rgb8: bytes) -> None:
@@ -1373,6 +1693,7 @@ class AyyoWorldModelNode(LifecycleNode):
         response.environment_entity_count = len(snapshot.entities)
         response.recent_evidence_count = stats.recent_evidence_count
         response.current_visual_count = stats.current_visual_count
+        response.current_depth_count = stats.current_depth_count
         response.current_visual_interpretation_count = (
             stats.current_visual_interpretation_count
         )
@@ -1470,6 +1791,21 @@ class AyyoWorldModelNode(LifecycleNode):
             SensorAvailability.UNAVAILABLE
             if visual_sensor_state is None
             else visual_sensor_state.availability
+        )
+        depth_sensor_state = next(
+            (
+                state
+                for state in snapshot.robot.sensor_states
+                if state.sensor == HEAD_DEPTH_SENSOR
+            ),
+            None,
+        )
+        response.depth_sensor_id = HEAD_DEPTH_SENSOR.sensor_id
+        response.depth_frame_id = HEAD_DEPTH_SENSOR.frame_id
+        response.depth_availability = self._availability_code(
+            SensorAvailability.UNAVAILABLE
+            if depth_sensor_state is None
+            else depth_sensor_state.availability
         )
         if snapshot.robot.availability is RobotAvailability.UNAVAILABLE:
             return self._not_ready(response, 'no unexpired robot joint evidence is available')
@@ -1620,6 +1956,43 @@ class AyyoWorldModelNode(LifecycleNode):
             response.visual_source_clock = observation.provenance.clock.value
             response.visual_source_transport = observation.provenance.transport.value
             response.visual_source_interface = observation.provenance.interface
+        if snapshot.robot.depth_states:
+            depth = snapshot.robot.depth_states[0]
+            observation = depth.observation
+            response.has_depth_frame = True
+            response.depth_sensor_id = observation.sensor.sensor_id
+            response.depth_frame_id = observation.sensor.frame_id
+            response.depth_availability = self._availability_code(depth.availability)
+            response.depth_freshness = (
+                GetRobotBodyState.Response.FRESH
+                if depth.freshness is FreshnessState.FRESH
+                else GetRobotBodyState.Response.STALE
+            )
+            _assign_time(response.depth_observed_at, observation.observed_at_ns)
+            response.depth_width = observation.width
+            response.depth_height = observation.height
+            response.depth_encoding = observation.encoding
+            response.depth_step = observation.step
+            response.depth_data_size_bytes = observation.data_size_bytes
+            response.depth_is_bigendian = observation.is_bigendian
+            response.depth_calibration_id = observation.calibration_id
+            response.depth_calibration_record_id = (
+                observation.calibration_record_id
+            )
+            response.depth_source_manifest_id = observation.source_manifest_id
+            response.depth_session_id = observation.session_id
+            response.depth_valid_count = observation.valid_depth_count
+            response.depth_invalid_count = observation.invalid_depth_count
+            response.depth_minimum_m = observation.minimum_depth_m
+            response.depth_maximum_m = observation.maximum_depth_m
+            response.depth_payload_sha256 = observation.payload_sha256
+            response.depth_observation_id = observation.observation_id
+            response.depth_observation_fingerprint = str(observation.fingerprint)
+            response.depth_source_kind = observation.provenance.source_kind.value
+            response.depth_source_id = observation.provenance.source_id
+            response.depth_source_clock = observation.provenance.clock.value
+            response.depth_source_transport = observation.provenance.transport.value
+            response.depth_source_interface = observation.provenance.interface
         if snapshot.robot.visual_interpretation_states:
             interpretation = snapshot.robot.visual_interpretation_states[0]
             observation = interpretation.observation

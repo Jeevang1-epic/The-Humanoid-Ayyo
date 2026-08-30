@@ -13,6 +13,10 @@ ament_python_install_package(
   PACKAGE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../../physical_camera/src/ayyo_physical_camera"
 )
 ament_python_install_package(
+  ayyo_depth_camera
+  PACKAGE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../../depth_camera/src/ayyo_depth_camera"
+)
+ament_python_install_package(
   ayyo_visual_evaluation
   PACKAGE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../../visual_evaluation/src/ayyo_visual_evaluation"
 )
@@ -28,6 +32,8 @@ ament_python_install_package(
 install(
   PROGRAMS
     scripts/body_state_query.py
+    scripts/depth_camera_adapter.py
+    scripts/depth_camera_fixture_node.py
     scripts/localization_diagnostics.py
     scripts/physical_camera_adapter.py
     scripts/physical_camera_fixture_node.py
@@ -45,6 +51,8 @@ if(BUILD_TESTING)
   ament_copyright(
     EXCLUDE
       scripts/body_state_query.py
+      scripts/depth_camera_adapter.py
+      scripts/depth_camera_fixture_node.py
       scripts/localization_diagnostics.py
       scripts/physical_camera_adapter.py
       scripts/physical_camera_fixture_node.py
