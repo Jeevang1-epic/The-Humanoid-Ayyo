@@ -397,6 +397,35 @@ def run_offline() -> None:
         1_000_000_003,
         1,
     )
+    before_duplicate_stats = recovery_memory.stats(
+        now_ns=recovered.frame.observed_at_ns
+    )
+    assert recovery_trust.authorize_depth_camera(recovered)
+    duplicate_admission = recovery_trust.admit(
+        recovered.frame,
+        now_ns=recovered.frame.observed_at_ns,
+        received_at_monotonic_ns=3,
+    )
+    duplicate_does_not_grow_state = (
+        duplicate_admission.status is AdmissionStatus.DUPLICATE
+        and recovery_memory.stats(now_ns=recovered.frame.observed_at_ns)
+        == before_duplicate_stats
+    )
+    recovery_trust.reset()
+    expired_now_ns = recovered.frame.observed_at_ns + 2_000_000_001
+    stale_disappears = recovery_memory.current_snapshot(
+        now_ns=expired_now_ns
+    ).robot.depth_states == ()
+    rejected_cannot_resurrect = (
+        recovery_memory.ingest(
+            recovered.frame,
+            now_ns=expired_now_ns,
+            received_at_monotonic_ns=4,
+        ).status
+        is IngestionStatus.REJECTED
+        and recovery_memory.current_snapshot(now_ns=expired_now_ns).robot.depth_states
+        == ()
+    )
     bare_trust = _trust(bundle)
     bare_bypass_rejected = bare_trust.admit(
         recovered.frame,
@@ -564,6 +593,7 @@ def run_offline() -> None:
         'depth_authorization_count': trust.stats().tracked_depth_camera_count,
         'diagnostic_available': depth_health.availability.value,
         'diagnostic_detail': depth_health.observation.evidence_detail,
+        'duplicate_does_not_grow_state': duplicate_does_not_grow_state,
         'duplicate_rejected': duplicate_rejected,
         'fixture_classification': bundle.source.classification.value,
         'inactive_evidence_rejected': inactive_evidence_rejected,
@@ -578,14 +608,20 @@ def run_offline() -> None:
         'recent_bounded_state_size': first_stats.recent_evidence_count,
         'recorded_evidence_rejected': recorded_evidence_rejected,
         'recorded_live_substitution_rejected': recorded_live_substitution_rejected,
+        'rejected_cannot_resurrect': rejected_cannot_resurrect,
         'reset_clears_authorization': reset_clears_authorization,
         'retained_reference_count': first_stats.retained_observation_reference_count,
         'retained_unique_state_count': first_stats.retained_unique_observation_count,
         'session_changed_on_reactivation': first_session != second_session,
         'simulation_spoof_rejected': simulation_spoof_rejected,
+        'simulation_source_clock': simulation.source.provenance.clock.value,
+        'simulation_source_id': simulation.source.source_id,
+        'simulation_source_kind': simulation.source.provenance.source_kind.value,
+        'simulation_source_transport': simulation.source.provenance.transport.value,
         'source_manifest_id': bundle.source.manifest_id,
         'spoofed_physical_rejected': spoofed_physical_rejected,
         'stale_rejected': stale_rejected,
+        'stale_disappears': stale_disappears,
         'future_rejected': future_rejected,
         'traced_python_current_bytes': traced_current,
         'traced_python_peak_bytes': traced_peak,

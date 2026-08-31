@@ -96,6 +96,7 @@ for key in (
     "classification_substitution_rejected",
     "conflicting_fingerprint_rejected",
     "conflicting_identity_rejected",
+    "duplicate_does_not_grow_state",
     "duplicate_rejected",
     "empty_payload_rejected",
     "future_rejected",
@@ -112,10 +113,12 @@ for key in (
     "query_immutable",
     "recorded_evidence_rejected",
     "recorded_live_substitution_rejected",
+    "rejected_cannot_resurrect",
     "reset_clears_authorization",
     "session_changed_on_reactivation",
     "simulation_spoof_rejected",
     "spoofed_physical_rejected",
+    "stale_disappears",
     "stale_rejected",
     "unknown_producer_rejected",
     "unknown_source_rejected",
@@ -127,6 +130,10 @@ for key in (
     "wrong_sensor_rejected",
 ):
     assert result[key] is True, key
+assert result["simulation_source_kind"] == "simulation"
+assert result["simulation_source_id"] == "ros.camera.head.depth.simulation.gazebo.v1"
+assert result["simulation_source_clock"] == "ros_simulation_time"
+assert result["simulation_source_transport"] == "ros2"
 assert 0 < result["traced_python_current_bytes"] < 16 * 1024 * 1024
 assert 0 < result["traced_python_peak_bytes"] < 32 * 1024 * 1024
 ' "$fixture_log"
