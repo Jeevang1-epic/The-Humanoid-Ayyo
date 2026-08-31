@@ -18,6 +18,7 @@ from launch.substitutions import (
     AndSubstitution,
     Command,
     FindExecutable,
+    IfElseSubstitution,
     LaunchConfiguration,
     PathJoinSubstitution,
 )
@@ -231,7 +232,11 @@ def generate_launch_description() -> LaunchDescription:
                     enable_visual_producer_evaluation_fixture
                 ),
                 'enable_depth_camera_adapter': enable_depth_camera,
-                'depth_camera_profile': 'simulation_depth_v1',
+                'depth_camera_profile': IfElseSubstitution(
+                    enable_depth_camera,
+                    if_value='simulation_depth_v1',
+                    else_value='unconfigured',
+                ),
                 'retention_ttl_ms': ParameterValue(
                     world_model_retention_ttl_ms,
                     value_type=int,

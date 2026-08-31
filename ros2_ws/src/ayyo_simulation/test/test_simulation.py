@@ -489,6 +489,9 @@ def test_depth_camera_bridges_are_one_way_fixed_and_default_off() -> None:
     assert "name='ayyo_head_depth_image_bridge'" in source
     assert "name='ayyo_head_depth_camera_info_bridge'" in source
     assert source.count('condition=IfCondition(enable_depth_camera)') == 2
+    assert "'depth_camera_profile': IfElseSubstitution(" in source
+    assert "if_value='simulation_depth_v1'" in source
+    assert "else_value='unconfigured'" in source
     assert 'GZ_TO_ROS' in (
         PACKAGE_ROOT / 'config' / 'ros_gz_depth_camera_bridge.yaml'
     ).read_text(encoding='utf-8')
