@@ -90,6 +90,7 @@ raise SystemExit(
     and imu is not None
     and imu["availability"] == 1
     and imu["freshness"] == 1
+    and state["perception_accepted_count"] >= 2
     else 1
 )
 ' "$smoke_root/body.json"
@@ -127,7 +128,13 @@ assert any(vector is not None for vector in vectors)
 assert all(math.isfinite(value) for vector in vectors if vector for value in vector)
 assert state["base_pose"] is None
 assert state["base_pose_availability"] == 0
-assert len(state["sensors"]) == 4
+assert {sensor["sensor_id"] for sensor in state["sensors"]} == {
+    "ayyo.body-pose.localization.v1",
+    "ayyo.camera.head.depth.v1",
+    "ayyo.camera.head.rgb.v1",
+    "ayyo.imu.body.v1",
+    "ayyo.joint-state.body.v1",
+}
 assert state["snapshot_id"].startswith("world-snapshot-")
 assert state["perception_accepted_count"] >= 2
 ' "$smoke_root/body.json"
