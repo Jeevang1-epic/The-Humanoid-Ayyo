@@ -7,8 +7,8 @@ can mature behind stable boundaries before physical hardware is introduced.
 
 ## Current status
 
-Ayyo has reached the Physical Head Camera Adapter, Calibration, and Camera
-Diagnostics Foundation v1 milestone with a hardware-free TEST proof.
+Ayyo has reached the Head Depth / RGB-D Sensor Foundation v1 milestone with
+hardware-free TEST and default-off simulation seams.
 
 Implemented:
 
@@ -107,6 +107,14 @@ Implemented:
 - A default-off TEST-only physical-camera ROS composition and twice-run smoke
   proving 5,000-cycle bounds, malformed-calibration/wrong-frame rejection,
   recovery, source-session renewal, and an empty graph without camera hardware
+- A transport-neutral head-depth package with exact source, producer, sensor,
+  frame, calibration, encoding, metric-range, session, and provenance contracts
+- Compact depth validity/range/fingerprint state admitted through Perception
+  into bounded Working Memory and immutable World Model without raw-depth
+  retention, RGB-D fusion, geometry, or authority
+- Distinct default-off TEST and Gazebo depth paths plus an owned 5,000-cycle
+  adversarial smoke proving standard Image/CameraInfo transport, lifecycle
+  isolation, recovery, resource bounds, and clean teardown
 - Exact per-smoke process ownership and bounded graceful/scoped teardown,
   including direct shell-free Gazebo ownership and survivor regression tests
 
@@ -275,6 +283,14 @@ PYTHONPATH=world_model/src:physical_camera/src \
 python3 -m unittest discover -s physical_camera/tests -v
 ```
 
+Run head-depth foundation tests:
+
+```bash
+PYTHONPATH=world_model/src:depth_camera/src:physical_camera/src:visual_evaluation/src:perception/src:working_memory/src \
+python3 -m pytest -q depth_camera/tests perception/tests/test_depth_boundary.py \
+  working_memory/tests/test_depth_resources.py world_model/tests/test_depth_camera.py
+```
+
 Run visual producer evaluation tests:
 
 ```bash
@@ -326,6 +342,13 @@ Run the hardware-free physical-camera foundation smoke twice:
 ./scripts/smoke_physical_camera_foundation.sh
 ```
 
+Run the hardware-free Head Depth / RGB-D foundation smoke twice:
+
+```bash
+./scripts/smoke_head_depth_rgbd.sh
+./scripts/smoke_head_depth_rgbd.sh
+```
+
 ## Repository layout
 
 ```text
@@ -358,8 +381,9 @@ Foundation v1, plus Body Localization and Sensor Diagnostics Foundation v1,
 Head RGB Camera and Visual Observation Foundation v1, and Visual Perception
 Processing Foundation v1, Recorded Visual Producer Evaluation and Perception
 Quality Gate v1, and Physical Head Camera Adapter, Calibration, and Camera
-Diagnostics Foundation v1 are implemented. The physical-camera milestone has
-only a TEST source; it does not validate real hardware or calibration.
+Diagnostics Foundation v1, plus Head Depth / RGB-D Sensor Foundation v1 are
+implemented. The physical-camera and depth milestones have only TEST/simulation
+sources; they do not validate real hardware or physical calibration.
 Production motion remains
 closed because Safety v1 defers physical movement; only explicit development
 injection can exercise the simulated neck joint. The perception path adds

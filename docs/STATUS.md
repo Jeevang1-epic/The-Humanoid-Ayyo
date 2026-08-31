@@ -223,6 +223,18 @@
 - Default-off hardware-free physical-camera TEST composition and two consecutive
   owned smoke passes proving 5,000-cycle bounds, calibration/frame rejection,
   recovery, lifecycle epoch isolation, compact query state, and empty teardown
+- Distinct `ayyo.camera.head.depth.v1` identity, mechanical mount, ROS optical
+  frame, standard fixed depth Image/CameraInfo topics, and default-off 320×240
+  Harmonic `32FC1` source without changing the RGB frame contract
+- Immutable depth source/calibration manifests, lifecycle sessions, strict
+  `16UC1` millimetre and `32FC1` metre validation, compact validity/range/
+  payload fingerprints, and bounded exact-time pairing with no retained pixels
+- Sealed one-use depth frame and acquisition-health admission through
+  Perception into one bounded Working Memory current state and immutable World
+  Model/read-only query state, with TEST/simulation/recorded/physical separation
+- Dedicated twice-run head-depth smoke covering 5,000 cycles, malformed and
+  spoofed evidence, lifecycle recovery, default-off behavior, standard ROS
+  types, no authority, and empty owned-process/ROS-graph teardown
 - Exact smoke process ownership using a per-run inherited marker and dedicated
   process session, graceful bounded SIGINT-first cleanup, scoped escalation,
   survivor failure, early-exit coverage, and no name-based global killing
@@ -239,7 +251,8 @@
   symmetry, clipping, collision alignment, and joint direction
 - Physical joint, real camera/driver/calibration, IMU, localization, and
   diagnostic-source validation; the implemented camera source is TEST-only
-- Force/torque, touch, depth, audio, production object/person perception,
+- Force/torque, touch, physical depth hardware, audio, production object/person
+  perception,
   navigation, manipulation, and non-synthetic visual producer adapters
 - Production diagnostic producers, SLAM, visual localization, sensor fusion,
   calibration/bias estimation, trust scoring, clock

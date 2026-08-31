@@ -79,6 +79,12 @@ identity, bounded Image/CameraInfo pairing, lifecycle sessions, acquisition
 health, sealed Perception admission, and a default-off hardware-free TEST
 composition. It validates the future integration boundary, not any real camera,
 driver, clock, lens calibration, image quality, or edge-device performance.
+Head Depth / RGB-D Sensor Foundation v1 now adds a distinct depth optical frame,
+typed source/calibration/session identity, strict `16UC1`/`32FC1` semantics,
+bounded exact-time Image/CameraInfo admission, compact pixel-free Working
+Memory/World Model state, and default-off TEST/Gazebo seams. It does not add a
+physical depth device, RGB-D fusion, point clouds, geometry, SLAM, navigation,
+manipulation, or authority.
 
 Final Ayyo assets, graphical controlled-design validation, additional joints,
 trajectory/whole-body controllers, validated dynamics/contact behavior,
@@ -86,7 +92,7 @@ authenticated identity, permissions, approval verification, live backend
 attestation, production typed ROS services, audit persistence,
 timeout/resource enforcement, runtime skill implementations, and
 physical-safety integration remain future work. Production visual producer
-promotion and live audio/depth/force/touch perception, physical
+promotion and live physical audio/depth/force/touch perception, physical
 camera/IMU/localization validation, production diagnostic producers, SLAM,
 sensor fusion, environment entity production, and
 reviewed Working-Memory-to-Memory-Validation consolidation also remain future

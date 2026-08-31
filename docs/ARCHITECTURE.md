@@ -55,7 +55,12 @@ adds an exact physical source manifest, bounded calibration validation,
 lifecycle-scoped sessions, acquisition diagnostics, and sealed frame/health
 admission. Its only executable source is a default-off TEST fixture; simulation
 and recorded evidence cannot inherit physical trust from shared topics. The
-deterministic
+transport-neutral
+[Head Depth / RGB-D Sensor Foundation](HEAD_DEPTH_RGBD_FOUNDATION.md) adds a
+distinct depth sensor/optical frame, exact Image/CameraInfo and source-session
+validation, explicit `16UC1`/`32FC1` metric semantics, sealed admission, and
+bounded compact depth projection. Raw depth, RGB-D fusion, geometry, and
+authority remain outside the implemented path. The deterministic
 [World Model and Working Memory Foundation](WORLD_MODEL_WORKING_MEMORY.md)
 implements immutable current embodied/environment evidence, deterministic
 snapshots, freshness, and bounded temporary retention ahead of durable memory.
@@ -130,6 +135,11 @@ replace proxy geometry without duplicating or bypassing frame semantics.
   Perception boundary; inactive, old-session, simulation, recorded, wrong-frame,
   or wrong-calibration evidence fails closed. It owns no driver, control, skill,
   or movement authority.
+- The depth adapter owns an independent source/producer manifest, calibration
+  record, optical frame, active session, exact-time bounded pairing, strict
+  metric encoding/payload validation, compact statistics, and acquisition
+  health. Only its sealed frame/health pair may enter Perception; raw depth,
+  RGB association, point clouds, geometry, and authority are not represented.
 - Visual interpretation producers operate only after frame admission. The
   existing trust boundary owns exact source-frame, camera, optical-frame,
   acquisition/result-time, producer, provenance, ordering, fingerprint, and
