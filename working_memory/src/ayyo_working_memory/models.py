@@ -66,6 +66,7 @@ class StateKeyKind(StrEnum):
     ROBOT_IMU = "robot_imu"
     ROBOT_VISUAL = "robot_visual"
     ROBOT_DEPTH = "robot_depth"
+    ROBOT_RGBD_FUSION = "robot_rgbd_fusion"
     ROBOT_VISUAL_INTERPRETATION = "robot_visual_interpretation"
     SENSOR_HEALTH = "sensor_health"
     ENVIRONMENT_ENTITY = "environment_entity"
@@ -279,6 +280,7 @@ class WorkingMemoryStats:
     current_visual_count: int = 0
     current_depth_count: int = 0
     current_visual_interpretation_count: int = 0
+    current_fused_rgbd_count: int = 0
 
     def __post_init__(self) -> None:
         numeric = (
@@ -297,6 +299,7 @@ class WorkingMemoryStats:
             self.current_visual_count,
             self.current_depth_count,
             self.current_visual_interpretation_count,
+            self.current_fused_rgbd_count,
         )
         if any(type(item) is not int or item < 0 for item in numeric):
             raise WorkingMemoryConfigurationError("Working Memory statistics are invalid")

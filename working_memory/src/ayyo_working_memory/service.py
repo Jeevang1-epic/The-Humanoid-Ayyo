@@ -7,6 +7,7 @@ from threading import RLock
 from ayyo_world_model import (
     BodyPoseObservation,
     DepthFrameObservation,
+    FusedRgbdObservation,
     EnvironmentEntityObservation,
     ImuObservation,
     MAX_OBSERVATION_TIME_NS,
@@ -64,6 +65,7 @@ class WorkingMemory:
         "_depth_evidence",
         "_entity_evidence",
         "_eviction_count",
+        "_fused_rgbd_evidence",
         "_body_pose_evidence",
         "_health_evidence",
         "_imu_evidence",
@@ -97,6 +99,7 @@ class WorkingMemory:
         self._pose_evidence: RobotStateObservation | None = None
         self._imu_evidence: dict[str, ImuObservation] = {}
         self._depth_evidence: dict[str, DepthFrameObservation] = {}
+        self._fused_rgbd_evidence: dict[str, FusedRgbdObservation] = {}
         self._visual_evidence: dict[str, VisualFrameObservation] = {}
         self._visual_interpretation_evidence: dict[
             tuple[str, str], VisualInterpretationObservation
@@ -124,6 +127,7 @@ class WorkingMemory:
             self._pose_evidence = None
             self._imu_evidence.clear()
             self._depth_evidence.clear()
+            self._fused_rgbd_evidence.clear()
             self._visual_evidence.clear()
             self._visual_interpretation_evidence.clear()
             self._body_pose_evidence.clear()
@@ -176,6 +180,11 @@ class WorkingMemory:
             for sensor_id, observation in self._depth_evidence.items()
             if observation.observed_at_ns >= threshold
         }
+        self._fused_rgbd_evidence = {
+            sensor_id: observation
+            for sensor_id, observation in self._fused_rgbd_evidence.items()
+            if observation.observed_at_ns >= threshold
+        }
         self._visual_evidence = {
             sensor_id: observation
             for sensor_id, observation in self._visual_evidence.items()
@@ -217,6 +226,9 @@ class WorkingMemory:
         identities.update(item.observation_id for item in self._imu_evidence.values())
         identities.update(
             item.observation_id for item in self._depth_evidence.values()
+        )
+        identities.update(
+            item.observation_id for item in self._fused_rgbd_evidence.values()
         )
         identities.update(
             item.observation_id for item in self._visual_evidence.values()
@@ -286,6 +298,7 @@ class WorkingMemory:
                 ImuObservation,
                 BodyPoseObservation,
                 DepthFrameObservation,
+                FusedRgbdObservation,
                 VisualFrameObservation,
                 VisualInterpretationObservation,
                 SensorHealthObservation,
@@ -306,7 +319,10 @@ class WorkingMemory:
                     "observation source time is beyond permitted future skew",
                 )
             if (
-                type(rebuilt) is VisualInterpretationObservation
+                type(rebuilt) in {
+                    VisualInterpretationObservation,
+                    FusedRgbdObservation,
+                }
                 and rebuilt.result_at_ns
                 > now_ns + self._config.permitted_future_skew_ns
             ):
@@ -348,6 +364,7 @@ class WorkingMemory:
                 ImuObservation,
                 BodyPoseObservation,
                 DepthFrameObservation,
+                FusedRgbdObservation,
                 VisualFrameObservation,
                 SensorHealthObservation,
                 VisualInterpretationObservation,
@@ -453,6 +470,7 @@ class WorkingMemory:
             ImuObservation
             | BodyPoseObservation
             | DepthFrameObservation
+            | FusedRgbdObservation
             | VisualFrameObservation
             | VisualInterpretationObservation
             | SensorHealthObservation
@@ -466,6 +484,27 @@ class WorkingMemory:
         elif type(observation) is DepthFrameObservation:
             collection = self._depth_evidence
             key = StateKey(StateKeyKind.ROBOT_DEPTH, sensor_id)
+        elif type(observation) is FusedRgbdObservation:
+            rgb_candidates = tuple(self._visual_evidence.values()) + tuple(
+                item.observation
+                for item in self._recent
+                if type(item.observation) is VisualFrameObservation
+            )
+            depth_candidates = tuple(self._depth_evidence.values()) + tuple(
+                item.observation
+                for item in self._recent
+                if type(item.observation) is DepthFrameObservation
+            )
+            if observation.rgb_observation not in rgb_candidates or (
+                observation.depth_observation not in depth_candidates
+            ):
+                return self._reject(
+                    observation.observation_id,
+                    IngestionReason.SOURCE_OBSERVATION_MISMATCH,
+                    "fused RGB-D evidence does not match retained trusted components",
+                )
+            collection = self._fused_rgbd_evidence
+            key = StateKey(StateKeyKind.ROBOT_RGBD_FUSION, sensor_id)
         elif type(observation) is VisualFrameObservation:
             collection = self._visual_evidence
             key = StateKey(StateKeyKind.ROBOT_VISUAL, sensor_id)
@@ -644,6 +683,7 @@ class WorkingMemory:
                 body_pose_evidence=dict(self._body_pose_evidence),
                 health_evidence=dict(self._health_evidence),
                 depth_evidence=dict(self._depth_evidence),
+                fused_rgbd_evidence=dict(self._fused_rgbd_evidence),
                 visual_evidence=dict(self._visual_evidence),
                 visual_interpretation_evidence=dict(
                     self._visual_interpretation_evidence
@@ -681,6 +721,8 @@ class WorkingMemory:
                 observation = self._imu_evidence.get(key.identity)
             elif key.kind is StateKeyKind.ROBOT_DEPTH:
                 observation = self._depth_evidence.get(key.identity)
+            elif key.kind is StateKeyKind.ROBOT_RGBD_FUSION:
+                observation = self._fused_rgbd_evidence.get(key.identity)
             elif key.kind is StateKeyKind.ROBOT_VISUAL:
                 observation = self._visual_evidence.get(key.identity)
             elif key.kind is StateKeyKind.ROBOT_VISUAL_INTERPRETATION:
@@ -725,6 +767,7 @@ class WorkingMemory:
                 + int(self._pose_evidence is not None)
                 + len(self._imu_evidence)
                 + len(self._depth_evidence)
+                + len(self._fused_rgbd_evidence)
                 + len(self._visual_evidence)
                 + len(self._visual_interpretation_evidence)
                 + len(self._body_pose_evidence)
@@ -748,6 +791,7 @@ class WorkingMemory:
                 current_sensor_health_count=len(self._health_evidence),
                 current_visual_count=len(self._visual_evidence),
                 current_depth_count=len(self._depth_evidence),
+                current_fused_rgbd_count=len(self._fused_rgbd_evidence),
                 current_visual_interpretation_count=len(
                     self._visual_interpretation_evidence
                 ),
