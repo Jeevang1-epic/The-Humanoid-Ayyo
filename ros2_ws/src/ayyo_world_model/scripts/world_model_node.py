@@ -46,6 +46,16 @@ from ayyo_physical_camera import (
     PhysicalCameraSourceRegistry,
     PhysicalCameraValidationError,
 )
+from ayyo_rgbd_fusion import (
+    HEAD_RGBD_FUSION_SENSOR,
+    RGBD_TEST_PROVENANCE,
+    RgbdFusionConfigurationError,
+    RgbdFusionLifecycleAdapter,
+    RgbdFusionLifecycleError,
+    RgbdFusionLifecycleState,
+    RgbdFusionValidationError,
+    rgbd_test_requirement,
+)
 from ayyo_visual_evaluation import (
     DeterministicFixtureInvoker,
     fixture_bundle_for_live_profile,
@@ -478,6 +488,8 @@ class AyyoWorldModelNode(LifecycleNode):
         self.declare_parameter('physical_camera_profile', 'unconfigured')
         self.declare_parameter('enable_depth_camera_adapter', False)
         self.declare_parameter('depth_camera_profile', 'unconfigured')
+        self.declare_parameter('enable_rgbd_fusion_adapter', False)
+        self.declare_parameter('rgbd_fusion_profile', 'unconfigured')
         self._memory: WorkingMemory | None = None
         self._trust_boundary: PerceptionTrustBoundary | None = None
         self._provenance: ObservationProvenance | None = None
@@ -488,8 +500,10 @@ class AyyoWorldModelNode(LifecycleNode):
         self._depth_provenance: ObservationProvenance | None = None
         self._camera_enabled = False
         self._depth_enabled = False
+        self._rgbd_enabled = False
         self._physical_camera_adapter: PhysicalCameraLifecycleAdapter | None = None
         self._depth_camera_adapter: DepthLifecycleAdapter | None = None
+        self._rgbd_fusion_adapter: RgbdFusionLifecycleAdapter | None = None
         self._visual_reference_adapter: (
             DeterministicVisualReferenceAdapter | None
         ) = None
@@ -706,9 +720,72 @@ class AyyoWorldModelNode(LifecycleNode):
                 raise DepthCameraConfigurationError(
                     'depth profile must remain unconfigured while disabled'
                 )
+            enable_rgbd_fusion = bool(
+                self.get_parameter('enable_rgbd_fusion_adapter').value
+            )
+            rgbd_fusion_profile = self.get_parameter(
+                'rgbd_fusion_profile'
+            ).value
+            rgbd_fusion_adapter = None
+            rgbd_fusion_requirements = ()
+            if enable_rgbd_fusion:
+                if (
+                    profile_name != DEPTH_CAMERA_FIXTURE_SOURCE_PROFILE
+                    or rgbd_fusion_profile != 'exact_test_fixture_v1'
+                    or depth_camera_bundle is None
+                    or depth_camera_adapter is None
+                    or physical_camera_adapter is not None
+                ):
+                    raise RgbdFusionConfigurationError(
+                        'RGB-D v1 requires the exact TEST fixture composition'
+                    )
+                if enable_visual_reference or enable_visual_evaluation:
+                    raise RgbdFusionConfigurationError(
+                        'RGB-D and visual interpretation fixtures remain distinct'
+                    )
+                rgb_bundle = physical_camera_fixture_bundle()
+                requirement = rgbd_test_requirement(
+                    rgb_sensor=HEAD_CAMERA_SENSOR,
+                    rgb_provenance=camera_provenance,
+                    rgb_calibration_id=(
+                        rgb_bundle.calibration.calibration.calibration_id
+                    ),
+                    depth_sensor=depth_camera_bundle.source.sensor,
+                    depth_provenance=depth_camera_bundle.source.provenance,
+                    depth_calibration_id=(
+                        depth_camera_bundle.calibration.calibration.calibration_id
+                    ),
+                    depth_producer_id=depth_camera_bundle.source.producer_id,
+                    depth_producer_implementation_sha256=(
+                        depth_camera_bundle.source.producer_implementation_sha256
+                    ),
+                    depth_source_fingerprint_sha256=(
+                        depth_camera_bundle.source.manifest_id.removeprefix(
+                            'depth-camera-source-sha256-'
+                        )
+                    ),
+                )
+                retention_ns = int(
+                    self.get_parameter('retention_ttl_ms').value
+                ) * 1_000_000
+                rgbd_fusion_adapter = RgbdFusionLifecycleAdapter(
+                    pair_wait_ns=min(200_000_000, retention_ns // 2),
+                    retention_ns=retention_ns,
+                    future_skew_ns=int(
+                        self.get_parameter('permitted_future_skew_ms').value
+                    )
+                    * 1_000_000,
+                )
+                rgbd_fusion_adapter.configure(requirement)
+                rgbd_fusion_requirements = (requirement,)
+            elif rgbd_fusion_profile != 'unconfigured':
+                raise RgbdFusionConfigurationError(
+                    'RGB-D profile must remain unconfigured while disabled'
+                )
             camera_enabled = (
                 camera_provenance.source_kind is ObservationSourceKind.SIMULATION
                 or physical_camera_adapter is not None
+                or rgbd_fusion_adapter is not None
             )
             visual_bundle = None
             visual_evaluator = None
@@ -786,29 +863,48 @@ class AyyoWorldModelNode(LifecycleNode):
                 )
                 if depth_camera_adapter is not None
                 else ()
+            ) + (
+                (
+                    PerceptionSourceContract(
+                        HEAD_RGBD_FUSION_SENSOR,
+                        RGBD_TEST_PROVENANCE,
+                    ),
+                )
+                if rgbd_fusion_adapter is not None
+                else ()
+            )
+            sensor_catalog = (
+                JOINT_SENSOR,
+                IMU_SENSOR,
+                BODY_POSE_SENSOR,
+                HEAD_CAMERA_SENSOR,
+                HEAD_DEPTH_SENSOR,
+            ) + (
+                (HEAD_RGBD_FUSION_SENSOR,)
+                if rgbd_fusion_adapter is not None
+                else ()
+            )
+            allowed_provenance = (
+                provenance,
+                imu_provenance,
+                pose_provenance,
+                diagnostic_provenance,
+                camera_provenance,
+                depth_provenance,
+            ) + (
+                (RGBD_TEST_PROVENANCE,)
+                if rgbd_fusion_adapter is not None
+                else ()
             )
             self._memory = WorkingMemory(
                 catalog,
                 WorkingMemoryConfig(
                     robot_id=AYYO_ROBOT_ID,
                     source_clock=provenance.clock,
-                    allowed_provenance=(
-                        provenance,
-                        imu_provenance,
-                        pose_provenance,
-                        diagnostic_provenance,
-                        camera_provenance,
-                        depth_provenance,
-                    ),
+                    allowed_provenance=allowed_provenance,
                     sensors=tuple(
                         sorted(
-                            (
-                                JOINT_SENSOR,
-                                IMU_SENSOR,
-                                BODY_POSE_SENSOR,
-                                HEAD_CAMERA_SENSOR,
-                                HEAD_DEPTH_SENSOR,
-                            ),
+                            sensor_catalog,
                             key=lambda item: item.sensor_id,
                         )
                     ),
@@ -851,6 +947,7 @@ class AyyoWorldModelNode(LifecycleNode):
                     visual_evaluation_requirements=visual_requirements,
                     physical_camera_requirements=physical_camera_requirements,
                     depth_camera_requirements=depth_camera_requirements,
+                    rgbd_fusion_requirements=rgbd_fusion_requirements,
                 )
             )
             self._provenance = provenance
@@ -861,8 +958,10 @@ class AyyoWorldModelNode(LifecycleNode):
             self._depth_provenance = depth_provenance
             self._camera_enabled = camera_enabled
             self._depth_enabled = depth_camera_adapter is not None
+            self._rgbd_enabled = rgbd_fusion_adapter is not None
             self._physical_camera_adapter = physical_camera_adapter
             self._depth_camera_adapter = depth_camera_adapter
+            self._rgbd_fusion_adapter = rgbd_fusion_adapter
             self._visual_reference_adapter = (
                 DeterministicVisualReferenceAdapter()
                 if enable_visual_reference
@@ -888,6 +987,9 @@ class AyyoWorldModelNode(LifecycleNode):
             DepthCameraConfigurationError,
             DepthCameraLifecycleError,
             DepthCameraValidationError,
+            RgbdFusionConfigurationError,
+            RgbdFusionLifecycleError,
+            RgbdFusionValidationError,
             VisualEvaluationConfigurationError,
             WorldModelValidationError,
             WorkingMemoryConfigurationError,
@@ -903,8 +1005,10 @@ class AyyoWorldModelNode(LifecycleNode):
             self._depth_provenance = None
             self._camera_enabled = False
             self._depth_enabled = False
+            self._rgbd_enabled = False
             self._physical_camera_adapter = None
             self._depth_camera_adapter = None
+            self._rgbd_fusion_adapter = None
             self._visual_reference_adapter = None
             self._visual_evaluation_bundle = None
             self._visual_evaluation_report = None
@@ -936,7 +1040,7 @@ class AyyoWorldModelNode(LifecycleNode):
                 return TransitionCallbackReturn.FAILURE
         if self._depth_camera_adapter is not None:
             try:
-                self._depth_camera_adapter.activate()
+                depth_session_id = self._depth_camera_adapter.activate()
             except DepthCameraLifecycleError as error:
                 self.get_logger().error(
                     f'depth camera activation failed closed: {error}'
@@ -948,6 +1052,23 @@ class AyyoWorldModelNode(LifecycleNode):
                 ):
                     self._physical_camera_adapter.deactivate()
                 return TransitionCallbackReturn.FAILURE
+            if self._rgbd_fusion_adapter is not None:
+                try:
+                    self._rgbd_fusion_adapter.activate(
+                        depth_session_id=depth_session_id
+                    )
+                except RgbdFusionLifecycleError as error:
+                    self.get_logger().error(
+                        f'RGB-D fusion activation failed closed: {error}'
+                    )
+                    self._depth_camera_adapter.deactivate()
+                    if (
+                        self._physical_camera_adapter is not None
+                        and self._physical_camera_adapter.state
+                        is PhysicalCameraLifecycleState.ACTIVE
+                    ):
+                        self._physical_camera_adapter.deactivate()
+                    return TransitionCallbackReturn.FAILURE
         self._joint_subscription = self.create_subscription(
             JointState,
             JOINT_STATE_TOPIC,
@@ -1039,6 +1160,12 @@ class AyyoWorldModelNode(LifecycleNode):
         self._visual_evaluated_this_activation = False
         self._pose_buffer = None
         if (
+            self._rgbd_fusion_adapter is not None
+            and self._rgbd_fusion_adapter.state
+            is RgbdFusionLifecycleState.ACTIVE
+        ):
+            self._rgbd_fusion_adapter.deactivate()
+        if (
             self._physical_camera_adapter is not None
             and self._physical_camera_adapter.state
             is PhysicalCameraLifecycleState.ACTIVE
@@ -1074,6 +1201,13 @@ class AyyoWorldModelNode(LifecycleNode):
             if self._depth_camera_adapter.state is DepthLifecycleState.ACTIVE:
                 self._depth_camera_adapter.deactivate()
             self._depth_camera_adapter.cleanup()
+        if self._rgbd_fusion_adapter is not None:
+            if (
+                self._rgbd_fusion_adapter.state
+                is RgbdFusionLifecycleState.ACTIVE
+            ):
+                self._rgbd_fusion_adapter.deactivate()
+            self._rgbd_fusion_adapter.cleanup()
         if self._memory is not None:
             self._memory.reset()
         if self._trust_boundary is not None:
@@ -1088,8 +1222,10 @@ class AyyoWorldModelNode(LifecycleNode):
         self._depth_provenance = None
         self._camera_enabled = False
         self._depth_enabled = False
+        self._rgbd_enabled = False
         self._physical_camera_adapter = None
         self._depth_camera_adapter = None
+        self._rgbd_fusion_adapter = None
         self._visual_reference_adapter = None
         self._visual_evaluation_bundle = None
         self._visual_evaluation_report = None
@@ -1105,6 +1241,8 @@ class AyyoWorldModelNode(LifecycleNode):
             self._physical_camera_adapter.shutdown()
         if self._depth_camera_adapter is not None:
             self._depth_camera_adapter.shutdown()
+        if self._rgbd_fusion_adapter is not None:
+            self._rgbd_fusion_adapter.shutdown()
         if self._memory is not None:
             self._memory.reset()
         if self._trust_boundary is not None:
@@ -1119,8 +1257,10 @@ class AyyoWorldModelNode(LifecycleNode):
         self._depth_provenance = None
         self._camera_enabled = False
         self._depth_enabled = False
+        self._rgbd_enabled = False
         self._physical_camera_adapter = None
         self._depth_camera_adapter = None
+        self._rgbd_fusion_adapter = None
         self._visual_reference_adapter = None
         self._visual_evaluation_bundle = None
         self._visual_evaluation_report = None
@@ -1374,6 +1514,8 @@ class AyyoWorldModelNode(LifecycleNode):
             DepthCameraRosAdapterError,
             DepthCameraValidationError,
             PerceptionConfigurationError,
+            RgbdFusionLifecycleError,
+            RgbdFusionValidationError,
             WorldModelValidationError,
             WorkingMemoryConfigurationError,
         ) as error:
@@ -1409,6 +1551,8 @@ class AyyoWorldModelNode(LifecycleNode):
             DepthCameraRosAdapterError,
             DepthCameraValidationError,
             PerceptionConfigurationError,
+            RgbdFusionLifecycleError,
+            RgbdFusionValidationError,
             WorldModelValidationError,
             WorkingMemoryConfigurationError,
         ) as error:
@@ -1446,11 +1590,55 @@ class AyyoWorldModelNode(LifecycleNode):
                 'sealed depth frame did not enter trusted state',
             )
             return
+        if self._rgbd_fusion_adapter is not None:
+            previous_rgbd_rejected = (
+                self._rgbd_fusion_adapter.diagnostics.rejected_count
+            )
+            fused = self._rgbd_fusion_adapter.submit_depth(
+                admission.frame,
+                now_ns=self.get_clock().now().nanoseconds,
+            )
+            self._handle_rgbd_fusion_result(
+                fused,
+                previous_rejected=previous_rgbd_rejected,
+            )
         health_result = self._admit_and_retain(admission.health)
         if health_result is None or health_result.status is not AdmissionStatus.ACCEPTED:
             self._warn_bounded(
                 'rejected',
                 'sealed depth diagnostics did not enter trusted state',
+            )
+
+    def _handle_rgbd_fusion_result(
+        self,
+        admission,
+        *,
+        previous_rejected: int,
+    ) -> None:
+        if self._rgbd_fusion_adapter is None:
+            return
+        diagnostics = self._rgbd_fusion_adapter.diagnostics
+        if admission is None:
+            if diagnostics.rejected_count != previous_rejected:
+                self._warn_bounded(
+                    'rejected',
+                    f'RGB-D fusion {diagnostics.event.value}',
+                )
+            return
+        if (
+            self._trust_boundary is None
+            or not self._trust_boundary.authorize_rgbd_fusion(admission)
+        ):
+            self._warn_bounded(
+                'rejected',
+                'sealed RGB-D evidence did not match admitted components',
+            )
+            return
+        result = self._admit_and_retain(admission.observation)
+        if result is None or result.status is not AdmissionStatus.ACCEPTED:
+            self._warn_bounded(
+                'rejected',
+                'sealed RGB-D observation did not enter trusted state',
             )
 
     def _evaluate_visual_frame(self, frame, rgb8: bytes) -> None:
@@ -1523,6 +1711,22 @@ class AyyoWorldModelNode(LifecycleNode):
             )
             admission = self._admit_and_retain(observation)
             if (
+                self._rgbd_fusion_adapter is not None
+                and admission is not None
+                and admission.status is AdmissionStatus.ACCEPTED
+            ):
+                previous_rgbd_rejected = (
+                    self._rgbd_fusion_adapter.diagnostics.rejected_count
+                )
+                fused = self._rgbd_fusion_adapter.submit_rgb(
+                    admission.observation,
+                    now_ns=self.get_clock().now().nanoseconds,
+                )
+                self._handle_rgbd_fusion_result(
+                    fused,
+                    previous_rejected=previous_rgbd_rejected,
+                )
+            if (
                 self._visual_reference_adapter is not None
                 and admission is not None
                 and admission.status is AdmissionStatus.ACCEPTED
@@ -1546,6 +1750,8 @@ class AyyoWorldModelNode(LifecycleNode):
                 )
         except (
             PerceptionConfigurationError,
+            RgbdFusionLifecycleError,
+            RgbdFusionValidationError,
             VisualEvaluationConfigurationError,
             VisualCameraAdapterError,
             WorldModelValidationError,
@@ -1694,6 +1900,7 @@ class AyyoWorldModelNode(LifecycleNode):
         response.recent_evidence_count = stats.recent_evidence_count
         response.current_visual_count = stats.current_visual_count
         response.current_depth_count = stats.current_depth_count
+        response.current_fused_rgbd_count = stats.current_fused_rgbd_count
         response.current_visual_interpretation_count = (
             stats.current_visual_interpretation_count
         )
@@ -1806,6 +2013,21 @@ class AyyoWorldModelNode(LifecycleNode):
             SensorAvailability.UNAVAILABLE
             if depth_sensor_state is None
             else depth_sensor_state.availability
+        )
+        rgbd_sensor_state = next(
+            (
+                state
+                for state in snapshot.robot.sensor_states
+                if state.sensor == HEAD_RGBD_FUSION_SENSOR
+            ),
+            None,
+        )
+        response.rgbd_sensor_id = HEAD_RGBD_FUSION_SENSOR.sensor_id
+        response.rgbd_frame_id = HEAD_RGBD_FUSION_SENSOR.frame_id
+        response.rgbd_availability = self._availability_code(
+            SensorAvailability.UNAVAILABLE
+            if rgbd_sensor_state is None
+            else rgbd_sensor_state.availability
         )
         if snapshot.robot.availability is RobotAvailability.UNAVAILABLE:
             return self._not_ready(response, 'no unexpired robot joint evidence is available')
@@ -1993,6 +2215,80 @@ class AyyoWorldModelNode(LifecycleNode):
             response.depth_source_clock = observation.provenance.clock.value
             response.depth_source_transport = observation.provenance.transport.value
             response.depth_source_interface = observation.provenance.interface
+        if snapshot.robot.fused_rgbd_states:
+            fused = snapshot.robot.fused_rgbd_states[0]
+            observation = fused.observation
+            rgb = observation.rgb_observation
+            depth = observation.depth_observation
+            response.has_fused_rgbd = True
+            response.rgbd_sensor_id = observation.sensor.sensor_id
+            response.rgbd_frame_id = observation.sensor.frame_id
+            response.rgbd_availability = self._availability_code(
+                fused.availability
+            )
+            response.rgbd_freshness = (
+                GetRobotBodyState.Response.FRESH
+                if fused.freshness is FreshnessState.FRESH
+                else GetRobotBodyState.Response.STALE
+            )
+            _assign_time(response.rgbd_observed_at, observation.observed_at_ns)
+            _assign_time(response.rgbd_result_at, observation.result_at_ns)
+            response.rgbd_pair_id = observation.pair_id
+            response.rgbd_pairing_policy_id = observation.pairing_policy_id
+            response.rgbd_pairing_policy_version = (
+                observation.pairing_policy_version
+            )
+            response.rgbd_synchronization_session_id = (
+                observation.synchronization_session_id
+            )
+            response.rgbd_spatial_registration_validated = False
+            response.rgbd_observation_id = observation.observation_id
+            response.rgbd_observation_fingerprint = str(
+                observation.fingerprint
+            )
+            response.rgbd_source_kind = observation.provenance.source_kind.value
+            response.rgbd_source_id = observation.provenance.source_id
+            response.rgbd_source_clock = observation.provenance.clock.value
+            response.rgbd_source_transport = observation.provenance.transport.value
+            response.rgbd_source_interface = observation.provenance.interface
+            response.rgbd_rgb_observation_id = rgb.observation_id
+            response.rgbd_rgb_observation_fingerprint = str(rgb.fingerprint)
+            response.rgbd_rgb_producer_id = observation.rgb_producer_id
+            response.rgbd_rgb_sensor_id = rgb.sensor.sensor_id
+            response.rgbd_rgb_camera_frame_id = observation.rgb_camera_frame_id
+            response.rgbd_rgb_optical_frame_id = rgb.sensor.frame_id
+            response.rgbd_rgb_calibration_id = rgb.calibration_id
+            response.rgbd_rgb_source_fingerprint_sha256 = (
+                observation.rgb_source_fingerprint_sha256
+            )
+            response.rgbd_rgb_session_id = observation.rgb_session_id
+            response.rgbd_rgb_source_kind = rgb.provenance.source_kind.value
+            response.rgbd_rgb_source_id = rgb.provenance.source_id
+            response.rgbd_rgb_source_clock = rgb.provenance.clock.value
+            response.rgbd_rgb_source_transport = rgb.provenance.transport.value
+            response.rgbd_rgb_source_interface = rgb.provenance.interface
+            response.rgbd_depth_observation_id = depth.observation_id
+            response.rgbd_depth_observation_fingerprint = str(
+                depth.fingerprint
+            )
+            response.rgbd_depth_producer_id = observation.depth_producer_id
+            response.rgbd_depth_sensor_id = depth.sensor.sensor_id
+            response.rgbd_depth_camera_frame_id = (
+                observation.depth_camera_frame_id
+            )
+            response.rgbd_depth_optical_frame_id = depth.sensor.frame_id
+            response.rgbd_depth_calibration_id = depth.calibration_id
+            response.rgbd_depth_source_fingerprint_sha256 = (
+                observation.depth_source_fingerprint_sha256
+            )
+            response.rgbd_depth_session_id = observation.depth_session_id
+            response.rgbd_depth_source_kind = depth.provenance.source_kind.value
+            response.rgbd_depth_source_id = depth.provenance.source_id
+            response.rgbd_depth_source_clock = depth.provenance.clock.value
+            response.rgbd_depth_source_transport = (
+                depth.provenance.transport.value
+            )
+            response.rgbd_depth_source_interface = depth.provenance.interface
         if snapshot.robot.visual_interpretation_states:
             interpretation = snapshot.robot.visual_interpretation_states[0]
             observation = interpretation.observation

@@ -20,6 +20,7 @@ if(BUILD_TESTING)
   ament_copyright(
     EXCLUDE
       launch/head_depth_fixture.launch.py
+      launch/head_rgbd_fusion_fixture.launch.py
       launch/physical_camera_fixture.launch.py
       launch/simulation.launch.py
       test/test_simulation.py

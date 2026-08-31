@@ -17,6 +17,10 @@ ament_python_install_package(
   PACKAGE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../../depth_camera/src/ayyo_depth_camera"
 )
 ament_python_install_package(
+  ayyo_rgbd_fusion
+  PACKAGE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../../rgbd_fusion/src/ayyo_rgbd_fusion"
+)
+ament_python_install_package(
   ayyo_visual_evaluation
   PACKAGE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../../visual_evaluation/src/ayyo_visual_evaluation"
 )
@@ -37,6 +41,7 @@ install(
     scripts/localization_diagnostics.py
     scripts/physical_camera_adapter.py
     scripts/physical_camera_fixture_node.py
+    scripts/rgbd_fusion_fixture_node.py
     scripts/visual_camera.py
     scripts/world_model_node.py
   DESTINATION lib/${PROJECT_NAME}
@@ -56,6 +61,7 @@ if(BUILD_TESTING)
       scripts/localization_diagnostics.py
       scripts/physical_camera_adapter.py
       scripts/physical_camera_fixture_node.py
+      scripts/rgbd_fusion_fixture_node.py
       scripts/visual_camera.py
       scripts/world_model_node.py
       test/test_ros_adapter.py

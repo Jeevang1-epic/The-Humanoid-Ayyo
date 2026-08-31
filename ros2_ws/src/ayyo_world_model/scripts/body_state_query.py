@@ -90,6 +90,7 @@ def main() -> None:
             'base_pose_availability': response.base_pose_availability,
             'detail': response.detail,
             'current_depth_count': response.current_depth_count,
+            'current_fused_rgbd_count': response.current_fused_rgbd_count,
             'current_visual_count': response.current_visual_count,
             'current_visual_interpretation_count': (
                 response.current_visual_interpretation_count
@@ -249,6 +250,78 @@ def main() -> None:
                     'width': response.depth_width,
                 }
                 if response.has_depth_frame
+                else None
+            ),
+            'fused_rgbd': (
+                {
+                    'availability': response.rgbd_availability,
+                    'depth': {
+                        'calibration_id': response.rgbd_depth_calibration_id,
+                        'camera_frame_id': response.rgbd_depth_camera_frame_id,
+                        'observation_fingerprint': (
+                            response.rgbd_depth_observation_fingerprint
+                        ),
+                        'observation_id': response.rgbd_depth_observation_id,
+                        'optical_frame_id': response.rgbd_depth_optical_frame_id,
+                        'producer_id': response.rgbd_depth_producer_id,
+                        'sensor_id': response.rgbd_depth_sensor_id,
+                        'session_id': response.rgbd_depth_session_id,
+                        'source_clock': response.rgbd_depth_source_clock,
+                        'source_fingerprint_sha256': (
+                            response.rgbd_depth_source_fingerprint_sha256
+                        ),
+                        'source_id': response.rgbd_depth_source_id,
+                        'source_interface': response.rgbd_depth_source_interface,
+                        'source_kind': response.rgbd_depth_source_kind,
+                        'source_transport': response.rgbd_depth_source_transport,
+                    },
+                    'frame_id': response.rgbd_frame_id,
+                    'freshness': response.rgbd_freshness,
+                    'observation_fingerprint': (
+                        response.rgbd_observation_fingerprint
+                    ),
+                    'observation_id': response.rgbd_observation_id,
+                    'observed_at_ns': _nanoseconds(response.rgbd_observed_at),
+                    'pair_id': response.rgbd_pair_id,
+                    'pairing_policy_id': response.rgbd_pairing_policy_id,
+                    'pairing_policy_version': (
+                        response.rgbd_pairing_policy_version
+                    ),
+                    'result_at_ns': _nanoseconds(response.rgbd_result_at),
+                    'rgb': {
+                        'calibration_id': response.rgbd_rgb_calibration_id,
+                        'camera_frame_id': response.rgbd_rgb_camera_frame_id,
+                        'observation_fingerprint': (
+                            response.rgbd_rgb_observation_fingerprint
+                        ),
+                        'observation_id': response.rgbd_rgb_observation_id,
+                        'optical_frame_id': response.rgbd_rgb_optical_frame_id,
+                        'producer_id': response.rgbd_rgb_producer_id,
+                        'sensor_id': response.rgbd_rgb_sensor_id,
+                        'session_id': response.rgbd_rgb_session_id,
+                        'source_clock': response.rgbd_rgb_source_clock,
+                        'source_fingerprint_sha256': (
+                            response.rgbd_rgb_source_fingerprint_sha256
+                        ),
+                        'source_id': response.rgbd_rgb_source_id,
+                        'source_interface': response.rgbd_rgb_source_interface,
+                        'source_kind': response.rgbd_rgb_source_kind,
+                        'source_transport': response.rgbd_rgb_source_transport,
+                    },
+                    'sensor_id': response.rgbd_sensor_id,
+                    'source_clock': response.rgbd_source_clock,
+                    'source_id': response.rgbd_source_id,
+                    'source_interface': response.rgbd_source_interface,
+                    'source_kind': response.rgbd_source_kind,
+                    'source_transport': response.rgbd_source_transport,
+                    'spatial_registration_validated': (
+                        response.rgbd_spatial_registration_validated
+                    ),
+                    'synchronization_session_id': (
+                        response.rgbd_synchronization_session_id
+                    ),
+                }
+                if response.has_fused_rgbd
                 else None
             ),
             'visual_frame': (
