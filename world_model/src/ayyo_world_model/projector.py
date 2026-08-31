@@ -9,11 +9,13 @@ from .errors import WorldModelFailureCode, WorldModelValidationError
 from .models import (
     BodyPoseObservation,
     DepthFrameObservation,
+    FusedRgbdObservation,
     EnvironmentEntityObservation,
     FreshnessState,
     ImuObservation,
     ObservedImuState,
     ObservedDepthState,
+    ObservedFusedRgbdState,
     ObservedJointState,
     ObservedPoseState,
     ObservedSensorHealthState,
@@ -92,6 +94,7 @@ class WorldModelProjector:
         body_pose_evidence: Mapping[str, BodyPoseObservation] | None = None,
         health_evidence: Mapping[str, SensorHealthObservation] | None = None,
         depth_evidence: Mapping[str, DepthFrameObservation] | None = None,
+        fused_rgbd_evidence: Mapping[str, FusedRgbdObservation] | None = None,
         visual_evidence: Mapping[str, VisualFrameObservation] | None = None,
         visual_interpretation_evidence: Mapping[
             tuple[str, str], VisualInterpretationObservation
@@ -104,6 +107,9 @@ class WorldModelProjector:
         )
         health_sources = {} if health_evidence is None else dict(health_evidence)
         depth_sources = {} if depth_evidence is None else dict(depth_evidence)
+        fused_rgbd_sources = (
+            {} if fused_rgbd_evidence is None else dict(fused_rgbd_evidence)
+        )
         visual_sources = {} if visual_evidence is None else dict(visual_evidence)
         interpretation_sources = (
             {}
@@ -116,6 +122,7 @@ class WorldModelProjector:
             | set(body_pose_sources)
             | set(health_sources)
             | set(depth_sources)
+            | set(fused_rgbd_sources)
             | set(visual_sources)
             | {key[0] for key in interpretation_sources}
         )
@@ -197,6 +204,8 @@ class WorldModelProjector:
                 measurement = visual_sources.get(sensor.sensor_id)
             elif sensor.kind is SensorKind.DEPTH_CAMERA:
                 measurement = depth_sources.get(sensor.sensor_id)
+            elif sensor.kind is SensorKind.RGBD_FUSION:
+                measurement = fused_rgbd_sources.get(sensor.sensor_id)
             health = health_sources.get(sensor.sensor_id)
             selected = (
                 health
@@ -229,6 +238,7 @@ class WorldModelProjector:
                         ImuObservation,
                         BodyPoseObservation,
                         DepthFrameObservation,
+                        FusedRgbdObservation,
                         VisualFrameObservation,
                         SensorHealthObservation,
                     }
@@ -322,6 +332,31 @@ class WorldModelProjector:
                 )
             )
 
+        fused_rgbd_states: list[ObservedFusedRgbdState] = []
+        for sensor_id in sorted(fused_rgbd_sources):
+            rebuilt = rebuild_observation(fused_rgbd_sources[sensor_id])
+            assert type(rebuilt) is FusedRgbdObservation
+            if rebuilt.sensor.sensor_id != sensor_id:
+                raise WorldModelValidationError(
+                    WorldModelFailureCode.SNAPSHOT_INVARIANT,
+                    "fused RGB-D evidence key and sensor identity disagree",
+                )
+            fused_freshness = freshness_for(
+                observed_at_ns=rebuilt.observed_at_ns,
+                now_ns=now_ns,
+                fresh_for_ns=fresh_for_ns,
+            )
+            fused_rgbd_states.append(
+                ObservedFusedRgbdState(
+                    observation=rebuilt,
+                    freshness=fused_freshness,
+                    availability=(
+                        SensorAvailability.STALE
+                        if fused_freshness is FreshnessState.STALE
+                        else sensor_availability_by_id[sensor_id]
+                    ),
+                )
+            )
         visual_interpretation_states: list[ObservedVisualInterpretationState] = []
         for key in sorted(interpretation_sources):
             sensor_id, producer_id = key
@@ -429,6 +464,7 @@ class WorldModelProjector:
             availability=availability,
             imu_states=tuple(imu_states),
             depth_states=tuple(depth_states),
+            fused_rgbd_states=tuple(fused_rgbd_states),
             visual_states=tuple(visual_states),
             visual_interpretation_states=tuple(visual_interpretation_states),
             sensor_states=tuple(sensor_states),

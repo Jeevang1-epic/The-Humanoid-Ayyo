@@ -165,6 +165,7 @@ class SensorKind(StrEnum):
     BODY_POSE = "body_pose"
     RGB_CAMERA = "rgb_camera"
     DEPTH_CAMERA = "depth_camera"
+    RGBD_FUSION = "rgbd_fusion"
 
 
 class SensorAvailability(StrEnum):
@@ -1089,6 +1090,7 @@ class ObservationFingerprintKind(StrEnum):
     SENSOR_HEALTH = "sensor_health"
     VISUAL_FRAME = "visual_frame"
     DEPTH_FRAME = "depth_frame"
+    FUSED_RGBD = "fused_rgbd"
     VISUAL_INTERPRETATION = "visual_interpretation"
     ENVIRONMENT_ENTITY = "environment_entity"
 
@@ -1877,6 +1879,270 @@ class DepthFrameObservation:
 
 
 @dataclass(frozen=True, slots=True, init=False)
+class FusedRgbdObservation:
+    """Immutable temporal RGB-D pair; both component records remain compact."""
+
+    robot_id: str
+    sensor: SensorIdentity
+    rgb_observation: VisualFrameObservation
+    depth_observation: DepthFrameObservation
+    rgb_producer_id: str
+    depth_producer_id: str
+    rgb_source_fingerprint_sha256: str
+    depth_source_fingerprint_sha256: str
+    rgb_session_id: str
+    depth_session_id: str
+    rgb_camera_frame_id: str
+    depth_camera_frame_id: str
+    pairing_policy_id: str
+    pairing_policy_version: str
+    synchronization_session_id: str
+    pair_id: str
+    observed_at_ns: int
+    result_at_ns: int
+    provenance: ObservationProvenance
+    availability: SensorAvailability
+    observation_id: str
+    fingerprint: ObservationFingerprint
+
+    def __init__(
+        self,
+        *,
+        robot_id: str,
+        sensor: SensorIdentity,
+        rgb_observation: VisualFrameObservation,
+        depth_observation: DepthFrameObservation,
+        rgb_producer_id: str,
+        depth_producer_id: str,
+        rgb_source_fingerprint_sha256: str,
+        depth_source_fingerprint_sha256: str,
+        rgb_session_id: str,
+        depth_session_id: str,
+        rgb_camera_frame_id: str,
+        depth_camera_frame_id: str,
+        pairing_policy_id: str,
+        pairing_policy_version: str,
+        synchronization_session_id: str,
+        result_at_ns: int,
+        provenance: ObservationProvenance,
+        availability: SensorAvailability,
+        pair_id: str | None = None,
+        observation_id: str | None = None,
+        fingerprint: ObservationFingerprint | None = None,
+    ) -> None:
+        canonical_identifier(robot_id, "RGB-D robot_id")
+        if type(sensor) is not SensorIdentity or sensor.kind is not SensorKind.RGBD_FUSION:
+            _invalid(
+                WorldModelFailureCode.MALFORMED_OBSERVATION,
+                "fused RGB-D evidence requires one typed fusion identity",
+            )
+        rgb = rebuild_observation(rgb_observation)
+        depth = rebuild_observation(depth_observation)
+        if type(rgb) is not VisualFrameObservation or type(depth) is not DepthFrameObservation:
+            _invalid(
+                WorldModelFailureCode.MALFORMED_OBSERVATION,
+                "fused RGB-D evidence requires compact RGB and depth observations",
+            )
+        if rgb.robot_id != robot_id or depth.robot_id != robot_id:
+            _invalid(
+                WorldModelFailureCode.WRONG_ROBOT_IDENTITY,
+                "fused RGB-D components must belong to the same robot",
+            )
+        if rgb.observed_at_ns != depth.observed_at_ns:
+            _invalid(
+                WorldModelFailureCode.MALFORMED_OBSERVATION,
+                "v1 fused RGB-D components require exact source acquisition time",
+            )
+        canonical_identifier(rgb_producer_id, "RGB-D RGB producer")
+        canonical_identifier(depth_producer_id, "RGB-D depth producer")
+        if (
+            type(rgb_source_fingerprint_sha256) is not str
+            or _SHA256.fullmatch(rgb_source_fingerprint_sha256) is None
+            or type(depth_source_fingerprint_sha256) is not str
+            or _SHA256.fullmatch(depth_source_fingerprint_sha256) is None
+        ):
+            _invalid(
+                WorldModelFailureCode.MALFORMED_PROVENANCE,
+                "RGB-D source fingerprints must be canonical SHA-256 digests",
+            )
+        canonical_identifier(rgb_session_id, "RGB-D RGB session")
+        canonical_identifier(depth_session_id, "RGB-D depth session")
+        canonical_identifier(
+            synchronization_session_id,
+            "RGB-D synchronization session",
+        )
+        rgb_mount = _frame_id(rgb_camera_frame_id, "RGB camera frame")
+        depth_mount = _frame_id(depth_camera_frame_id, "depth camera frame")
+        if rgb_mount == rgb.sensor.frame_id or depth_mount == depth.sensor.frame_id:
+            _invalid(
+                WorldModelFailureCode.MALFORMED_OBSERVATION,
+                "RGB-D mount and optical frame identities must remain distinct",
+            )
+        canonical_identifier(pairing_policy_id, "RGB-D pairing policy")
+        canonical_identifier(pairing_policy_version, "RGB-D pairing policy version")
+        if type(provenance) is not ObservationProvenance:
+            _invalid(
+                WorldModelFailureCode.MALFORMED_PROVENANCE,
+                "fused RGB-D provenance is required",
+            )
+        if not (
+            rgb.provenance.clock
+            is depth.provenance.clock
+            is provenance.clock
+        ):
+            _invalid(
+                WorldModelFailureCode.MALFORMED_PROVENANCE,
+                "RGB-D components and fusion result must share one reviewed clock",
+            )
+        observed_at_ns = rgb.observed_at_ns
+        if (
+            type(result_at_ns) is not int
+            or not observed_at_ns <= result_at_ns <= MAX_OBSERVATION_TIME_NS
+        ):
+            _invalid(
+                WorldModelFailureCode.MALFORMED_OBSERVATION,
+                "RGB-D result time must not precede source acquisition",
+            )
+        if availability not in {
+            SensorAvailability.AVAILABLE,
+            SensorAvailability.DEGRADED,
+        }:
+            _invalid(
+                WorldModelFailureCode.MALFORMED_OBSERVATION,
+                "fused RGB-D evidence must be available or degraded",
+            )
+        pair_document: dict[str, JSONValue] = {
+            "depth_observation_id": depth.observation_id,
+            "depth_producer_id": depth_producer_id,
+            "depth_session_id": depth_session_id,
+            "depth_source_fingerprint_sha256": depth_source_fingerprint_sha256,
+            "observed_at_ns": observed_at_ns,
+            "pairing_policy_id": pairing_policy_id,
+            "pairing_policy_version": pairing_policy_version,
+            "rgb_observation_id": rgb.observation_id,
+            "rgb_producer_id": rgb_producer_id,
+            "rgb_session_id": rgb_session_id,
+            "rgb_source_fingerprint_sha256": rgb_source_fingerprint_sha256,
+            "schema": "ayyo.rgbd-pair.v1",
+            "synchronization_session_id": synchronization_session_id,
+        }
+        derived_pair_id = f"rgbd-pair-sha256-{sha256_document(pair_document)}"
+        if pair_id is not None and pair_id != derived_pair_id:
+            raise ObservationIdentityError(
+                WorldModelFailureCode.IDENTITY_MISMATCH,
+                "RGB-D pair identity does not match its exact component evidence",
+            )
+        payload: dict[str, JSONValue] = {
+            "depth_camera_frame_id": depth_mount,
+            "depth_observation": {
+                "fingerprint": str(depth.fingerprint),
+                "observation_id": depth.observation_id,
+                "payload": depth.payload_document(),
+                "provenance": depth.provenance.document(),
+            },
+            "depth_producer_id": depth_producer_id,
+            "depth_session_id": depth_session_id,
+            "depth_source_fingerprint_sha256": depth_source_fingerprint_sha256,
+            "pair_id": derived_pair_id,
+            "pairing_policy_id": pairing_policy_id,
+            "pairing_policy_version": pairing_policy_version,
+            "result_at_ns": result_at_ns,
+            "rgb_camera_frame_id": rgb_mount,
+            "rgb_observation": {
+                "fingerprint": str(rgb.fingerprint),
+                "observation_id": rgb.observation_id,
+                "payload": rgb.payload_document(),
+                "provenance": rgb.provenance.document(),
+            },
+            "rgb_producer_id": rgb_producer_id,
+            "rgb_session_id": rgb_session_id,
+            "rgb_source_fingerprint_sha256": rgb_source_fingerprint_sha256,
+            "sensor": sensor.document(),
+            "spatial_registration_validated": False,
+            "synchronization_session_id": synchronization_session_id,
+        }
+        document = _observation_document(
+            kind=ObservationFingerprintKind.FUSED_RGBD,
+            robot_id=robot_id,
+            observed_at_ns=observed_at_ns,
+            provenance=provenance,
+            confidence=None,
+            payload=payload,
+        )
+        derived = ObservationFingerprint(
+            kind=ObservationFingerprintKind.FUSED_RGBD,
+            digest=sha256_document(document),
+        )
+        derived_id = f"world-observation-{derived.digest}"
+        if fingerprint is not None and fingerprint != derived:
+            raise ObservationIdentityError(
+                WorldModelFailureCode.IDENTITY_MISMATCH,
+                "fused RGB-D fingerprint does not match its metadata",
+            )
+        if observation_id is not None and observation_id != derived_id:
+            raise ObservationIdentityError(
+                WorldModelFailureCode.IDENTITY_MISMATCH,
+                "fused RGB-D observation ID does not match its metadata",
+            )
+        for field_name, value in (
+            ("robot_id", robot_id),
+            ("sensor", sensor),
+            ("rgb_observation", rgb),
+            ("depth_observation", depth),
+            ("rgb_producer_id", rgb_producer_id),
+            ("depth_producer_id", depth_producer_id),
+            ("rgb_source_fingerprint_sha256", rgb_source_fingerprint_sha256),
+            ("depth_source_fingerprint_sha256", depth_source_fingerprint_sha256),
+            ("rgb_session_id", rgb_session_id),
+            ("depth_session_id", depth_session_id),
+            ("rgb_camera_frame_id", rgb_mount),
+            ("depth_camera_frame_id", depth_mount),
+            ("pairing_policy_id", pairing_policy_id),
+            ("pairing_policy_version", pairing_policy_version),
+            ("synchronization_session_id", synchronization_session_id),
+            ("pair_id", derived_pair_id),
+            ("observed_at_ns", observed_at_ns),
+            ("result_at_ns", result_at_ns),
+            ("provenance", provenance),
+            ("availability", availability),
+            ("observation_id", derived_id),
+            ("fingerprint", derived),
+        ):
+            object.__setattr__(self, field_name, value)
+
+    def payload_document(self) -> dict[str, JSONValue]:
+        return {
+            "depth_camera_frame_id": self.depth_camera_frame_id,
+            "depth_observation": {
+                "fingerprint": str(self.depth_observation.fingerprint),
+                "observation_id": self.depth_observation.observation_id,
+                "payload": self.depth_observation.payload_document(),
+                "provenance": self.depth_observation.provenance.document(),
+            },
+            "depth_producer_id": self.depth_producer_id,
+            "depth_session_id": self.depth_session_id,
+            "depth_source_fingerprint_sha256": self.depth_source_fingerprint_sha256,
+            "pair_id": self.pair_id,
+            "pairing_policy_id": self.pairing_policy_id,
+            "pairing_policy_version": self.pairing_policy_version,
+            "result_at_ns": self.result_at_ns,
+            "rgb_camera_frame_id": self.rgb_camera_frame_id,
+            "rgb_observation": {
+                "fingerprint": str(self.rgb_observation.fingerprint),
+                "observation_id": self.rgb_observation.observation_id,
+                "payload": self.rgb_observation.payload_document(),
+                "provenance": self.rgb_observation.provenance.document(),
+            },
+            "rgb_producer_id": self.rgb_producer_id,
+            "rgb_session_id": self.rgb_session_id,
+            "rgb_source_fingerprint_sha256": self.rgb_source_fingerprint_sha256,
+            "sensor": self.sensor.document(),
+            "spatial_registration_validated": False,
+            "synchronization_session_id": self.synchronization_session_id,
+        }
+
+
+@dataclass(frozen=True, slots=True, init=False)
 class VisualInterpretationObservation:
     """Bounded semantic evidence derived from one exact admitted visual frame."""
 
@@ -2380,6 +2646,7 @@ Observation: TypeAlias = (
     | ImuObservation
     | VisualFrameObservation
     | DepthFrameObservation
+    | FusedRgbdObservation
     | VisualInterpretationObservation
     | BodyPoseObservation
     | SensorHealthObservation
@@ -2467,6 +2734,34 @@ def rebuild_observation(observation: Observation) -> Observation:
             observed_at_ns=observation.observed_at_ns,
             provenance=observation.provenance,
             availability=observation.availability,
+            observation_id=observation.observation_id,
+            fingerprint=observation.fingerprint,
+        )
+    if type(observation) is FusedRgbdObservation:
+        return FusedRgbdObservation(
+            robot_id=observation.robot_id,
+            sensor=observation.sensor,
+            rgb_observation=observation.rgb_observation,
+            depth_observation=observation.depth_observation,
+            rgb_producer_id=observation.rgb_producer_id,
+            depth_producer_id=observation.depth_producer_id,
+            rgb_source_fingerprint_sha256=(
+                observation.rgb_source_fingerprint_sha256
+            ),
+            depth_source_fingerprint_sha256=(
+                observation.depth_source_fingerprint_sha256
+            ),
+            rgb_session_id=observation.rgb_session_id,
+            depth_session_id=observation.depth_session_id,
+            rgb_camera_frame_id=observation.rgb_camera_frame_id,
+            depth_camera_frame_id=observation.depth_camera_frame_id,
+            pairing_policy_id=observation.pairing_policy_id,
+            pairing_policy_version=observation.pairing_policy_version,
+            synchronization_session_id=observation.synchronization_session_id,
+            result_at_ns=observation.result_at_ns,
+            provenance=observation.provenance,
+            availability=observation.availability,
+            pair_id=observation.pair_id,
             observation_id=observation.observation_id,
             fingerprint=observation.fingerprint,
         )
@@ -2735,6 +3030,49 @@ class ObservedDepthState:
 
 
 @dataclass(frozen=True, slots=True)
+class ObservedFusedRgbdState:
+    observation: FusedRgbdObservation
+    freshness: FreshnessState
+    availability: SensorAvailability
+
+    def __post_init__(self) -> None:
+        if type(self.observation) is not FusedRgbdObservation:
+            _invalid(
+                WorldModelFailureCode.SNAPSHOT_INVARIANT,
+                "fused RGB-D state is untyped",
+            )
+        if not isinstance(self.freshness, FreshnessState):
+            _invalid(
+                WorldModelFailureCode.SNAPSHOT_INVARIANT,
+                "fused RGB-D freshness is invalid",
+            )
+        if not isinstance(self.availability, SensorAvailability):
+            _invalid(
+                WorldModelFailureCode.SNAPSHOT_INVARIANT,
+                "fused RGB-D availability is invalid",
+            )
+        if (
+            self.freshness is FreshnessState.STALE
+            and self.availability is not SensorAvailability.STALE
+        ):
+            _invalid(
+                WorldModelFailureCode.SNAPSHOT_INVARIANT,
+                "stale fused RGB-D evidence must be explicitly marked stale",
+            )
+
+    def document(self) -> dict[str, JSONValue]:
+        return {
+            "availability": self.availability.value,
+            "fingerprint": str(self.observation.fingerprint),
+            "freshness": self.freshness.value,
+            "observation_id": self.observation.observation_id,
+            "observed_at_ns": self.observation.observed_at_ns,
+            "payload": self.observation.payload_document(),
+            "provenance": self.observation.provenance.document(),
+        }
+
+
+@dataclass(frozen=True, slots=True)
 class ObservedVisualState:
     observation: VisualFrameObservation
     freshness: FreshnessState
@@ -2906,6 +3244,7 @@ class RobotBodyState:
     availability: RobotAvailability
     imu_states: tuple[ObservedImuState, ...] = ()
     depth_states: tuple[ObservedDepthState, ...] = ()
+    fused_rgbd_states: tuple[ObservedFusedRgbdState, ...] = ()
     visual_states: tuple[ObservedVisualState, ...] = ()
     visual_interpretation_states: tuple[
         ObservedVisualInterpretationState, ...
@@ -2968,6 +3307,22 @@ class RobotBodyState:
             _invalid(
                 WorldModelFailureCode.SNAPSHOT_INVARIANT,
                 "depth states must be unique and sorted",
+            )
+        if any(
+            type(item) is not ObservedFusedRgbdState
+            for item in self.fused_rgbd_states
+        ):
+            _invalid(
+                WorldModelFailureCode.SNAPSHOT_INVARIANT,
+                "fused RGB-D states must be typed",
+            )
+        fused_ids = tuple(
+            item.observation.sensor.sensor_id for item in self.fused_rgbd_states
+        )
+        if fused_ids != tuple(sorted(set(fused_ids))):
+            _invalid(
+                WorldModelFailureCode.SNAPSHOT_INVARIANT,
+                "fused RGB-D states must be unique and sorted",
             )
         if any(type(item) is not ObservedVisualState for item in self.visual_states):
             _invalid(
@@ -3035,6 +3390,9 @@ class RobotBodyState:
             "robot_id": self.robot_id,
             "imu_states": [item.document() for item in self.imu_states],
             "depth_states": [item.document() for item in self.depth_states],
+            "fused_rgbd_states": [
+                item.document() for item in self.fused_rgbd_states
+            ],
             "visual_states": [item.document() for item in self.visual_states],
             "visual_interpretation_states": [
                 item.document() for item in self.visual_interpretation_states
