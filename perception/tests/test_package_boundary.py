@@ -50,6 +50,7 @@ class PerceptionPackageBoundaryTest(unittest.TestCase):
             [
                 "ayyo-depth-camera==0.1.0",
                 "ayyo-physical-camera==0.1.0",
+                "ayyo-rgbd-fusion==0.1.0",
                 "ayyo-world-model==0.1.0",
                 "ayyo-visual-evaluation==0.1.0",
             ],

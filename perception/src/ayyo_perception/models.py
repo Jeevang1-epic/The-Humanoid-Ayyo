@@ -11,6 +11,7 @@ from ayyo_physical_camera import (
     PhysicalCameraTrustRequirement,
 )
 from ayyo_depth_camera import MAX_DEPTH_CAMERA_SOURCES, DepthTrustRequirement
+from ayyo_rgbd_fusion import RgbdFusionRequirement
 from ayyo_world_model import (
     MAX_OBSERVATION_TIME_NS,
     Observation,
@@ -146,6 +147,7 @@ class PerceptionTrustConfig:
         PhysicalCameraTrustRequirement, ...
     ] = ()
     depth_camera_requirements: tuple[DepthTrustRequirement, ...] = ()
+    rgbd_fusion_requirements: tuple[RgbdFusionRequirement, ...] = ()
 
     def __post_init__(self) -> None:
         if (
@@ -310,6 +312,49 @@ class PerceptionTrustConfig:
                 raise PerceptionConfigurationError(
                     "depth requirement does not bind a configured source"
                 )
+        if (
+            type(self.rgbd_fusion_requirements) is not tuple
+            or len(self.rgbd_fusion_requirements) > MAX_PERCEPTION_SOURCES
+            or any(
+                type(requirement) is not RgbdFusionRequirement
+                for requirement in self.rgbd_fusion_requirements
+            )
+        ):
+            raise PerceptionConfigurationError(
+                "RGB-D fusion requirements must be a bounded typed tuple"
+            )
+        fusion_source_keys = {
+            (source.sensor.sensor_id, source.provenance.source_id)
+            for source in self.sources
+            if source.sensor.kind is SensorKind.RGBD_FUSION
+        }
+        fusion_requirement_keys = {
+            (
+                requirement.fusion_sensor.sensor_id,
+                requirement.fusion_provenance.source_id,
+            )
+            for requirement in self.rgbd_fusion_requirements
+        }
+        if (
+            len(fusion_requirement_keys) != len(self.rgbd_fusion_requirements)
+            or fusion_source_keys != fusion_requirement_keys
+        ):
+            raise PerceptionConfigurationError(
+                "every RGB-D fusion source requires one exact synchronization requirement"
+            )
+        for requirement in self.rgbd_fusion_requirements:
+            required_components = {
+                (requirement.rgb_sensor, requirement.rgb_provenance),
+                (requirement.depth_sensor, requirement.depth_provenance),
+                (requirement.fusion_sensor, requirement.fusion_provenance),
+            }
+            configured_components = {
+                (source.sensor, source.provenance) for source in self.sources
+            }
+            if not required_components <= configured_components:
+                raise PerceptionConfigurationError(
+                    "RGB-D requirement components must bind configured sources"
+                )
 
 
 @dataclass(frozen=True, slots=True)
@@ -353,6 +398,8 @@ class PerceptionStats:
     tracked_evaluated_visual_count: int = 0
     tracked_physical_camera_count: int = 0
     tracked_depth_camera_count: int = 0
+    tracked_depth_source_count: int = 0
+    tracked_rgbd_fusion_count: int = 0
 
     def __post_init__(self) -> None:
         values = (
@@ -365,6 +412,8 @@ class PerceptionStats:
             self.tracked_evaluated_visual_count,
             self.tracked_physical_camera_count,
             self.tracked_depth_camera_count,
+            self.tracked_depth_source_count,
+            self.tracked_rgbd_fusion_count,
         )
         if any(type(value) is not int or value < 0 for value in values):
             raise PerceptionConfigurationError("perception statistics are invalid")
@@ -389,6 +438,14 @@ class PerceptionStats:
         if self.tracked_depth_camera_count > MAX_VISUAL_SOURCE_REFERENCES:
             raise PerceptionConfigurationError(
                 "tracked depth camera authorizations exceed their hard bound"
+            )
+        if self.tracked_depth_source_count > MAX_VISUAL_SOURCE_REFERENCES:
+            raise PerceptionConfigurationError(
+                "tracked depth source references exceed their hard bound"
+            )
+        if self.tracked_rgbd_fusion_count > MAX_VISUAL_SOURCE_REFERENCES:
+            raise PerceptionConfigurationError(
+                "tracked RGB-D authorizations exceed their hard bound"
             )
 
 

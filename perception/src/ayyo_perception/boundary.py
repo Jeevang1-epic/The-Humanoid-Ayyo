@@ -6,9 +6,11 @@ from threading import RLock
 
 from ayyo_physical_camera import PhysicalCameraAdmission
 from ayyo_depth_camera import DepthCameraAdmission
+from ayyo_rgbd_fusion import RgbdFusionAdmission
 from ayyo_world_model import (
     BodyPoseObservation,
     DepthFrameObservation,
+    FusedRgbdObservation,
     EnvironmentEntityObservation,
     ImuObservation,
     ObservationIdentityError,
@@ -46,6 +48,7 @@ class PerceptionTrustBoundary:
         "_config",
         "_duplicate_count",
         "_depth_camera_authorizations",
+        "_depth_sources",
         "_evaluated_visual_authorizations",
         "_last_by_key",
         "_last_now_ns",
@@ -53,6 +56,7 @@ class PerceptionTrustBoundary:
         "_lock",
         "_physical_camera_authorizations",
         "_rejected_count",
+        "_rgbd_fusion_authorizations",
         "_visual_sources",
     )
 
@@ -72,6 +76,10 @@ class PerceptionTrustBoundary:
         ] = {}
         self._physical_camera_authorizations: dict[str, object] = {}
         self._depth_camera_authorizations: dict[str, object] = {}
+        self._depth_sources: dict[str, DepthFrameObservation] = {}
+        self._rgbd_fusion_authorizations: dict[
+            str, FusedRgbdObservation
+        ] = {}
         self._lock = RLock()
 
     @property
@@ -90,6 +98,8 @@ class PerceptionTrustBoundary:
             self._evaluated_visual_authorizations.clear()
             self._physical_camera_authorizations.clear()
             self._depth_camera_authorizations.clear()
+            self._depth_sources.clear()
+            self._rgbd_fusion_authorizations.clear()
 
     def _reject(
         self,
@@ -118,6 +128,7 @@ class PerceptionTrustBoundary:
             ImuObservation,
             BodyPoseObservation,
             DepthFrameObservation,
+            FusedRgbdObservation,
             VisualFrameObservation,
             VisualInterpretationObservation,
             SensorHealthObservation,
@@ -141,6 +152,8 @@ class PerceptionTrustBoundary:
                 f"visual_interpretation:{source.sensor.sensor_id}",
                 observation.producer.producer_id,
             )
+        if type(observation) is FusedRgbdObservation:
+            return ("rgbd_fusion", observation.sensor.sensor_id)
         return (source.sensor.kind.value, source.sensor.sensor_id)
 
     def _purge_visual_sources(self, *, now_ns: int) -> None:
@@ -160,6 +173,18 @@ class PerceptionTrustBoundary:
             )
             if observation.source_visual_observation_id in retained_source_ids
         }
+        self._depth_sources = {
+            observation_id: frame
+            for observation_id, frame in self._depth_sources.items()
+            if frame.observed_at_ns >= cutoff
+        }
+        retained_depth_ids = set(self._depth_sources)
+        self._rgbd_fusion_authorizations = {
+            observation_id: observation
+            for observation_id, observation in self._rgbd_fusion_authorizations.items()
+            if observation.rgb_observation.observation_id in retained_source_ids
+            and observation.depth_observation.observation_id in retained_depth_ids
+        }
 
     def _remember_visual_source(self, frame: VisualFrameObservation) -> None:
         self._visual_sources[frame.observation_id] = frame
@@ -178,6 +203,23 @@ class PerceptionTrustBoundary:
                     self._evaluated_visual_authorizations.items()
                 )
                 if observation.source_visual_observation_id != oldest_id
+            }
+
+    def _remember_depth_source(self, frame: DepthFrameObservation) -> None:
+        self._depth_sources[frame.observation_id] = frame
+        while len(self._depth_sources) > MAX_VISUAL_SOURCE_REFERENCES:
+            oldest_id = min(
+                self._depth_sources,
+                key=lambda observation_id: (
+                    self._depth_sources[observation_id].observed_at_ns,
+                    observation_id,
+                ),
+            )
+            del self._depth_sources[oldest_id]
+            self._rgbd_fusion_authorizations = {
+                observation_id: observation
+                for observation_id, observation in self._rgbd_fusion_authorizations.items()
+                if observation.depth_observation.observation_id != oldest_id
             }
 
     def authorize_evaluated_visual(
@@ -343,6 +385,59 @@ class PerceptionTrustBoundary:
                 del self._depth_camera_authorizations[oldest_id]
             return True
 
+    def authorize_rgbd_fusion(self, admission: RgbdFusionAdmission) -> bool:
+        """Bind one sealed pair whose exact components were already admitted."""
+        if type(admission) is not RgbdFusionAdmission:
+            return False
+        try:
+            observation = rebuild_observation(admission.observation)
+        except (ObservationIdentityError, WorldModelValidationError):
+            return False
+        if type(observation) is not FusedRgbdObservation:
+            return False
+        with self._lock:
+            requirement = next(
+                (
+                    item
+                    for item in self._config.rgbd_fusion_requirements
+                    if item.fusion_sensor == observation.sensor
+                    and item.fusion_provenance == observation.provenance
+                ),
+                None,
+            )
+            rgb = self._visual_sources.get(
+                observation.rgb_observation.observation_id
+            )
+            depth = self._depth_sources.get(
+                observation.depth_observation.observation_id
+            )
+            if (
+                requirement is None
+                or admission.requirement != requirement
+                or not requirement.matches_fused(observation)
+                or rgb != observation.rgb_observation
+                or depth != observation.depth_observation
+            ):
+                return False
+            self._rgbd_fusion_authorizations[
+                observation.observation_id
+            ] = observation
+            while (
+                len(self._rgbd_fusion_authorizations)
+                > MAX_VISUAL_SOURCE_REFERENCES
+            ):
+                oldest_id = min(
+                    self._rgbd_fusion_authorizations,
+                    key=lambda observation_id: (
+                        self._rgbd_fusion_authorizations[
+                            observation_id
+                        ].observed_at_ns,
+                        observation_id,
+                    ),
+                )
+                del self._rgbd_fusion_authorizations[oldest_id]
+            return True
+
     def admit(
         self,
         observation,
@@ -496,6 +591,31 @@ class PerceptionTrustBoundary:
                         "depth evidence was not sealed by the lifecycle adapter",
                         rebuilt.observation_id,
                     )
+            if type(rebuilt) is FusedRgbdObservation:
+                requirement = next(
+                    (
+                        item
+                        for item in self._config.rgbd_fusion_requirements
+                        if item.fusion_sensor == rebuilt.sensor
+                        and item.fusion_provenance == rebuilt.provenance
+                    ),
+                    None,
+                )
+                if requirement is None or not requirement.matches_fused(rebuilt):
+                    return self._reject(
+                        AdmissionReason.PROVENANCE_NOT_ALLOWED,
+                        "fused RGB-D evidence differs from its synchronization requirement",
+                        rebuilt.observation_id,
+                    )
+                if self._rgbd_fusion_authorizations.pop(
+                    rebuilt.observation_id,
+                    None,
+                ) != rebuilt:
+                    return self._reject(
+                        AdmissionReason.SOURCE_FRAME_NOT_ADMITTED,
+                        "fused RGB-D evidence was not sealed from admitted components",
+                        rebuilt.observation_id,
+                    )
             if type(rebuilt) is VisualInterpretationObservation:
                 producer = next(
                     (
@@ -627,6 +747,8 @@ class PerceptionTrustBoundary:
             self._purge_visual_sources(now_ns=now)
             if type(rebuilt) is VisualFrameObservation:
                 self._remember_visual_source(rebuilt)
+            if type(rebuilt) is DepthFrameObservation:
+                self._remember_depth_source(rebuilt)
             self._accepted_count += 1
             return AdmissionResult(
                 status=AdmissionStatus.ACCEPTED,
@@ -712,5 +834,9 @@ class PerceptionTrustBoundary:
                 ),
                 tracked_depth_camera_count=len(
                     self._depth_camera_authorizations
+                ),
+                tracked_depth_source_count=len(self._depth_sources),
+                tracked_rgbd_fusion_count=len(
+                    self._rgbd_fusion_authorizations
                 ),
             )
