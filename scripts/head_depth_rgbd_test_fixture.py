@@ -637,7 +637,7 @@ def publish_ros_adversarial(scenario: str) -> None:
         else:
             raise RuntimeError('depth adversarial fixture found no subscribers')
         published = 0
-        for _ in range(64):
+        for _ in range(128):
             stamp = node.get_clock().now().to_msg()
             frame_id = (
                 'head_camera_optical_frame'
