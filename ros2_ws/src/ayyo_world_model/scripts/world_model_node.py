@@ -8,6 +8,21 @@ from __future__ import annotations
 from hashlib import sha256
 import time
 
+from ayyo_depth_camera import (
+    DEPTH_CAMERA_INFO_TOPIC,
+    DEPTH_IMAGE_TOPIC,
+    depth_simulation_bundle,
+    depth_test_fixture_bundle,
+    DepthCameraConfigurationError,
+    DepthCameraLifecycleError,
+    DepthCameraValidationError,
+    DepthLifecycleAdapter,
+    DepthLifecycleState,
+    DepthSourceRegistry,
+    HEAD_DEPTH_SENSOR,
+    SIMULATION_DEPTH_PROVENANCE,
+    TEST_DEPTH_PROVENANCE,
+)
 from ayyo_interfaces.srv import GetRobotBodyState
 from ayyo_perception import (
     AdmissionReason,
@@ -30,21 +45,6 @@ from ayyo_physical_camera import (
     PhysicalCameraLifecycleState,
     PhysicalCameraSourceRegistry,
     PhysicalCameraValidationError,
-)
-from ayyo_depth_camera import (
-    DEPTH_CAMERA_INFO_TOPIC,
-    DEPTH_IMAGE_TOPIC,
-    HEAD_DEPTH_SENSOR,
-    SIMULATION_DEPTH_PROVENANCE,
-    TEST_DEPTH_PROVENANCE,
-    DepthCameraConfigurationError,
-    DepthCameraLifecycleError,
-    DepthCameraValidationError,
-    DepthLifecycleAdapter,
-    DepthLifecycleState,
-    DepthSourceRegistry,
-    depth_simulation_bundle,
-    depth_test_fixture_bundle,
 )
 from ayyo_visual_evaluation import (
     DeterministicFixtureInvoker,
@@ -85,6 +85,11 @@ from ayyo_world_model import (
     WorldModelValidationError,
 )
 from builtin_interfaces.msg import Time
+from depth_camera_adapter import (
+    DepthCameraRosAdapterError,
+    normalize_depth_camera_info,
+    normalize_depth_image,
+)
 from diagnostic_msgs.msg import DiagnosticArray
 from localization_diagnostics import (
     DiagnosticAdapterError,
@@ -100,11 +105,6 @@ from physical_camera_adapter import (
     normalize_physical_camera_info_metadata,
     normalize_physical_image_metadata,
     PhysicalCameraRosAdapterError,
-)
-from depth_camera_adapter import (
-    DepthCameraRosAdapterError,
-    normalize_depth_camera_info,
-    normalize_depth_image,
 )
 import rclpy
 from rclpy.duration import Duration

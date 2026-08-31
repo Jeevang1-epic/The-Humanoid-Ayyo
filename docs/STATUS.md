@@ -84,8 +84,8 @@
 - Narrow transport protocol with an unavailable-by-default ROS service sentinel;
   the deterministic in-memory implementation exists only in tests
 - Authoritative modular `ayyo_description` Xacro with a canonical `base_link`
-  root, 37 links, 36 joints, 18 provisional movable joints, an explicit head
-  camera mount and ROS optical frame, and one fixed pelvis body-IMU datum
+  root, 39 links, 38 joints, 18 provisional movable joints, explicit RGB and
+  depth camera mounts/ROS optical frames, and one fixed pelvis body-IMU datum
 - Development proxy visual/collision primitives isolated from a normalized,
   machine-readable 33-part contract for absent final visual and collision
   meshes

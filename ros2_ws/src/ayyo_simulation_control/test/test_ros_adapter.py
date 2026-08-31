@@ -40,7 +40,7 @@ def test_authoritative_description_drives_runtime_limit_catalog() -> None:
     assert result.returncode == 0, result.stderr
     catalog = UrdfJointLimitCatalog(result.stdout)
     assert catalog.allowlist == CONTROLLED_JOINT_ALLOWLIST == ('neck_yaw_joint',)
-    assert len(catalog.joints) == 36
+    assert len(catalog.joints) == 38
     optical = catalog.contract_for('head_camera_optical_joint')
     assert optical is not None
     assert optical.joint_type == 'fixed'
