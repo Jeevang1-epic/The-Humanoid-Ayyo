@@ -26,6 +26,7 @@ from .errors import (
 )
 from .models import (
     AYYO_ROBOT_ID,
+    AudioFrameObservation,
     BodyPoseObservation,
     CameraCalibration,
     DepthFrameObservation,
@@ -33,6 +34,8 @@ from .models import (
     CovarianceMatrix,
     MAX_CAMERA_DIMENSION,
     MAX_CAMERA_PIXELS,
+    MAX_AUDIO_DATA_BYTES,
+    MAX_AUDIO_FRAME_COUNT,
     MAX_VISUAL_DETECTIONS,
     MAX_VISUAL_EVALUATION_REQUIREMENTS,
     MAX_VISUAL_INTERPRETATION_PRODUCERS,
@@ -56,6 +59,7 @@ from .models import (
     ObservationProvenance,
     ObservationSourceKind,
     ObservationTransport,
+    ObservedAudioState,
     ObservedJointState,
     ObservedDepthState,
     ObservedFusedRgbdState,
@@ -100,6 +104,7 @@ from .projector import WorldModelProjector, freshness_for
 
 __all__ = [
     "AYYO_ROBOT_ID",
+    "AudioFrameObservation",
     "BodyPoseObservation",
     "CameraCalibration",
     "DepthFrameObservation",
@@ -114,6 +119,8 @@ __all__ = [
     "JointObservation",
     "ImuObservation",
     "MAX_ENVIRONMENT_ENTITIES",
+    "MAX_AUDIO_DATA_BYTES",
+    "MAX_AUDIO_FRAME_COUNT",
     "MAX_CAMERA_DIMENSION",
     "MAX_CAMERA_PIXELS",
     "MAX_VISUAL_DETECTIONS",
@@ -141,6 +148,7 @@ __all__ = [
     "ObservationProvenance",
     "ObservationSourceKind",
     "ObservationTransport",
+    "ObservedAudioState",
     "ObservedJointState",
     "ObservedDepthState",
     "ObservedFusedRgbdState",

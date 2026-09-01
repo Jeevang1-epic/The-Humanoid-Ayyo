@@ -26,6 +26,8 @@ MAX_SENSOR_IDENTITIES = 32
 MAX_CAMERA_DIMENSION = 4_096
 MAX_CAMERA_PIXELS = 16_777_216
 MAX_IMAGE_DATA_BYTES = 64 * 1_024 * 1_024
+MAX_AUDIO_FRAME_COUNT = 16_000
+MAX_AUDIO_DATA_BYTES = 32_000
 MAX_VISUAL_DETECTIONS = 32
 MAX_VISUAL_INTERPRETATION_PRODUCERS = 16
 MAX_VISUAL_LABEL_LENGTH = 64
@@ -45,6 +47,10 @@ _DEPTH_SOURCE_MANIFEST_ID = re.compile(
     r"^depth-camera-source-sha256-[0-9a-f]{64}$"
 )
 _DEPTH_SESSION_ID = re.compile(r"^depth-camera-session-sha256-[0-9a-f]{64}$")
+_AUDIO_SOURCE_MANIFEST_ID = re.compile(
+    r"^audio-source-sha256-[0-9a-f]{64}$"
+)
+_AUDIO_SESSION_ID = re.compile(r"^audio-session-sha256-[0-9a-f]{64}$")
 _OBSERVATION_ID = re.compile(r"^world-observation-[0-9a-f]{64}$")
 
 
@@ -166,6 +172,7 @@ class SensorKind(StrEnum):
     RGB_CAMERA = "rgb_camera"
     DEPTH_CAMERA = "depth_camera"
     RGBD_FUSION = "rgbd_fusion"
+    MICROPHONE = "microphone"
 
 
 class SensorAvailability(StrEnum):
@@ -1091,6 +1098,7 @@ class ObservationFingerprintKind(StrEnum):
     VISUAL_FRAME = "visual_frame"
     DEPTH_FRAME = "depth_frame"
     FUSED_RGBD = "fused_rgbd"
+    AUDIO_FRAME = "audio_frame"
     VISUAL_INTERPRETATION = "visual_interpretation"
     ENVIRONMENT_ENTITY = "environment_entity"
 
@@ -1446,6 +1454,248 @@ class ImuObservation:
             ),
             "quality": self.quality,
             "sensor": self.sensor.document(),
+        }
+
+
+@dataclass(frozen=True, slots=True, init=False)
+class AudioFrameObservation:
+    """Compact trusted microphone capture metadata; sample bytes are absent."""
+
+    robot_id: str
+    sensor: SensorIdentity
+    producer_id: str
+    source_manifest_id: str
+    session_id: str
+    sample_rate_hz: int
+    channel_count: int
+    encoding: str
+    frame_count: int
+    sample_count: int
+    duration_ns: int
+    data_size_bytes: int
+    peak_amplitude: int
+    rms_amplitude: float
+    payload_sha256: str
+    observed_at_ns: int
+    result_at_ns: int
+    provenance: ObservationProvenance
+    availability: SensorAvailability
+    observation_id: str
+    fingerprint: ObservationFingerprint
+
+    def __init__(
+        self,
+        *,
+        robot_id: str,
+        sensor: SensorIdentity,
+        producer_id: str,
+        source_manifest_id: str,
+        session_id: str,
+        sample_rate_hz: int,
+        channel_count: int,
+        encoding: str,
+        frame_count: int,
+        sample_count: int,
+        duration_ns: int,
+        data_size_bytes: int,
+        peak_amplitude: int,
+        rms_amplitude: float,
+        payload_sha256: str,
+        observed_at_ns: int,
+        result_at_ns: int,
+        provenance: ObservationProvenance,
+        availability: SensorAvailability,
+        observation_id: str | None = None,
+        fingerprint: ObservationFingerprint | None = None,
+    ) -> None:
+        canonical_identifier(robot_id, "audio robot_id")
+        if (
+            type(sensor) is not SensorIdentity
+            or sensor.kind is not SensorKind.MICROPHONE
+        ):
+            _invalid(
+                WorldModelFailureCode.MALFORMED_OBSERVATION,
+                "audio evidence requires one typed microphone identity",
+            )
+        canonical_identifier(producer_id, "audio producer_id")
+        if (
+            type(source_manifest_id) is not str
+            or _AUDIO_SOURCE_MANIFEST_ID.fullmatch(source_manifest_id) is None
+        ):
+            _invalid(
+                WorldModelFailureCode.MALFORMED_PROVENANCE,
+                "audio source manifest identity is malformed",
+            )
+        if (
+            type(session_id) is not str
+            or _AUDIO_SESSION_ID.fullmatch(session_id) is None
+        ):
+            _invalid(
+                WorldModelFailureCode.MALFORMED_PROVENANCE,
+                "audio lifecycle session identity is malformed",
+            )
+        if type(sample_rate_hz) is not int or not 8_000 <= sample_rate_hz <= 48_000:
+            _invalid(
+                WorldModelFailureCode.MALFORMED_OBSERVATION,
+                "audio sample rate is outside the reviewed bound",
+            )
+        if channel_count != 1 or encoding != "pcm_s16le":
+            _invalid(
+                WorldModelFailureCode.MALFORMED_OBSERVATION,
+                "audio v1 requires mono signed 16-bit little-endian PCM",
+            )
+        if (
+            type(frame_count) is not int
+            or type(sample_count) is not int
+            or not 1 <= frame_count <= MAX_AUDIO_FRAME_COUNT
+            or sample_count != frame_count * channel_count
+        ):
+            _invalid(
+                WorldModelFailureCode.MALFORMED_OBSERVATION,
+                "audio frame/sample counts are inconsistent or unbounded",
+            )
+        expected_duration_ns = frame_count * 1_000_000_000 // sample_rate_hz
+        if (
+            type(duration_ns) is not int
+            or duration_ns != expected_duration_ns
+            or not 0 < duration_ns <= 1_000_000_000
+        ):
+            _invalid(
+                WorldModelFailureCode.MALFORMED_OBSERVATION,
+                "audio duration is inconsistent with its reviewed format",
+            )
+        if (
+            type(data_size_bytes) is not int
+            or data_size_bytes != sample_count * 2
+            or not 1 <= data_size_bytes <= MAX_AUDIO_DATA_BYTES
+        ):
+            _invalid(
+                WorldModelFailureCode.MALFORMED_OBSERVATION,
+                "audio byte count is inconsistent or exceeds its hard bound",
+            )
+        if type(peak_amplitude) is not int or not 0 <= peak_amplitude <= 32_768:
+            _invalid(
+                WorldModelFailureCode.MALFORMED_OBSERVATION,
+                "audio peak amplitude is invalid",
+            )
+        rms = _finite(rms_amplitude, "audio RMS amplitude")
+        if not 0.0 <= rms <= 1.0 or rms > peak_amplitude / 32_768.0 + 1e-12:
+            _invalid(
+                WorldModelFailureCode.MALFORMED_OBSERVATION,
+                "audio RMS amplitude is outside its physical bound",
+            )
+        if type(payload_sha256) is not str or _SHA256.fullmatch(payload_sha256) is None:
+            _invalid(
+                WorldModelFailureCode.MALFORMED_OBSERVATION,
+                "audio payload fingerprint is malformed",
+            )
+        if (
+            type(observed_at_ns) is not int
+            or not 1 <= observed_at_ns <= MAX_OBSERVATION_TIME_NS
+            or type(result_at_ns) is not int
+            or not observed_at_ns <= result_at_ns <= MAX_OBSERVATION_TIME_NS
+        ):
+            _invalid(
+                WorldModelFailureCode.MALFORMED_OBSERVATION,
+                "audio acquisition/result times are invalid",
+            )
+        if type(provenance) is not ObservationProvenance:
+            _invalid(
+                WorldModelFailureCode.MALFORMED_PROVENANCE,
+                "audio provenance is required",
+            )
+        if availability not in {
+            SensorAvailability.AVAILABLE,
+            SensorAvailability.DEGRADED,
+        }:
+            _invalid(
+                WorldModelFailureCode.MALFORMED_OBSERVATION,
+                "measurement-bearing audio must be available or degraded",
+            )
+        payload: dict[str, JSONValue] = {
+            "availability": availability.value,
+            "channel_count": channel_count,
+            "data_size_bytes": data_size_bytes,
+            "duration_ns": duration_ns,
+            "encoding": encoding,
+            "frame_count": frame_count,
+            "payload_sha256": payload_sha256,
+            "peak_amplitude": peak_amplitude,
+            "producer_id": producer_id,
+            "result_at_ns": result_at_ns,
+            "rms_amplitude": rms,
+            "sample_count": sample_count,
+            "sample_rate_hz": sample_rate_hz,
+            "sensor": sensor.document(),
+            "session_id": session_id,
+            "source_manifest_id": source_manifest_id,
+        }
+        document = _observation_document(
+            kind=ObservationFingerprintKind.AUDIO_FRAME,
+            robot_id=robot_id,
+            observed_at_ns=observed_at_ns,
+            provenance=provenance,
+            confidence=None,
+            payload=payload,
+        )
+        derived = ObservationFingerprint(
+            kind=ObservationFingerprintKind.AUDIO_FRAME,
+            digest=sha256_document(document),
+        )
+        derived_id = f"world-observation-{derived.digest}"
+        if fingerprint is not None and fingerprint != derived:
+            raise ObservationIdentityError(
+                WorldModelFailureCode.IDENTITY_MISMATCH,
+                "audio fingerprint does not match its compact metadata",
+            )
+        if observation_id is not None and observation_id != derived_id:
+            raise ObservationIdentityError(
+                WorldModelFailureCode.IDENTITY_MISMATCH,
+                "audio observation ID does not match its compact metadata",
+            )
+        for field_name, value in (
+            ("robot_id", robot_id),
+            ("sensor", sensor),
+            ("producer_id", producer_id),
+            ("source_manifest_id", source_manifest_id),
+            ("session_id", session_id),
+            ("sample_rate_hz", sample_rate_hz),
+            ("channel_count", channel_count),
+            ("encoding", encoding),
+            ("frame_count", frame_count),
+            ("sample_count", sample_count),
+            ("duration_ns", duration_ns),
+            ("data_size_bytes", data_size_bytes),
+            ("peak_amplitude", peak_amplitude),
+            ("rms_amplitude", rms),
+            ("payload_sha256", payload_sha256),
+            ("observed_at_ns", observed_at_ns),
+            ("result_at_ns", result_at_ns),
+            ("provenance", provenance),
+            ("availability", availability),
+            ("observation_id", derived_id),
+            ("fingerprint", derived),
+        ):
+            object.__setattr__(self, field_name, value)
+
+    def payload_document(self) -> dict[str, JSONValue]:
+        return {
+            "availability": self.availability.value,
+            "channel_count": self.channel_count,
+            "data_size_bytes": self.data_size_bytes,
+            "duration_ns": self.duration_ns,
+            "encoding": self.encoding,
+            "frame_count": self.frame_count,
+            "payload_sha256": self.payload_sha256,
+            "peak_amplitude": self.peak_amplitude,
+            "producer_id": self.producer_id,
+            "result_at_ns": self.result_at_ns,
+            "rms_amplitude": self.rms_amplitude,
+            "sample_count": self.sample_count,
+            "sample_rate_hz": self.sample_rate_hz,
+            "sensor": self.sensor.document(),
+            "session_id": self.session_id,
+            "source_manifest_id": self.source_manifest_id,
         }
 
 
@@ -2644,6 +2894,7 @@ class EnvironmentEntityObservation:
 Observation: TypeAlias = (
     RobotStateObservation
     | ImuObservation
+    | AudioFrameObservation
     | VisualFrameObservation
     | DepthFrameObservation
     | FusedRgbdObservation
@@ -2692,6 +2943,30 @@ def rebuild_observation(observation: Observation) -> Observation:
             provenance=observation.provenance,
             availability=observation.availability,
             quality=observation.quality,
+            observation_id=observation.observation_id,
+            fingerprint=observation.fingerprint,
+        )
+    if type(observation) is AudioFrameObservation:
+        return AudioFrameObservation(
+            robot_id=observation.robot_id,
+            sensor=observation.sensor,
+            producer_id=observation.producer_id,
+            source_manifest_id=observation.source_manifest_id,
+            session_id=observation.session_id,
+            sample_rate_hz=observation.sample_rate_hz,
+            channel_count=observation.channel_count,
+            encoding=observation.encoding,
+            frame_count=observation.frame_count,
+            sample_count=observation.sample_count,
+            duration_ns=observation.duration_ns,
+            data_size_bytes=observation.data_size_bytes,
+            peak_amplitude=observation.peak_amplitude,
+            rms_amplitude=observation.rms_amplitude,
+            payload_sha256=observation.payload_sha256,
+            observed_at_ns=observation.observed_at_ns,
+            result_at_ns=observation.result_at_ns,
+            provenance=observation.provenance,
+            availability=observation.availability,
             observation_id=observation.observation_id,
             fingerprint=observation.fingerprint,
         )
@@ -2987,6 +3262,49 @@ class ObservedImuState:
 
 
 @dataclass(frozen=True, slots=True)
+class ObservedAudioState:
+    observation: AudioFrameObservation
+    freshness: FreshnessState
+    availability: SensorAvailability
+
+    def __post_init__(self) -> None:
+        if type(self.observation) is not AudioFrameObservation:
+            _invalid(
+                WorldModelFailureCode.SNAPSHOT_INVARIANT,
+                "audio state is untyped",
+            )
+        if not isinstance(self.freshness, FreshnessState):
+            _invalid(
+                WorldModelFailureCode.SNAPSHOT_INVARIANT,
+                "audio freshness is invalid",
+            )
+        if not isinstance(self.availability, SensorAvailability):
+            _invalid(
+                WorldModelFailureCode.SNAPSHOT_INVARIANT,
+                "audio availability is invalid",
+            )
+        if (
+            self.freshness is FreshnessState.STALE
+            and self.availability is not SensorAvailability.STALE
+        ):
+            _invalid(
+                WorldModelFailureCode.SNAPSHOT_INVARIANT,
+                "stale audio evidence must be explicitly marked stale",
+            )
+
+    def document(self) -> dict[str, JSONValue]:
+        return {
+            "availability": self.availability.value,
+            "fingerprint": str(self.observation.fingerprint),
+            "freshness": self.freshness.value,
+            "observation_id": self.observation.observation_id,
+            "observed_at_ns": self.observation.observed_at_ns,
+            "payload": self.observation.payload_document(),
+            "provenance": self.observation.provenance.document(),
+        }
+
+
+@dataclass(frozen=True, slots=True)
 class ObservedDepthState:
     observation: DepthFrameObservation
     freshness: FreshnessState
@@ -3243,6 +3561,7 @@ class RobotBodyState:
     base_pose: ObservedPoseState | None
     availability: RobotAvailability
     imu_states: tuple[ObservedImuState, ...] = ()
+    audio_states: tuple[ObservedAudioState, ...] = ()
     depth_states: tuple[ObservedDepthState, ...] = ()
     fused_rgbd_states: tuple[ObservedFusedRgbdState, ...] = ()
     visual_states: tuple[ObservedVisualState, ...] = ()
@@ -3295,6 +3614,19 @@ class RobotBodyState:
         imu_ids = tuple(item.observation.sensor.sensor_id for item in self.imu_states)
         if imu_ids != tuple(sorted(set(imu_ids))):
             _invalid(WorldModelFailureCode.SNAPSHOT_INVARIANT, "IMU states must be unique and sorted")
+        if any(type(item) is not ObservedAudioState for item in self.audio_states):
+            _invalid(
+                WorldModelFailureCode.SNAPSHOT_INVARIANT,
+                "audio states must be typed",
+            )
+        audio_ids = tuple(
+            item.observation.sensor.sensor_id for item in self.audio_states
+        )
+        if audio_ids != tuple(sorted(set(audio_ids))):
+            _invalid(
+                WorldModelFailureCode.SNAPSHOT_INVARIANT,
+                "audio states must be unique and sorted",
+            )
         if any(type(item) is not ObservedDepthState for item in self.depth_states):
             _invalid(
                 WorldModelFailureCode.SNAPSHOT_INVARIANT,
@@ -3389,6 +3721,7 @@ class RobotBodyState:
             "known_joint_names": list(self.known_joint_names),
             "robot_id": self.robot_id,
             "imu_states": [item.document() for item in self.imu_states],
+            "audio_states": [item.document() for item in self.audio_states],
             "depth_states": [item.document() for item in self.depth_states],
             "fused_rgbd_states": [
                 item.document() for item in self.fused_rgbd_states

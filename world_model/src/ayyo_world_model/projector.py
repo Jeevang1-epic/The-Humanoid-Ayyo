@@ -7,12 +7,14 @@ from collections.abc import Mapping
 from .catalog import RobotJointCatalog
 from .errors import WorldModelFailureCode, WorldModelValidationError
 from .models import (
+    AudioFrameObservation,
     BodyPoseObservation,
     DepthFrameObservation,
     FusedRgbdObservation,
     EnvironmentEntityObservation,
     FreshnessState,
     ImuObservation,
+    ObservedAudioState,
     ObservedImuState,
     ObservedDepthState,
     ObservedFusedRgbdState,
@@ -90,6 +92,7 @@ class WorldModelProjector:
         joint_evidence: Mapping[str, RobotStateObservation],
         pose_evidence: RobotStateObservation | None,
         entity_evidence: Mapping[str, EnvironmentEntityObservation],
+        audio_evidence: Mapping[str, AudioFrameObservation] | None = None,
         imu_evidence: Mapping[str, ImuObservation] | None = None,
         body_pose_evidence: Mapping[str, BodyPoseObservation] | None = None,
         health_evidence: Mapping[str, SensorHealthObservation] | None = None,
@@ -101,6 +104,7 @@ class WorldModelProjector:
         ]
         | None = None,
     ) -> WorldSnapshot:
+        audio_sources = {} if audio_evidence is None else dict(audio_evidence)
         imu_sources = {} if imu_evidence is None else dict(imu_evidence)
         body_pose_sources = (
             {} if body_pose_evidence is None else dict(body_pose_evidence)
@@ -118,7 +122,8 @@ class WorldModelProjector:
         )
         known_sensor_ids = {sensor.sensor_id for sensor in self._sensors}
         supplied_sensor_ids = (
-            set(imu_sources)
+            set(audio_sources)
+            | set(imu_sources)
             | set(body_pose_sources)
             | set(health_sources)
             | set(depth_sources)
@@ -198,6 +203,8 @@ class WorldModelProjector:
                 )
             elif sensor.kind is SensorKind.IMU:
                 measurement = imu_sources.get(sensor.sensor_id)
+            elif sensor.kind is SensorKind.MICROPHONE:
+                measurement = audio_sources.get(sensor.sensor_id)
             elif sensor.kind is SensorKind.BODY_POSE:
                 measurement = body_pose_sources.get(sensor.sensor_id)
             elif sensor.kind is SensorKind.RGB_CAMERA:
@@ -236,6 +243,7 @@ class WorldModelProjector:
                     else selected.availability
                     if type(selected) in {
                         ImuObservation,
+                        AudioFrameObservation,
                         BodyPoseObservation,
                         DepthFrameObservation,
                         FusedRgbdObservation,
@@ -253,6 +261,32 @@ class WorldModelProjector:
                 )
             sensor_states.append(state)
             sensor_availability_by_id[sensor.sensor_id] = state.availability
+
+        audio_states: list[ObservedAudioState] = []
+        for sensor_id in sorted(audio_sources):
+            rebuilt = rebuild_observation(audio_sources[sensor_id])
+            assert type(rebuilt) is AudioFrameObservation
+            if rebuilt.sensor.sensor_id != sensor_id:
+                raise WorldModelValidationError(
+                    WorldModelFailureCode.SNAPSHOT_INVARIANT,
+                    "audio evidence key and sensor identity disagree",
+                )
+            freshness = freshness_for(
+                observed_at_ns=rebuilt.observed_at_ns,
+                now_ns=now_ns,
+                fresh_for_ns=fresh_for_ns,
+            )
+            audio_states.append(
+                ObservedAudioState(
+                    observation=rebuilt,
+                    freshness=freshness,
+                    availability=(
+                        SensorAvailability.STALE
+                        if freshness is FreshnessState.STALE
+                        else sensor_availability_by_id[sensor_id]
+                    ),
+                )
+            )
 
         imu_states: list[ObservedImuState] = []
         for sensor_id in sorted(imu_sources):
@@ -463,6 +497,7 @@ class WorldModelProjector:
             base_pose=observed_pose,
             availability=availability,
             imu_states=tuple(imu_states),
+            audio_states=tuple(audio_states),
             depth_states=tuple(depth_states),
             fused_rgbd_states=tuple(fused_rgbd_states),
             visual_states=tuple(visual_states),

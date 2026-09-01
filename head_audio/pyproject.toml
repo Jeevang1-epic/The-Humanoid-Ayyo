@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ayyo-head-audio"
+version = "0.1.0"
+description = "Transport-neutral trusted head microphone foundation for Ayyo"
+requires-python = ">=3.12"
+license = {text = "Proprietary"}
+maintainers = [
+  {name = "P. Jeevan Kumar", email = "jeevan116p@gmail.com"},
+]
+dependencies = [
+  "ayyo-world-model==0.1.0",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
