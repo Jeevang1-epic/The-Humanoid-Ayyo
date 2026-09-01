@@ -49,12 +49,12 @@ from ayyo_physical_camera import (
 from ayyo_rgbd_fusion import (
     HEAD_RGBD_FUSION_SENSOR,
     RGBD_TEST_PROVENANCE,
+    rgbd_test_requirement,
     RgbdFusionConfigurationError,
     RgbdFusionLifecycleAdapter,
     RgbdFusionLifecycleError,
     RgbdFusionLifecycleState,
     RgbdFusionValidationError,
-    rgbd_test_requirement,
 )
 from ayyo_visual_evaluation import (
     DeterministicFixtureInvoker,
