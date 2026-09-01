@@ -123,6 +123,14 @@ def test_read_only_service_contract_is_bounded_and_typed() -> None:
         'float64 depth_maximum_m',
         'string depth_payload_sha256',
         'string depth_observation_fingerprint',
+        'uint32 current_fused_rgbd_count',
+        'bool has_fused_rgbd',
+        'string rgbd_pair_id',
+        'string rgbd_pairing_policy_id',
+        'string rgbd_synchronization_session_id',
+        'bool rgbd_spatial_registration_validated',
+        'string rgbd_rgb_source_fingerprint_sha256',
+        'string rgbd_depth_source_fingerprint_sha256',
         'uint32 current_visual_interpretation_count',
         'bool has_visual_interpretation',
         'string visual_interpretation_source_visual_observation_id',
@@ -147,6 +155,7 @@ def test_read_only_service_contract_is_bounded_and_typed() -> None:
     assert 'uint8[] visual_interpretation_pixels' not in interface
     assert 'uint8[] depth_data' not in interface
     assert 'float32[] depth_pixels' not in interface
+    assert 'uint8[] rgbd_data' not in interface
 
 
 def test_query_exposes_only_compact_evaluation_and_model_provenance() -> None:
@@ -1083,6 +1092,99 @@ def test_depth_adapter_is_sealed_lifecycle_scoped_and_query_compact() -> None:
         assert expected in query
     for forbidden in ('depth_pixels', "'data':", 'point_cloud'):
         assert forbidden not in query
+
+
+def test_rgbd_fusion_is_exact_lifecycle_scoped_and_query_compact() -> None:
+    source = script_source('world_model_node.py')
+    for expected in (
+        "declare_parameter('enable_rgbd_fusion_adapter', False)",
+        "declare_parameter('rgbd_fusion_profile', 'unconfigured')",
+        "rgbd_fusion_profile != 'exact_test_fixture_v1'",
+        'RgbdFusionLifecycleAdapter(',
+        'authorize_rgbd_fusion(',
+        'submit_rgb(',
+        'submit_depth(',
+        'self._rgbd_fusion_adapter.deactivate()',
+        'self._rgbd_fusion_adapter.cleanup()',
+        'self._rgbd_fusion_adapter.shutdown()',
+    ):
+        assert expected in source
+    physical_handler = source.split(
+        'def _handle_physical_camera_result', 1
+    )[1].split('def _on_depth_image', 1)[0]
+    depth_handler = source.split(
+        'def _handle_depth_camera_result', 1
+    )[1].split('def _handle_rgbd_fusion_result', 1)[0]
+    assert 'submit_depth(' not in physical_handler
+    assert 'submit_depth(' in depth_handler
+    query = script_source('body_state_query.py')
+    for expected in (
+        "'fused_rgbd': (",
+        "'pair_id': response.rgbd_pair_id",
+        "'spatial_registration_validated': (",
+        "'synchronization_session_id': (",
+        "'source_fingerprint_sha256': (",
+    ):
+        assert expected in query
+    for forbidden in ('rgbd_pixels', "'data':", 'point_cloud', 'pointcloud'):
+        assert forbidden not in query.lower()
+
+
+def test_rgbd_fixture_is_explicit_default_off_and_authority_free() -> None:
+    launch = (
+        SIMULATION_ROOT / 'launch' / 'head_rgbd_fusion_fixture.launch.py'
+    ).read_text(encoding='utf-8')
+    fixture = script_source('rgbd_fusion_fixture_node.py')
+    for expected in (
+        "'enable_head_rgbd_fusion_fixture',",
+        "default_value='false'",
+        "'rgbd_fusion_profile',",
+        "default_value='unconfigured'",
+        "'enable_depth_camera_adapter': enable_fixture",
+        "'enable_rgbd_fusion_adapter': enable_fixture",
+        "executable='rgbd_fusion_fixture_node.py'",
+        'condition=IfCondition(enable_fixture)',
+    ):
+        assert expected in launch
+    for topic in (
+        'IMAGE_TOPIC',
+        'CAMERA_INFO_TOPIC',
+        'DEPTH_IMAGE_TOPIC',
+        'DEPTH_CAMERA_INFO_TOPIC',
+    ):
+        assert topic in fixture
+    for forbidden in ('gz sim', 'ros_gz', 'controller_manager', '/commands'):
+        assert forbidden not in launch
+        assert forbidden not in fixture
+    cmake = (PACKAGE_ROOT / 'CMakeLists.txt').read_text(encoding='utf-8')
+    assert 'ayyo_rgbd_fusion' in cmake
+    assert 'scripts/rgbd_fusion_fixture_node.py' in cmake
+    assert (
+        PACKAGE_ROOT / 'scripts' / 'rgbd_fusion_fixture_node.py'
+    ).stat().st_mode & 0o111
+
+
+def test_rgbd_smoke_proves_exact_pairing_lifecycle_and_teardown() -> None:
+    path = REPOSITORY_ROOT / 'scripts' / 'smoke_head_rgbd_fusion.sh'
+    source = path.read_text(encoding='utf-8')
+    for expected in (
+        'head_rgbd_fusion_fixture.launch.py',
+        'enable_head_rgbd_fusion_fixture:=false',
+        'enable_head_rgbd_fusion_fixture:=true',
+        'rgbd_fusion_profile:=exact_test_fixture_v1',
+        'rgbd-pair-sha256-',
+        'ayyo.rgbd.exact-source-time.v1',
+        'spatial_registration_validated',
+        'current_fused_rgbd_count',
+        'ros2 lifecycle set /ayyo_world_model deactivate',
+        'ros2 lifecycle set /ayyo_world_model activate',
+        'ayyo_smoke_shutdown_owned_launch',
+        'owned-process set and isolated ROS graph are empty',
+    ):
+        assert expected in source
+    for forbidden in ('pkill', 'killall', 'ros2 topic pub'):
+        assert forbidden not in source
+    assert path.stat().st_mode & 0o111
 
 
 def test_ros_dependency_boundary_has_no_cognition_or_durable_memory() -> None:

@@ -11,6 +11,7 @@ from ayyo_physical_camera import physical_camera_fixture_bundle
 from ayyo_rgbd_fusion import RgbdFusionLifecycleAdapter, rgbd_test_requirement
 from ayyo_world_model import (
     AYYO_ROBOT_ID,
+    DepthFrameObservation,
     ObservationClock,
     ObservationProvenance,
     ObservationSourceKind,
@@ -90,3 +91,30 @@ def depth_admission(bundle, adapter, session_id: str, observed_at_ns: int):
     )
     assert admission is not None
     return admission
+
+
+def altered_depth(frame: DepthFrameObservation, **overrides):
+    values = {
+        "robot_id": frame.robot_id,
+        "sensor": frame.sensor,
+        "width": frame.width,
+        "height": frame.height,
+        "encoding": frame.encoding,
+        "step": frame.step,
+        "data_size_bytes": frame.data_size_bytes,
+        "is_bigendian": frame.is_bigendian,
+        "calibration_id": frame.calibration_id,
+        "calibration_record_id": frame.calibration_record_id,
+        "source_manifest_id": frame.source_manifest_id,
+        "session_id": frame.session_id,
+        "valid_depth_count": frame.valid_depth_count,
+        "invalid_depth_count": frame.invalid_depth_count,
+        "minimum_depth_m": frame.minimum_depth_m,
+        "maximum_depth_m": frame.maximum_depth_m,
+        "payload_sha256": frame.payload_sha256,
+        "observed_at_ns": frame.observed_at_ns,
+        "provenance": frame.provenance,
+        "availability": frame.availability,
+    }
+    values.update(overrides)
+    return DepthFrameObservation(**values)

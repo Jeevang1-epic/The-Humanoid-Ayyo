@@ -46,6 +46,8 @@ class RgbdFusionLifecycleAdapter:
         "_evicted_count",
         "_future_skew_ns",
         "_last_accepted_at_ns",
+        "_last_depth_at_ns",
+        "_last_rgb_at_ns",
         "_lock",
         "_pair_wait_ns",
         "_pending_depth",
@@ -86,6 +88,8 @@ class RgbdFusionLifecycleAdapter:
         self._pending_rgb: dict[int, VisualFrameObservation] = {}
         self._pending_depth: dict[int, DepthFrameObservation] = {}
         self._last_accepted_at_ns: int | None = None
+        self._last_rgb_at_ns: int | None = None
+        self._last_depth_at_ns: int | None = None
         self._accepted_count = 0
         self._rejected_count = 0
         self._duplicate_count = 0
@@ -142,7 +146,9 @@ class RgbdFusionLifecycleAdapter:
                 RgbdFusionLifecycleState.UNCONFIGURED,
                 RgbdFusionLifecycleState.INACTIVE,
             }:
-                raise RgbdFusionLifecycleError("RGB-D synchronizer cannot configure while active")
+                raise RgbdFusionLifecycleError(
+                    "RGB-D synchronizer cannot configure while active"
+                )
             self._requirement = requirement
             self._state = RgbdFusionLifecycleState.INACTIVE
             self._clear_pending()
@@ -150,10 +156,17 @@ class RgbdFusionLifecycleAdapter:
 
     def activate(self, *, depth_session_id: str) -> tuple[str, str]:
         with self._lock:
-            if self._state is not RgbdFusionLifecycleState.INACTIVE or self._requirement is None:
-                raise RgbdFusionLifecycleError("RGB-D synchronizer can only activate when configured")
+            if (
+                self._state is not RgbdFusionLifecycleState.INACTIVE
+                or self._requirement is None
+            ):
+                raise RgbdFusionLifecycleError(
+                    "RGB-D synchronizer can only activate when configured"
+                )
             if type(depth_session_id) is not str or not depth_session_id:
-                raise RgbdFusionLifecycleError("RGB-D activation requires the active depth session")
+                raise RgbdFusionLifecycleError(
+                    "RGB-D activation requires the active depth session"
+                )
             self._epoch = self._increment(self._epoch)
             self._rgb_session_id = _session(
                 "rgbd-rgb-session",
@@ -175,7 +188,9 @@ class RgbdFusionLifecycleAdapter:
     def deactivate(self) -> None:
         with self._lock:
             if self._state is not RgbdFusionLifecycleState.ACTIVE:
-                raise RgbdFusionLifecycleError("RGB-D synchronizer can only deactivate while active")
+                raise RgbdFusionLifecycleError(
+                    "RGB-D synchronizer can only deactivate while active"
+                )
             self._clear_pending()
             self._rgb_session_id = None
             self._depth_session_id = None
@@ -187,7 +202,9 @@ class RgbdFusionLifecycleAdapter:
     def cleanup(self) -> None:
         with self._lock:
             if self._state is RgbdFusionLifecycleState.ACTIVE:
-                raise RgbdFusionLifecycleError("RGB-D synchronizer must deactivate before cleanup")
+                raise RgbdFusionLifecycleError(
+                    "RGB-D synchronizer must deactivate before cleanup"
+                )
             if self._state is RgbdFusionLifecycleState.FINALIZED:
                 raise RgbdFusionLifecycleError("finalized RGB-D synchronizer cannot clean up")
             self._clear_pending()
@@ -209,6 +226,8 @@ class RgbdFusionLifecycleAdapter:
     def _clear_pending(self) -> None:
         self._pending_rgb.clear()
         self._pending_depth.clear()
+        self._last_rgb_at_ns = None
+        self._last_depth_at_ns = None
 
     def _reject(self, event: RgbdFusionEvent) -> None:
         self._rejected_count = self._increment(self._rejected_count)
@@ -234,6 +253,7 @@ class RgbdFusionLifecycleAdapter:
         return True
 
     def _evict_pending(self, newest_ns: int) -> None:
+        evicted_before = self._evicted_count
         cutoff = newest_ns - self._pair_wait_ns
         for pending in (self._pending_rgb, self._pending_depth):
             for time_ns in tuple(value for value in pending if value < cutoff):
@@ -242,8 +262,24 @@ class RgbdFusionLifecycleAdapter:
             while len(pending) > MAX_RGBD_PENDING_PER_STREAM:
                 del pending[min(pending)]
                 self._evicted_count = self._increment(self._evicted_count)
-        if self._evicted_count:
+        if self._evicted_count != evicted_before:
             self._event = RgbdFusionEvent.PENDING_EVICTED
+
+    def _validate_stream_time(
+        self,
+        observed_at_ns: int,
+        last_observed_at_ns: int | None,
+    ) -> bool:
+        if last_observed_at_ns is None:
+            return True
+        if observed_at_ns < last_observed_at_ns:
+            self._reject(RgbdFusionEvent.REGRESSED_EVIDENCE)
+            return False
+        if observed_at_ns == last_observed_at_ns:
+            self._duplicate_count = self._increment(self._duplicate_count)
+            self._event = RgbdFusionEvent.DUPLICATE_EVIDENCE
+            return False
+        return True
 
     def submit_rgb(
         self,
@@ -271,7 +307,13 @@ class RgbdFusionLifecycleAdapter:
                 else:
                     self._reject(RgbdFusionEvent.DUPLICATE_EVIDENCE)
                 return None
+            if not self._validate_stream_time(
+                rebuilt.observed_at_ns,
+                self._last_rgb_at_ns,
+            ):
+                return None
             self._pending_rgb[rebuilt.observed_at_ns] = rebuilt
+            self._last_rgb_at_ns = rebuilt.observed_at_ns
             self._evict_pending(rebuilt.observed_at_ns)
             return self._try_pair(rebuilt.observed_at_ns, result_at_ns=now_ns)
 
@@ -304,7 +346,13 @@ class RgbdFusionLifecycleAdapter:
                 else:
                     self._reject(RgbdFusionEvent.DUPLICATE_EVIDENCE)
                 return None
+            if not self._validate_stream_time(
+                rebuilt.observed_at_ns,
+                self._last_depth_at_ns,
+            ):
+                return None
             self._pending_depth[rebuilt.observed_at_ns] = rebuilt
+            self._last_depth_at_ns = rebuilt.observed_at_ns
             self._evict_pending(rebuilt.observed_at_ns)
             return self._try_pair(rebuilt.observed_at_ns, result_at_ns=now_ns)
 

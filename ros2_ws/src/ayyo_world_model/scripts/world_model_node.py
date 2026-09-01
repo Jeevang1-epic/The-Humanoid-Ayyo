@@ -1197,10 +1197,6 @@ class AyyoWorldModelNode(LifecycleNode):
             ):
                 self._physical_camera_adapter.deactivate()
             self._physical_camera_adapter.cleanup()
-        if self._depth_camera_adapter is not None:
-            if self._depth_camera_adapter.state is DepthLifecycleState.ACTIVE:
-                self._depth_camera_adapter.deactivate()
-            self._depth_camera_adapter.cleanup()
         if self._rgbd_fusion_adapter is not None:
             if (
                 self._rgbd_fusion_adapter.state
@@ -1208,6 +1204,10 @@ class AyyoWorldModelNode(LifecycleNode):
             ):
                 self._rgbd_fusion_adapter.deactivate()
             self._rgbd_fusion_adapter.cleanup()
+        if self._depth_camera_adapter is not None:
+            if self._depth_camera_adapter.state is DepthLifecycleState.ACTIVE:
+                self._depth_camera_adapter.deactivate()
+            self._depth_camera_adapter.cleanup()
         if self._memory is not None:
             self._memory.reset()
         if self._trust_boundary is not None:
@@ -1239,10 +1239,10 @@ class AyyoWorldModelNode(LifecycleNode):
         self._destroy_runtime_interfaces()
         if self._physical_camera_adapter is not None:
             self._physical_camera_adapter.shutdown()
-        if self._depth_camera_adapter is not None:
-            self._depth_camera_adapter.shutdown()
         if self._rgbd_fusion_adapter is not None:
             self._rgbd_fusion_adapter.shutdown()
+        if self._depth_camera_adapter is not None:
+            self._depth_camera_adapter.shutdown()
         if self._memory is not None:
             self._memory.reset()
         if self._trust_boundary is not None:

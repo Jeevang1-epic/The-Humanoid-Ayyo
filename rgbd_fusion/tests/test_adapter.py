@@ -5,8 +5,9 @@ from ayyo_rgbd_fusion import (
     RgbdFusionEvent,
     RgbdFusionLifecycleState,
 )
+from ayyo_world_model import SensorAvailability, SensorIdentity, SensorKind
 
-from helpers import configured_pair, depth_admission, rgb
+from helpers import altered_depth, configured_pair, depth_admission, rgb
 
 
 def test_exact_source_time_only_and_valid_recovery() -> None:
@@ -39,6 +40,38 @@ def test_wrong_source_frame_calibration_and_health_fail_closed() -> None:
     assert fusion.diagnostics.pending_rgb_count == 0
 
 
+def test_wrong_depth_source_sensor_frame_calibration_and_health_fail_closed() -> None:
+    bundle, depth_adapter, session, requirement, fusion = configured_pair()
+    frame = depth_admission(bundle, depth_adapter, session, 100).frame
+    alternate_sensor = SensorIdentity(
+        "ayyo.camera.head.depth.alternate.v1",
+        SensorKind.DEPTH_CAMERA,
+        "head_depth_alternate_optical_frame",
+    )
+    for candidate in (
+        altered_depth(frame, sensor=alternate_sensor),
+        altered_depth(
+            frame,
+            calibration_id="camera-calibration-sha256-" + "0" * 64,
+        ),
+        altered_depth(
+            frame,
+            source_manifest_id="depth-camera-source-sha256-" + "0" * 64,
+        ),
+        altered_depth(
+            frame,
+            provenance=replace(
+                requirement.depth_provenance,
+                source_id="spoof.depth.v1",
+            ),
+        ),
+        altered_depth(frame, availability=SensorAvailability.DEGRADED),
+    ):
+        assert fusion.submit_depth(candidate, now_ns=100) is None
+        assert fusion.diagnostics.event is RgbdFusionEvent.WRONG_COMPONENT
+    assert fusion.diagnostics.pending_depth_count == 0
+
+
 def test_pending_state_is_hard_bounded_and_deterministically_evicted() -> None:
     _, _, _, requirement, fusion = configured_pair()
     for index in range(64):
@@ -67,6 +100,39 @@ def test_lifecycle_clears_pending_and_changes_sessions() -> None:
     assert fusion.active_synchronization_session_id != first_sync_session
 
 
+def test_lifecycle_rejects_inactive_callbacks_and_old_session_replay() -> None:
+    bundle, depth_adapter, old_session, requirement, fusion = configured_pair()
+    old_depth = depth_admission(
+        bundle,
+        depth_adapter,
+        old_session,
+        100,
+    ).frame
+    fusion.deactivate()
+    assert fusion.submit_rgb(rgb(requirement, 100), now_ns=100) is None
+    assert fusion.diagnostics.event is RgbdFusionEvent.INACTIVE
+    depth_adapter.deactivate()
+    new_depth_session = depth_adapter.activate()
+    fusion.activate(depth_session_id=new_depth_session)
+    fusion.submit_rgb(rgb(requirement, 100), now_ns=100)
+    assert fusion.submit_depth(old_depth, now_ns=100) is None
+    assert fusion.diagnostics.event is RgbdFusionEvent.SESSION_MISMATCH
+    assert fusion.diagnostics.pending_depth_count == 0
+    source_time = 200
+    fusion.submit_rgb(rgb(requirement, source_time), now_ns=source_time)
+    recovered = fusion.submit_depth(
+        depth_admission(
+            bundle,
+            depth_adapter,
+            new_depth_session,
+            source_time,
+        ).frame,
+        now_ns=source_time,
+    )
+    assert recovered is not None
+    assert recovered.observation.depth_session_id == new_depth_session
+
+
 def test_duplicate_regressed_stale_and_future_evidence_are_rejected() -> None:
     bundle, depth_adapter, session, requirement, fusion = configured_pair()
     source_time = 1_000_000_000
@@ -87,3 +153,22 @@ def test_duplicate_regressed_stale_and_future_evidence_are_rejected() -> None:
     future = source_time + 100_000_000
     assert fusion.submit_rgb(rgb(requirement, future), now_ns=source_time + 1) is None
     assert fusion.diagnostics.event is RgbdFusionEvent.FUTURE_EVIDENCE
+
+
+def test_each_stream_rejects_regression_before_any_pair_is_accepted() -> None:
+    bundle, depth_adapter, session, requirement, fusion = configured_pair()
+    fusion.submit_rgb(rgb(requirement, 200), now_ns=200)
+    assert fusion.submit_rgb(rgb(requirement, 199), now_ns=200) is None
+    assert fusion.diagnostics.event is RgbdFusionEvent.REGRESSED_EVIDENCE
+    depth_at_300 = depth_admission(
+        bundle,
+        depth_adapter,
+        session,
+        300,
+    ).frame
+    fusion.submit_depth(depth_at_300, now_ns=300)
+    assert fusion.submit_depth(
+        altered_depth(depth_at_300, observed_at_ns=299),
+        now_ns=300,
+    ) is None
+    assert fusion.diagnostics.event is RgbdFusionEvent.REGRESSED_EVIDENCE

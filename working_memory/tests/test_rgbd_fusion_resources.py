@@ -154,6 +154,14 @@ def test_fused_state_requires_retained_components_and_is_query_stable() -> None:
     assert first == second
     assert store.stats(now_ns=100) == before
     assert before.current_fused_rgbd_count == 1
+    rejected = store.ingest(
+        fused(observed_at_ns=99),
+        now_ns=100,
+        received_at_monotonic_ns=5,
+    )
+    assert rejected.status is IngestionStatus.REJECTED
+    assert rejected.reason is IngestionReason.SOURCE_OBSERVATION_MISMATCH
+    assert store.current_snapshot(now_ns=100) == first
 
 
 def test_duplicate_fused_state_does_not_grow_and_expires() -> None:

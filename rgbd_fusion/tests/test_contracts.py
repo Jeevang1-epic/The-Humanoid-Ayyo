@@ -77,6 +77,29 @@ def test_pair_identity_rejects_conflict() -> None:
         )
 
 
+def test_pair_identity_is_repeatable_for_identical_reviewed_evidence() -> None:
+    pair_ids = []
+    observation_ids = []
+    for _ in range(2):
+        bundle, depth_adapter, session, requirement, fusion = configured_pair()
+        source_time = 2_500_000_000
+        fusion.submit_rgb(rgb(requirement, source_time), now_ns=source_time)
+        admission = fusion.submit_depth(
+            depth_admission(
+                bundle,
+                depth_adapter,
+                session,
+                source_time,
+            ).frame,
+            now_ns=source_time,
+        )
+        assert admission is not None
+        pair_ids.append(admission.observation.pair_id)
+        observation_ids.append(admission.observation.observation_id)
+    assert len(set(pair_ids)) == 1
+    assert len(set(observation_ids)) == 1
+
+
 def test_admission_cannot_be_constructed_without_private_seal() -> None:
     bundle, depth_adapter, session, requirement, fusion = configured_pair()
     source_time = 3_000_000_000
