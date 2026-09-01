@@ -12,6 +12,7 @@ maintainers = [
   {name = "P. Jeevan Kumar", email = "jeevan116p@gmail.com"},
 ]
 dependencies = [
+  "ayyo-head-audio==0.1.0",
   "ayyo-depth-camera==0.1.0",
   "ayyo-physical-camera==0.1.0",
   "ayyo-rgbd-fusion==0.1.0",

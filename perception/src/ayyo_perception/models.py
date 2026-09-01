@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from enum import StrEnum
 import re
 
+from ayyo_head_audio import MAX_AUDIO_SOURCES, AudioTrustRequirement
 from ayyo_physical_camera import (
     MAX_PHYSICAL_CAMERA_SOURCES,
     PhysicalCameraTrustRequirement,
@@ -82,6 +83,9 @@ class AdmissionReason(StrEnum):
     DEPTH_CAMERA_REQUIRED = "depth_camera_required"
     DEPTH_CAMERA_MISMATCH = "depth_camera_mismatch"
     DEPTH_CAMERA_NOT_AUTHORIZED = "depth_camera_not_authorized"
+    AUDIO_REQUIRED = "audio_required"
+    AUDIO_MISMATCH = "audio_mismatch"
+    AUDIO_NOT_AUTHORIZED = "audio_not_authorized"
 
 
 class EvidenceFailureKind(StrEnum):
@@ -148,6 +152,7 @@ class PerceptionTrustConfig:
     ] = ()
     depth_camera_requirements: tuple[DepthTrustRequirement, ...] = ()
     rgbd_fusion_requirements: tuple[RgbdFusionRequirement, ...] = ()
+    audio_requirements: tuple[AudioTrustRequirement, ...] = ()
 
     def __post_init__(self) -> None:
         if (
@@ -355,6 +360,42 @@ class PerceptionTrustConfig:
                 raise PerceptionConfigurationError(
                     "RGB-D requirement components must bind configured sources"
                 )
+        if (
+            type(self.audio_requirements) is not tuple
+            or len(self.audio_requirements) > MAX_AUDIO_SOURCES
+            or any(
+                type(requirement) is not AudioTrustRequirement
+                for requirement in self.audio_requirements
+            )
+        ):
+            raise PerceptionConfigurationError(
+                "audio requirements must be a bounded typed tuple"
+            )
+        audio_source_keys = {
+            (source.sensor.sensor_id, source.provenance.source_id)
+            for source in self.sources
+            if source.sensor.kind is SensorKind.MICROPHONE
+        }
+        audio_requirement_keys = {
+            (requirement.microphone.sensor_id, requirement.source_id)
+            for requirement in self.audio_requirements
+        }
+        if (
+            len(audio_requirement_keys) != len(self.audio_requirements)
+            or audio_source_keys != audio_requirement_keys
+        ):
+            raise PerceptionConfigurationError(
+                "every audio source requires one exact lifecycle adapter requirement"
+            )
+        for requirement in self.audio_requirements:
+            if not any(
+                source.sensor == requirement.microphone
+                and source.provenance == requirement.provenance
+                for source in self.sources
+            ):
+                raise PerceptionConfigurationError(
+                    "audio requirement does not bind a configured source"
+                )
 
 
 @dataclass(frozen=True, slots=True)
@@ -400,6 +441,7 @@ class PerceptionStats:
     tracked_depth_camera_count: int = 0
     tracked_depth_source_count: int = 0
     tracked_rgbd_fusion_count: int = 0
+    tracked_audio_count: int = 0
 
     def __post_init__(self) -> None:
         values = (
@@ -414,6 +456,7 @@ class PerceptionStats:
             self.tracked_depth_camera_count,
             self.tracked_depth_source_count,
             self.tracked_rgbd_fusion_count,
+            self.tracked_audio_count,
         )
         if any(type(value) is not int or value < 0 for value in values):
             raise PerceptionConfigurationError("perception statistics are invalid")
@@ -446,6 +489,10 @@ class PerceptionStats:
         if self.tracked_rgbd_fusion_count > MAX_VISUAL_SOURCE_REFERENCES:
             raise PerceptionConfigurationError(
                 "tracked RGB-D authorizations exceed their hard bound"
+            )
+        if self.tracked_audio_count > MAX_VISUAL_SOURCE_REFERENCES:
+            raise PerceptionConfigurationError(
+                "tracked audio authorizations exceed their hard bound"
             )
 
 

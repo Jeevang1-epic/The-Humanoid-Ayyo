@@ -5,6 +5,7 @@ from __future__ import annotations
 from threading import RLock
 
 from ayyo_world_model import (
+    AudioFrameObservation,
     BodyPoseObservation,
     DepthFrameObservation,
     FusedRgbdObservation,
@@ -59,6 +60,7 @@ class WorkingMemory:
 
     __slots__ = (
         "_accepted_count",
+        "_audio_evidence",
         "_catalog",
         "_config",
         "_duplicate_count",
@@ -97,6 +99,7 @@ class WorkingMemory:
         self._projector = WorldModelProjector(catalog, config.sensors)
         self._joint_evidence: dict[str, RobotStateObservation] = {}
         self._pose_evidence: RobotStateObservation | None = None
+        self._audio_evidence: dict[str, AudioFrameObservation] = {}
         self._imu_evidence: dict[str, ImuObservation] = {}
         self._depth_evidence: dict[str, DepthFrameObservation] = {}
         self._fused_rgbd_evidence: dict[str, FusedRgbdObservation] = {}
@@ -125,6 +128,7 @@ class WorkingMemory:
         with self._lock:
             self._joint_evidence.clear()
             self._pose_evidence = None
+            self._audio_evidence.clear()
             self._imu_evidence.clear()
             self._depth_evidence.clear()
             self._fused_rgbd_evidence.clear()
@@ -173,6 +177,11 @@ class WorkingMemory:
         self._imu_evidence = {
             sensor_id: observation
             for sensor_id, observation in self._imu_evidence.items()
+            if observation.observed_at_ns >= threshold
+        }
+        self._audio_evidence = {
+            sensor_id: observation
+            for sensor_id, observation in self._audio_evidence.items()
             if observation.observed_at_ns >= threshold
         }
         self._depth_evidence = {
@@ -224,6 +233,7 @@ class WorkingMemory:
         if self._pose_evidence is not None:
             identities.add(self._pose_evidence.observation_id)
         identities.update(item.observation_id for item in self._imu_evidence.values())
+        identities.update(item.observation_id for item in self._audio_evidence.values())
         identities.update(
             item.observation_id for item in self._depth_evidence.values()
         )
@@ -295,6 +305,7 @@ class WorkingMemory:
                     "observation provenance is outside the reviewed source profiles",
                 )
             if type(rebuilt) in {
+                AudioFrameObservation,
                 ImuObservation,
                 BodyPoseObservation,
                 DepthFrameObservation,
@@ -320,6 +331,7 @@ class WorkingMemory:
                 )
             if (
                 type(rebuilt) in {
+                    AudioFrameObservation,
                     VisualInterpretationObservation,
                     FusedRgbdObservation,
                 }
@@ -361,6 +373,7 @@ class WorkingMemory:
                     )
                 return self._ingest_robot(rebuilt, envelope)
             if type(rebuilt) in {
+                AudioFrameObservation,
                 ImuObservation,
                 BodyPoseObservation,
                 DepthFrameObservation,
@@ -467,7 +480,8 @@ class WorkingMemory:
     def _ingest_sensor(
         self,
         observation: (
-            ImuObservation
+            AudioFrameObservation
+            | ImuObservation
             | BodyPoseObservation
             | DepthFrameObservation
             | FusedRgbdObservation
@@ -478,7 +492,10 @@ class WorkingMemory:
         envelope: EvidenceEnvelope,
     ) -> IngestionResult:
         sensor_id = observation.sensor.sensor_id
-        if type(observation) is ImuObservation:
+        if type(observation) is AudioFrameObservation:
+            collection = self._audio_evidence
+            key = StateKey(StateKeyKind.ROBOT_AUDIO, sensor_id)
+        elif type(observation) is ImuObservation:
             collection = self._imu_evidence
             key = StateKey(StateKeyKind.ROBOT_IMU, sensor_id)
         elif type(observation) is DepthFrameObservation:
@@ -679,6 +696,7 @@ class WorkingMemory:
                 joint_evidence=dict(self._joint_evidence),
                 pose_evidence=self._pose_evidence,
                 entity_evidence=dict(self._entity_evidence),
+                audio_evidence=dict(self._audio_evidence),
                 imu_evidence=dict(self._imu_evidence),
                 body_pose_evidence=dict(self._body_pose_evidence),
                 health_evidence=dict(self._health_evidence),
@@ -719,6 +737,8 @@ class WorkingMemory:
                     observation = self._pose_evidence
             elif key.kind is StateKeyKind.ROBOT_IMU:
                 observation = self._imu_evidence.get(key.identity)
+            elif key.kind is StateKeyKind.ROBOT_AUDIO:
+                observation = self._audio_evidence.get(key.identity)
             elif key.kind is StateKeyKind.ROBOT_DEPTH:
                 observation = self._depth_evidence.get(key.identity)
             elif key.kind is StateKeyKind.ROBOT_RGBD_FUSION:
@@ -766,6 +786,7 @@ class WorkingMemory:
                 len(self._joint_evidence)
                 + int(self._pose_evidence is not None)
                 + len(self._imu_evidence)
+                + len(self._audio_evidence)
                 + len(self._depth_evidence)
                 + len(self._fused_rgbd_evidence)
                 + len(self._visual_evidence)
@@ -792,6 +813,7 @@ class WorkingMemory:
                 current_visual_count=len(self._visual_evidence),
                 current_depth_count=len(self._depth_evidence),
                 current_fused_rgbd_count=len(self._fused_rgbd_evidence),
+                current_audio_count=len(self._audio_evidence),
                 current_visual_interpretation_count=len(
                     self._visual_interpretation_evidence
                 ),

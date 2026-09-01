@@ -4,11 +4,13 @@ from __future__ import annotations
 
 from threading import RLock
 
+from ayyo_head_audio import AudioCaptureAdmission
 from ayyo_physical_camera import PhysicalCameraAdmission
 from ayyo_depth_camera import DepthCameraAdmission
 from ayyo_rgbd_fusion import RgbdFusionAdmission
 from ayyo_world_model import (
     BodyPoseObservation,
+    AudioFrameObservation,
     DepthFrameObservation,
     FusedRgbdObservation,
     EnvironmentEntityObservation,
@@ -45,6 +47,7 @@ class PerceptionTrustBoundary:
 
     __slots__ = (
         "_accepted_count",
+        "_audio_authorizations",
         "_config",
         "_duplicate_count",
         "_depth_camera_authorizations",
@@ -75,6 +78,7 @@ class PerceptionTrustBoundary:
             str, VisualInterpretationObservation
         ] = {}
         self._physical_camera_authorizations: dict[str, object] = {}
+        self._audio_authorizations: dict[str, object] = {}
         self._depth_camera_authorizations: dict[str, object] = {}
         self._depth_sources: dict[str, DepthFrameObservation] = {}
         self._rgbd_fusion_authorizations: dict[
@@ -97,6 +101,7 @@ class PerceptionTrustBoundary:
             self._visual_sources.clear()
             self._evaluated_visual_authorizations.clear()
             self._physical_camera_authorizations.clear()
+            self._audio_authorizations.clear()
             self._depth_camera_authorizations.clear()
             self._depth_sources.clear()
             self._rgbd_fusion_authorizations.clear()
@@ -125,6 +130,7 @@ class PerceptionTrustBoundary:
                 and source.provenance == observation.provenance
             )
         elif type(observation) in {
+            AudioFrameObservation,
             ImuObservation,
             BodyPoseObservation,
             DepthFrameObservation,
@@ -385,6 +391,52 @@ class PerceptionTrustBoundary:
                 del self._depth_camera_authorizations[oldest_id]
             return True
 
+    def authorize_audio(self, admission: AudioCaptureAdmission) -> bool:
+        """Bind one sealed microphone frame and health fact to admission attempts."""
+        if type(admission) is not AudioCaptureAdmission:
+            return False
+        try:
+            frame = rebuild_observation(admission.frame)
+            health = rebuild_observation(admission.health)
+        except (ObservationIdentityError, WorldModelValidationError):
+            return False
+        if type(frame) is not AudioFrameObservation or type(health) is not SensorHealthObservation:
+            return False
+        with self._lock:
+            requirement = next(
+                (
+                    item
+                    for item in self._config.audio_requirements
+                    if item.microphone == frame.sensor
+                    and item.source_id == frame.provenance.source_id
+                ),
+                None,
+            )
+            source = self._source_for(frame)
+            if (
+                requirement is None
+                or source is None
+                or admission.requirement != requirement
+                or not requirement.matches(admission)
+                or health.robot_id != frame.robot_id
+                or health.sensor != frame.sensor
+                or health.provenance != frame.provenance
+                or health.observed_at_ns != frame.observed_at_ns
+            ):
+                return False
+            self._audio_authorizations[frame.observation_id] = frame
+            self._audio_authorizations[health.observation_id] = health
+            while len(self._audio_authorizations) > MAX_VISUAL_SOURCE_REFERENCES:
+                oldest_id = min(
+                    self._audio_authorizations,
+                    key=lambda observation_id: (
+                        self._audio_authorizations[observation_id].observed_at_ns,
+                        observation_id,
+                    ),
+                )
+                del self._audio_authorizations[oldest_id]
+            return True
+
     def authorize_rgbd_fusion(self, admission: RgbdFusionAdmission) -> bool:
         """Bind one sealed pair whose exact components were already admitted."""
         if type(admission) is not RgbdFusionAdmission:
@@ -591,6 +643,40 @@ class PerceptionTrustBoundary:
                         "depth evidence was not sealed by the lifecycle adapter",
                         rebuilt.observation_id,
                     )
+            if (
+                type(rebuilt) in {AudioFrameObservation, SensorHealthObservation}
+                and getattr(rebuilt, "sensor", None).kind is SensorKind.MICROPHONE
+            ):
+                requirement = next(
+                    (
+                        item
+                        for item in self._config.audio_requirements
+                        if item.microphone == rebuilt.sensor
+                        and item.source_id == rebuilt.provenance.source_id
+                    ),
+                    None,
+                )
+                if requirement is None:
+                    return self._reject(
+                        AdmissionReason.AUDIO_REQUIRED,
+                        "audio evidence requires an exact lifecycle adapter requirement",
+                        rebuilt.observation_id,
+                    )
+                if (
+                    type(rebuilt) is AudioFrameObservation
+                    and not requirement.matches_unsealed(rebuilt)
+                ):
+                    return self._reject(
+                        AdmissionReason.AUDIO_MISMATCH,
+                        "audio frame differs from its source and format requirement",
+                        rebuilt.observation_id,
+                    )
+                if self._audio_authorizations.pop(rebuilt.observation_id, None) != rebuilt:
+                    return self._reject(
+                        AdmissionReason.AUDIO_NOT_AUTHORIZED,
+                        "audio evidence was not sealed by the lifecycle adapter",
+                        rebuilt.observation_id,
+                    )
             if type(rebuilt) is FusedRgbdObservation:
                 requirement = next(
                     (
@@ -689,9 +775,19 @@ class PerceptionTrustBoundary:
                 if rebuilt.result_at_ns > now + self._config.permitted_future_skew_ns:
                     return self._reject(
                         AdmissionReason.RESULT_TIME_INVALID,
-                        "visual result time is beyond permitted future skew",
+                        "processing result time is beyond permitted future skew",
                         rebuilt.observation_id,
                     )
+            if (
+                type(rebuilt) is AudioFrameObservation
+                and rebuilt.result_at_ns
+                > now + self._config.permitted_future_skew_ns
+            ):
+                return self._reject(
+                    AdmissionReason.RESULT_TIME_INVALID,
+                    "audio processing result time is beyond permitted future skew",
+                    rebuilt.observation_id,
+                )
             if type(rebuilt) is BodyPoseObservation and (
                 rebuilt.pose.frame_id != source.pose_source_frame_id
                 or rebuilt.pose.child_frame_id != source.sensor.frame_id
@@ -839,4 +935,5 @@ class PerceptionTrustBoundary:
                 tracked_rgbd_fusion_count=len(
                     self._rgbd_fusion_authorizations
                 ),
+                tracked_audio_count=len(self._audio_authorizations),
             )
