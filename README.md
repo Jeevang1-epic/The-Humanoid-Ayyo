@@ -7,8 +7,8 @@ can mature behind stable boundaries before physical hardware is introduced.
 
 ## Current status
 
-Ayyo has reached the Head RGB-D Synchronization and Fused Observation
-Foundation v1 milestone with a hardware-free, default-off exact-time proof.
+Ayyo has reached the Head Audio Perception Foundation v1 milestone with a
+hardware-free, default-off deterministic TEST proof.
 
 Implemented:
 
@@ -124,6 +124,12 @@ Implemented:
 - A default-off four-topic TEST fixture and owned smoke proving exact temporal
   pairing, 5,000-cycle bounds, adversarial/lifecycle isolation, no execution
   authority, and empty teardown
+- A driver-neutral head-microphone source manifest, exact mono 16 kHz
+  `pcm_s16le` contract, lifecycle/session adapter, compact payload summaries,
+  typed diagnostics, and sealed one-use Perception admission
+- Bounded audio evidence in Working Memory and immutable World Model/query
+  projection without raw sample retention, plus a default-off deterministic
+  TEST publisher and owned adversarial/resource/lifecycle smoke
 - Exact per-smoke process ownership and bounded graceful/scoped teardown,
   including direct shell-free Gazebo ownership and survivor regression tests
 
@@ -316,6 +322,13 @@ PYTHONPATH=world_model/src \
 python3 -m pytest -q world_model/tests/test_rgbd_fusion.py
 ```
 
+Run Head Audio Perception Foundation tests:
+
+```bash
+PYTHONPATH=world_model/src:head_audio/src:physical_camera/src:depth_camera/src:rgbd_fusion/src:visual_evaluation/src:perception/src:working_memory/src \
+python3 -m pytest -q head_audio/tests perception/tests working_memory/tests world_model/tests
+```
+
 Run visual producer evaluation tests:
 
 ```bash
@@ -381,6 +394,13 @@ Run the hardware-free exact-time Head RGB-D fusion smoke twice:
 ./scripts/smoke_head_rgbd_fusion.sh
 ```
 
+Run the hardware-free Head Audio Perception smoke twice:
+
+```bash
+./scripts/smoke_head_audio.sh
+./scripts/smoke_head_audio.sh
+```
+
 ## Repository layout
 
 ```text
@@ -396,6 +416,7 @@ simulation_control/  Bounded deterministic simulation-control policy and feedbac
 world_model/  Transport-neutral embodied/environment observations and snapshots
 perception/  Deterministic sensor/provenance/time admission trust boundary
 physical_camera/  Driver-neutral physical source, calibration, lifecycle, and diagnostics
+head_audio/  Driver-neutral microphone source, lifecycle, compacting, and diagnostics
 rgbd_fusion/  Exact-time bounded compact RGB-D synchronization and admission
 visual_evaluation/  Deterministic producer/model/dataset evaluation quality gate
 working_memory/  Bounded temporary current-state and recent-evidence retention
@@ -416,9 +437,11 @@ Processing Foundation v1, Recorded Visual Producer Evaluation and Perception
 Quality Gate v1, and Physical Head Camera Adapter, Calibration, and Camera
 Diagnostics Foundation v1, plus Head Depth / RGB-D Sensor Foundation v1 are
 implemented. Head RGB-D Synchronization and Fused Observation Foundation v1 is
-also implemented as exact-time TEST evidence. The physical-camera, depth, and
-fusion milestones do not validate real RGB-D hardware, hardware clocks,
-physical calibration, extrinsics, or spatial registration.
+also implemented as exact-time TEST evidence. Head Audio Perception Foundation
+v1 adds TEST-only compact microphone evidence with no raw-sample retention or
+authority. The physical-camera, depth, fusion, and audio milestones do not
+validate real RGB-D/audio hardware, hardware clocks, physical calibration,
+extrinsics, spatial registration, acoustics, or production device timing.
 Production motion remains
 closed because Safety v1 defers physical movement; only explicit development
 injection can exercise the simulated neck joint. The perception path adds

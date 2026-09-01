@@ -65,13 +65,20 @@ then binds separately admitted compact RGB and depth observations by exact
 source acquisition time, sealed source/session identity, and deterministic
 pair identity through bounded memory and immutable projection. It explicitly
 does not validate spatial registration, retain raw data, or grant authority.
+The driver-neutral
+[Head Audio Perception Foundation](HEAD_AUDIO_PERCEPTION_FOUNDATION.md) adds an
+exact TEST microphone source/format manifest, lifecycle-scoped sessions,
+immediate raw-PCM reduction, typed diagnostics, sealed frame/health admission,
+bounded temporary retention, and compact immutable projection. It performs no
+audio interpretation, retains no samples downstream, and grants no authority.
 The deterministic
 [World Model and Working Memory Foundation](WORLD_MODEL_WORKING_MEMORY.md)
 implements immutable current embodied/environment evidence, deterministic
 snapshots, freshness, and bounded temporary retention ahead of durable memory.
 Its live fixed ROS composition now projects standard joint-state, simulated
-body-IMU, localization, and explicit health evidence; it does not fabricate
-missing state or persist telemetry. The deterministic
+body-IMU, localization, explicit health, and default-off compact TEST audio
+evidence; it does not fabricate missing state or persist telemetry. The
+deterministic
 [Memory Validation policy](MEMORY_VALIDATION.md) now evaluates candidate evidence
 before explicitly approved mutations reach Memory OS. The read-only
 [Personal Context Twin](PERSONAL_CONTEXT_TWIN.md) projects deterministic,
@@ -151,6 +158,11 @@ replace proxy geometry without duplicating or bypassing frame semantics.
   sealed one-use Perception admission. Temporal synchronization does not imply
   spatial registration. Fused evidence contains no raw buffers and cannot
   command, authorize, execute, persist, or learn.
+- The head-audio adapter owns one exact microphone source, producer, mount
+  frame, format, payload bound, lifecycle session, acquisition/result time,
+  and compact payload summary. Only its sealed one-use frame/health pair may
+  enter Perception; raw PCM cannot enter Working Memory or the World Model, and
+  audio evidence cannot command, authorize, execute, persist, or learn.
 - Visual interpretation producers operate only after frame admission. The
   existing trust boundary owns exact source-frame, camera, optical-frame,
   acquisition/result-time, producer, provenance, ordering, fingerprint, and

@@ -469,12 +469,13 @@ Shutdown must be clean.
 
 - ROS joint-state, simulated body-IMU, exact-frame localization, and reviewed
   joint/IMU diagnostic ingestion are live; opt-in simulated RGB frame metadata
-  is live without retaining pixels.
+  and default-off TEST microphone metadata are live without retaining pixels or
+  raw audio samples.
 - Compact TEST/simulation depth metadata now has a live adapter, bounded state,
   and read-only query path. Environment entities, force/torque, touch, physical
-  depth hardware, audio, navigation, manipulation, human tracking, RGB-D
-  geometry, and semantic visual processing have typed or architectural space
-  but no live production adapter.
+  depth/audio hardware, navigation, manipulation, human tracking, RGB-D
+  geometry, speech/audio interpretation, and semantic visual processing have
+  typed or architectural space but no live production adapter.
 - Covariance and optional quality are preserved when supplied; v1 has no sensor
   fusion, calibration/bias estimation, trust scoring, probabilistic estimation,
   or cross-sensor conflict resolution.
@@ -482,7 +483,8 @@ Shutdown must be clean.
   environment entities still expire by TTL without a tombstone observation.
 - Working Memory is in-process/non-durable; node restart loses temporary state.
 - The ROS query exposes joint, IMU, pose, sensor-summary, explicit health, and
-  compact pixel-free RGB, interpretation, and depth state only.
+  compact pixel-free RGB, interpretation, depth, RGB-D fusion, and sample-free
+  audio state only.
 - No automatic Memory Validation candidate selection or learning consolidation
   exists.
 - No edge-hardware benchmark or Raspberry Pi/Jetson compatibility claim exists.

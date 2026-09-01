@@ -93,6 +93,15 @@ Model projection, and a default-off owned TEST composition. It establishes
 temporal synchronization only; physical hardware, clock behavior, extrinsics,
 pixel registration, point clouds, geometry, inference, SLAM, navigation,
 manipulation, and authority remain unvalidated or out of scope.
+Head Audio Perception Foundation v1 now adds one reviewed TEST microphone
+manifest, an exact bounded mono 16 kHz PCM transport, lifecycle/session
+isolation, immediate compacting, typed diagnostics, sealed Perception
+admission, bounded Working Memory, immutable World Model/query projection, and
+a default-off owned TEST composition. It retains no raw samples downstream and
+adds no speech, sound interpretation, identity, skill, movement, or control
+authority. Real microphones, drivers, hardware, calibration, acoustics,
+beamforming, echo cancellation, speech/wake-word models, production timing,
+and real-world noise remain unvalidated.
 
 Final Ayyo assets, graphical controlled-design validation, additional joints,
 trajectory/whole-body controllers, validated dynamics/contact behavior,
