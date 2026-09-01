@@ -89,6 +89,7 @@ def main() -> None:
             ),
             'base_pose_availability': response.base_pose_availability,
             'detail': response.detail,
+            'current_audio_count': response.current_audio_count,
             'current_depth_count': response.current_depth_count,
             'current_fused_rgbd_count': response.current_fused_rgbd_count,
             'current_visual_count': response.current_visual_count,
@@ -217,6 +218,40 @@ def main() -> None:
             'source_kind': response.source_kind,
             'source_transport': response.source_transport,
             'status': response.status,
+            'audio_frame': (
+                {
+                    'availability': response.audio_availability,
+                    'channel_count': response.audio_channel_count,
+                    'data_size_bytes': response.audio_data_size_bytes,
+                    'duration_ns': response.audio_duration_ns,
+                    'encoding': response.audio_encoding,
+                    'frame_count': response.audio_frame_count,
+                    'frame_id': response.audio_frame_id,
+                    'freshness': response.audio_freshness,
+                    'observation_fingerprint': (
+                        response.audio_observation_fingerprint
+                    ),
+                    'observation_id': response.audio_observation_id,
+                    'observed_at_ns': _nanoseconds(response.audio_observed_at),
+                    'payload_sha256': response.audio_payload_sha256,
+                    'peak_amplitude': response.audio_peak_amplitude,
+                    'producer_id': response.audio_producer_id,
+                    'result_at_ns': _nanoseconds(response.audio_result_at),
+                    'rms_amplitude': response.audio_rms_amplitude,
+                    'sample_count': response.audio_sample_count,
+                    'sample_rate_hz': response.audio_sample_rate_hz,
+                    'sensor_id': response.audio_sensor_id,
+                    'session_id': response.audio_session_id,
+                    'source_clock': response.audio_source_clock,
+                    'source_id': response.audio_source_id,
+                    'source_interface': response.audio_source_interface,
+                    'source_kind': response.audio_source_kind,
+                    'source_manifest_id': response.audio_source_manifest_id,
+                    'source_transport': response.audio_source_transport,
+                }
+                if response.has_audio_frame
+                else None
+            ),
             'depth_frame': (
                 {
                     'availability': response.depth_availability,

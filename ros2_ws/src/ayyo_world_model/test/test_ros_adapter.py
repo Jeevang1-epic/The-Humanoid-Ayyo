@@ -8,6 +8,7 @@ from pathlib import Path
 import sys
 import xml.etree.ElementTree as ET
 
+from ayyo_interfaces.msg import AudioFrame
 from diagnostic_msgs.msg import DiagnosticArray, DiagnosticStatus, KeyValue
 from nav_msgs.msg import Odometry
 from sensor_msgs.msg import CameraInfo, Image, Imu, JointState
@@ -79,6 +80,15 @@ def depth_camera_module():
     return module
 
 
+def head_audio_module():
+    path = PACKAGE_ROOT / 'scripts' / 'head_audio_adapter.py'
+    spec = importlib.util.spec_from_file_location('ayyo_head_audio_ros_test', path)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
 def test_read_only_service_contract_is_bounded_and_typed() -> None:
     interface = (INTERFACES_ROOT / 'srv' / 'GetRobotBodyState.srv').read_text(
         encoding='utf-8'
@@ -108,6 +118,16 @@ def test_read_only_service_contract_is_bounded_and_typed() -> None:
         'bool has_visual_frame',
         'string visual_calibration_id',
         'string visual_observation_fingerprint',
+        'uint32 current_audio_count',
+        'bool has_audio_frame',
+        'string audio_producer_id',
+        'string audio_source_manifest_id',
+        'string audio_session_id',
+        'uint32 audio_sample_rate_hz',
+        'string audio_encoding',
+        'uint64 audio_data_size_bytes',
+        'string audio_payload_sha256',
+        'string audio_observation_fingerprint',
         'uint32 current_depth_count',
         'bool has_depth_frame',
         'string depth_sensor_id',
@@ -156,6 +176,75 @@ def test_read_only_service_contract_is_bounded_and_typed() -> None:
     assert 'uint8[] depth_data' not in interface
     assert 'float32[] depth_pixels' not in interface
     assert 'uint8[] rgbd_data' not in interface
+    assert 'uint8[] audio_data' not in interface
+
+
+def test_audio_message_is_bounded_and_query_never_exposes_raw_samples() -> None:
+    message = (INTERFACES_ROOT / 'msg' / 'AudioFrame.msg').read_text(
+        encoding='utf-8'
+    )
+    assert 'std_msgs/Header header' in message
+    assert 'builtin_interfaces/Time result_stamp' in message
+    assert 'uint8[<=32000] data' in message
+    assert 'string<=64 payload_sha256' in message
+    query = script_source('body_state_query.py')
+    assert "'audio_frame'" in query
+    assert "'payload_sha256'" in query
+    assert "'data'" not in query
+
+
+def test_head_audio_ros_normalization_is_separate_compact_and_fail_closed() -> None:
+    from hashlib import sha256
+    from ayyo_head_audio import audio_test_fixture_bundle, fixture_audio_bytes
+
+    module = head_audio_module()
+    bundle = audio_test_fixture_bundle()
+    source = bundle.source
+    payload = fixture_audio_bytes()
+    message = AudioFrame()
+    message.header.stamp.sec = 2
+    message.header.stamp.nanosec = 5
+    message.header.frame_id = source.microphone.frame_id
+    message.result_stamp = message.header.stamp
+    message.source_id = source.source_id
+    message.producer_id = source.producer_id
+    message.microphone_id = source.microphone.sensor_id
+    message.sample_rate_hz = source.sample_rate_hz
+    message.channel_count = source.channel_count
+    message.encoding = source.encoding
+    message.frame_count = len(payload) // 2
+    message.payload_sha256 = sha256(payload).hexdigest()
+    message.data = payload
+    session = 'audio-session-sha256-' + '1' * 64
+    observation = module.normalize_audio_frame(message, source, session)
+    assert observation.observed_at_ns == 2_000_000_005
+    assert observation.payload_sha256 == message.payload_sha256
+    assert not hasattr(observation, 'data')
+    message.source_id = 'ros.audio.head.spoofed.v1'
+    try:
+        module.normalize_audio_frame(message, source, session)
+    except module.HeadAudioRosAdapterError as error:
+        assert 'identity conflicts' in str(error)
+    else:
+        raise AssertionError('spoofed audio source was normalized')
+
+
+def test_head_audio_ros_adapter_has_no_trust_storage_or_authority_dependency() -> None:
+    source = script_source('head_audio_adapter.py')
+    tree = ast.parse(source)
+    imports = {
+        node.module.split('.')[0]
+        for node in ast.walk(tree)
+        if isinstance(node, ast.ImportFrom) and node.module
+    }
+    assert not imports & {
+        'ayyo_executive',
+        'ayyo_perception',
+        'ayyo_safety',
+        'ayyo_skill_manager',
+        'ayyo_working_memory',
+        'rclpy',
+    }
 
 
 def test_query_exposes_only_compact_evaluation_and_model_provenance() -> None:
@@ -984,6 +1073,7 @@ def test_adapter_learns_only_from_observation_not_control_request() -> None:
 def test_wrapper_installs_single_owned_core_packages_and_fixed_clients() -> None:
     cmake = (PACKAGE_ROOT / 'CMakeLists.txt').read_text(encoding='utf-8')
     assert '../../../world_model/src/ayyo_world_model' in cmake
+    assert '../../../head_audio/src/ayyo_head_audio' in cmake
     assert '../../../physical_camera/src/ayyo_physical_camera' in cmake
     assert '../../../depth_camera/src/ayyo_depth_camera' in cmake
     assert '../../../visual_evaluation/src/ayyo_visual_evaluation' in cmake
@@ -996,6 +1086,8 @@ def test_wrapper_installs_single_owned_core_packages_and_fixed_clients() -> None
     assert 'scripts/physical_camera_fixture_node.py' in cmake
     assert 'scripts/depth_camera_adapter.py' in cmake
     assert 'scripts/depth_camera_fixture_node.py' in cmake
+    assert 'scripts/head_audio_adapter.py' in cmake
+    assert 'scripts/head_audio_fixture_node.py' in cmake
     assert 'scripts/visual_camera.py' in cmake
     assert not (PACKAGE_ROOT / 'ayyo_world_model').exists()
     assert not (PACKAGE_ROOT / 'ayyo_working_memory').exists()
@@ -1038,6 +1130,66 @@ def test_depth_fixture_composition_is_explicit_default_off_and_authority_free() 
         assert expected in source
     for forbidden in ('gz sim', 'ros_gz', 'controller_manager', '/commands'):
         assert forbidden not in source
+
+
+def test_audio_fixture_composition_is_explicit_default_off_and_authority_free() -> None:
+    launch = (
+        SIMULATION_ROOT / 'launch' / 'head_audio_fixture.launch.py'
+    ).read_text(encoding='utf-8')
+    fixture = script_source('head_audio_fixture_node.py')
+    for expected in (
+        "'enable_head_audio_fixture',",
+        "default_value='false'",
+        "'head_audio_profile',",
+        "default_value='unconfigured'",
+        "'source_profile': 'head_audio_test_fixture_v1'",
+        "'enable_head_audio_adapter': enable_fixture",
+        "executable='head_audio_fixture_node.py'",
+        'condition=IfCondition(enable_fixture)',
+    ):
+        assert expected in launch
+    for expected in (
+        'audio_test_fixture_bundle()',
+        'fixture_audio_bytes()',
+        'message.payload_sha256',
+        'message.data = payload',
+    ):
+        assert expected in fixture
+    for forbidden in (
+        'gz sim',
+        'ros_gz',
+        'controller_manager',
+        '/commands',
+        'ayyo_executive',
+        'ayyo_safety',
+        'ayyo_skill_manager',
+    ):
+        assert forbidden not in launch
+        assert forbidden not in fixture
+
+
+def test_audio_adapter_is_sealed_lifecycle_scoped_and_query_compact() -> None:
+    source = script_source('world_model_node.py')
+    for expected in (
+        "declare_parameter('enable_head_audio_adapter', False)",
+        "declare_parameter('head_audio_profile', 'unconfigured')",
+        'AudioLifecycleAdapter(',
+        'normalize_audio_frame(',
+        'authorize_audio(',
+        'self._audio_adapter.deactivate()',
+        'self._audio_adapter.cleanup()',
+        'self._audio_adapter.shutdown()',
+    ):
+        assert expected in source
+    query = script_source('body_state_query.py')
+    for expected in (
+        "'audio_frame': (",
+        "'payload_sha256': response.audio_payload_sha256",
+        "'session_id': response.audio_session_id",
+    ):
+        assert expected in query
+    for forbidden in ("'data':", 'audio_samples', 'audio_command', 'wake_word'):
+        assert forbidden not in query
 
 
 def test_physical_camera_adapter_is_sealed_lifecycle_scoped_and_query_compact() -> None:

@@ -532,6 +532,7 @@ def test_simulation_installs_only_owned_resources() -> None:
 
 def test_owned_python_sources_retain_project_copyright() -> None:
     for relative_path in (
+        'launch/head_audio_fixture.launch.py',
         'launch/head_depth_fixture.launch.py',
         'launch/simulation.launch.py',
         'test/test_simulation.py',

@@ -23,6 +23,19 @@ from ayyo_depth_camera import (
     SIMULATION_DEPTH_PROVENANCE,
     TEST_DEPTH_PROVENANCE,
 )
+from ayyo_head_audio import (
+    audio_test_fixture_bundle,
+    AUDIO_TOPIC,
+    AudioLifecycleAdapter,
+    AudioLifecycleState,
+    AudioSourceRegistry,
+    HEAD_MICROPHONE_SENSOR,
+    HeadAudioConfigurationError,
+    HeadAudioLifecycleError,
+    HeadAudioValidationError,
+    TEST_AUDIO_PROVENANCE,
+)
+from ayyo_interfaces.msg import AudioFrame
 from ayyo_interfaces.srv import GetRobotBodyState
 from ayyo_perception import (
     AdmissionReason,
@@ -101,6 +114,7 @@ from depth_camera_adapter import (
     normalize_depth_image,
 )
 from diagnostic_msgs.msg import DiagnosticArray
+from head_audio_adapter import HeadAudioRosAdapterError, normalize_audio_frame
 from localization_diagnostics import (
     DiagnosticAdapterError,
     DiagnosticComponentContract,
@@ -143,6 +157,7 @@ SIMULATION_SOURCE_PROFILE = 'simulation_ros2_control_v1'
 PHYSICAL_SOURCE_PROFILE = 'physical_ros2_control_v1'
 PHYSICAL_CAMERA_FIXTURE_SOURCE_PROFILE = 'physical_camera_test_fixture_v1'
 DEPTH_CAMERA_FIXTURE_SOURCE_PROFILE = 'depth_camera_test_fixture_v1'
+HEAD_AUDIO_FIXTURE_SOURCE_PROFILE = 'head_audio_test_fixture_v1'
 SOURCE_PROFILES = {
     SIMULATION_SOURCE_PROFILE: ObservationProvenance(
         source_kind=ObservationSourceKind.SIMULATION,
@@ -305,6 +320,48 @@ DEPTH_SOURCE_PROFILES = {
     ),
     DEPTH_CAMERA_FIXTURE_SOURCE_PROFILE: TEST_DEPTH_PROVENANCE,
 }
+SOURCE_PROFILES[HEAD_AUDIO_FIXTURE_SOURCE_PROFILE] = ObservationProvenance(
+    source_kind=ObservationSourceKind.TEST_FIXTURE,
+    source_id='ros.joint-states.audio.test-fixture.v1',
+    clock=ObservationClock.TEST_TIME,
+    transport=ObservationTransport.ROS2,
+    interface='sensor-msgs.joint-state.v1',
+)
+IMU_SOURCE_PROFILES[HEAD_AUDIO_FIXTURE_SOURCE_PROFILE] = ObservationProvenance(
+    source_kind=ObservationSourceKind.TEST_FIXTURE,
+    source_id='ros.imu.audio.test-fixture.v1',
+    clock=ObservationClock.TEST_TIME,
+    transport=ObservationTransport.ROS2,
+    interface='sensor-msgs.imu.v1',
+)
+POSE_SOURCE_PROFILES[HEAD_AUDIO_FIXTURE_SOURCE_PROFILE] = ObservationProvenance(
+    source_kind=ObservationSourceKind.TEST_FIXTURE,
+    source_id='ros.body-pose.audio.test-fixture.v1',
+    clock=ObservationClock.TEST_TIME,
+    transport=ObservationTransport.ROS2,
+    interface='nav-msgs.odometry-tf2.v1',
+)
+DIAGNOSTIC_SOURCE_PROFILES[HEAD_AUDIO_FIXTURE_SOURCE_PROFILE] = ObservationProvenance(
+    source_kind=ObservationSourceKind.TEST_FIXTURE,
+    source_id='ros.diagnostics.audio.test-fixture.v1',
+    clock=ObservationClock.TEST_TIME,
+    transport=ObservationTransport.ROS2,
+    interface='diagnostic-msgs.diagnostic-array.v1',
+)
+CAMERA_SOURCE_PROFILES[HEAD_AUDIO_FIXTURE_SOURCE_PROFILE] = ObservationProvenance(
+    source_kind=ObservationSourceKind.TEST_FIXTURE,
+    source_id='ros.camera.head.audio.test-fixture.v1',
+    clock=ObservationClock.TEST_TIME,
+    transport=ObservationTransport.ROS2,
+    interface='sensor-msgs.image-camera-info.v1',
+)
+DEPTH_SOURCE_PROFILES[HEAD_AUDIO_FIXTURE_SOURCE_PROFILE] = ObservationProvenance(
+    source_kind=ObservationSourceKind.TEST_FIXTURE,
+    source_id='ros.camera.head.depth.audio.test-fixture.v1',
+    clock=ObservationClock.TEST_TIME,
+    transport=ObservationTransport.ROS2,
+    interface='sensor-msgs.image-camera-info.depth.v1',
+)
 JOINT_SENSOR = SensorIdentity(
     'ayyo.joint-state.body.v1',
     SensorKind.JOINT_STATE,
@@ -490,6 +547,8 @@ class AyyoWorldModelNode(LifecycleNode):
         self.declare_parameter('depth_camera_profile', 'unconfigured')
         self.declare_parameter('enable_rgbd_fusion_adapter', False)
         self.declare_parameter('rgbd_fusion_profile', 'unconfigured')
+        self.declare_parameter('enable_head_audio_adapter', False)
+        self.declare_parameter('head_audio_profile', 'unconfigured')
         self._memory: WorkingMemory | None = None
         self._trust_boundary: PerceptionTrustBoundary | None = None
         self._provenance: ObservationProvenance | None = None
@@ -498,12 +557,15 @@ class AyyoWorldModelNode(LifecycleNode):
         self._diagnostic_provenance: ObservationProvenance | None = None
         self._camera_provenance: ObservationProvenance | None = None
         self._depth_provenance: ObservationProvenance | None = None
+        self._audio_provenance: ObservationProvenance | None = None
         self._camera_enabled = False
         self._depth_enabled = False
         self._rgbd_enabled = False
+        self._audio_enabled = False
         self._physical_camera_adapter: PhysicalCameraLifecycleAdapter | None = None
         self._depth_camera_adapter: DepthLifecycleAdapter | None = None
         self._rgbd_fusion_adapter: RgbdFusionLifecycleAdapter | None = None
+        self._audio_adapter: AudioLifecycleAdapter | None = None
         self._visual_reference_adapter: (
             DeterministicVisualReferenceAdapter | None
         ) = None
@@ -519,6 +581,7 @@ class AyyoWorldModelNode(LifecycleNode):
         self._camera_info_subscription = None
         self._depth_image_subscription = None
         self._depth_camera_info_subscription = None
+        self._audio_subscription = None
         self._pending_image: Image | None = None
         self._pending_camera_info: CameraInfo | None = None
         self._pose_buffer: Buffer | None = None
@@ -553,6 +616,9 @@ class AyyoWorldModelNode(LifecycleNode):
         if self._depth_camera_info_subscription is not None:
             self.destroy_subscription(self._depth_camera_info_subscription)
             self._depth_camera_info_subscription = None
+        if self._audio_subscription is not None:
+            self.destroy_subscription(self._audio_subscription)
+            self._audio_subscription = None
         self._pending_image = None
         self._pending_camera_info = None
         self._pose_buffer = None
@@ -782,6 +848,47 @@ class AyyoWorldModelNode(LifecycleNode):
                 raise RgbdFusionConfigurationError(
                     'RGB-D profile must remain unconfigured while disabled'
                 )
+            enable_head_audio = bool(
+                self.get_parameter('enable_head_audio_adapter').value
+            )
+            head_audio_profile = self.get_parameter(
+                'head_audio_profile'
+            ).value
+            audio_bundle = None
+            audio_adapter = None
+            audio_requirements = ()
+            if enable_head_audio:
+                if (
+                    profile_name != HEAD_AUDIO_FIXTURE_SOURCE_PROFILE
+                    or head_audio_profile != 'test_fixture_v1'
+                ):
+                    raise HeadAudioConfigurationError(
+                        'head audio v1 requires the explicit TEST fixture profile'
+                    )
+                audio_bundle = audio_test_fixture_bundle()
+                if audio_bundle.source.provenance != TEST_AUDIO_PROVENANCE:
+                    raise HeadAudioConfigurationError(
+                        'audio fixture provenance differs from its reviewed profile'
+                    )
+                audio_registry = AudioSourceRegistry()
+                audio_registry.register(audio_bundle.source)
+                audio_adapter = AudioLifecycleAdapter(
+                    audio_registry,
+                    retention_ns=int(
+                        self.get_parameter('retention_ttl_ms').value
+                    )
+                    * 1_000_000,
+                    future_skew_ns=int(
+                        self.get_parameter('permitted_future_skew_ms').value
+                    )
+                    * 1_000_000,
+                )
+                audio_adapter.configure(audio_bundle.source.source_id)
+                audio_requirements = (audio_bundle.source.requirement(),)
+            elif head_audio_profile != 'unconfigured':
+                raise HeadAudioConfigurationError(
+                    'head audio profile must remain unconfigured while disabled'
+                )
             camera_enabled = (
                 camera_provenance.source_kind is ObservationSourceKind.SIMULATION
                 or physical_camera_adapter is not None
@@ -872,6 +979,15 @@ class AyyoWorldModelNode(LifecycleNode):
                 )
                 if rgbd_fusion_adapter is not None
                 else ()
+            ) + (
+                (
+                    PerceptionSourceContract(
+                        HEAD_MICROPHONE_SENSOR,
+                        TEST_AUDIO_PROVENANCE,
+                    ),
+                )
+                if audio_adapter is not None
+                else ()
             )
             sensor_catalog = (
                 JOINT_SENSOR,
@@ -882,6 +998,10 @@ class AyyoWorldModelNode(LifecycleNode):
             ) + (
                 (HEAD_RGBD_FUSION_SENSOR,)
                 if rgbd_fusion_adapter is not None
+                else ()
+            ) + (
+                (HEAD_MICROPHONE_SENSOR,)
+                if audio_adapter is not None
                 else ()
             )
             allowed_provenance = (
@@ -894,6 +1014,10 @@ class AyyoWorldModelNode(LifecycleNode):
             ) + (
                 (RGBD_TEST_PROVENANCE,)
                 if rgbd_fusion_adapter is not None
+                else ()
+            ) + (
+                (TEST_AUDIO_PROVENANCE,)
+                if audio_adapter is not None
                 else ()
             )
             self._memory = WorkingMemory(
@@ -948,6 +1072,7 @@ class AyyoWorldModelNode(LifecycleNode):
                     physical_camera_requirements=physical_camera_requirements,
                     depth_camera_requirements=depth_camera_requirements,
                     rgbd_fusion_requirements=rgbd_fusion_requirements,
+                    audio_requirements=audio_requirements,
                 )
             )
             self._provenance = provenance
@@ -956,12 +1081,17 @@ class AyyoWorldModelNode(LifecycleNode):
             self._diagnostic_provenance = diagnostic_provenance
             self._camera_provenance = camera_provenance
             self._depth_provenance = depth_provenance
+            self._audio_provenance = (
+                TEST_AUDIO_PROVENANCE if audio_adapter is not None else None
+            )
             self._camera_enabled = camera_enabled
             self._depth_enabled = depth_camera_adapter is not None
             self._rgbd_enabled = rgbd_fusion_adapter is not None
+            self._audio_enabled = audio_adapter is not None
             self._physical_camera_adapter = physical_camera_adapter
             self._depth_camera_adapter = depth_camera_adapter
             self._rgbd_fusion_adapter = rgbd_fusion_adapter
+            self._audio_adapter = audio_adapter
             self._visual_reference_adapter = (
                 DeterministicVisualReferenceAdapter()
                 if enable_visual_reference
@@ -987,6 +1117,9 @@ class AyyoWorldModelNode(LifecycleNode):
             DepthCameraConfigurationError,
             DepthCameraLifecycleError,
             DepthCameraValidationError,
+            HeadAudioConfigurationError,
+            HeadAudioLifecycleError,
+            HeadAudioValidationError,
             RgbdFusionConfigurationError,
             RgbdFusionLifecycleError,
             RgbdFusionValidationError,
@@ -1003,12 +1136,15 @@ class AyyoWorldModelNode(LifecycleNode):
             self._diagnostic_provenance = None
             self._camera_provenance = None
             self._depth_provenance = None
+            self._audio_provenance = None
             self._camera_enabled = False
             self._depth_enabled = False
             self._rgbd_enabled = False
+            self._audio_enabled = False
             self._physical_camera_adapter = None
             self._depth_camera_adapter = None
             self._rgbd_fusion_adapter = None
+            self._audio_adapter = None
             self._visual_reference_adapter = None
             self._visual_evaluation_bundle = None
             self._visual_evaluation_report = None
@@ -1030,6 +1166,14 @@ class AyyoWorldModelNode(LifecycleNode):
             or self._depth_provenance is None
         ):
             return TransitionCallbackReturn.FAILURE
+        if self._audio_adapter is not None:
+            try:
+                self._audio_adapter.activate()
+            except HeadAudioLifecycleError as error:
+                self.get_logger().error(
+                    f'head audio activation failed closed: {error}'
+                )
+                return TransitionCallbackReturn.FAILURE
         if self._physical_camera_adapter is not None:
             try:
                 self._physical_camera_adapter.activate()
@@ -1124,6 +1268,13 @@ class AyyoWorldModelNode(LifecycleNode):
                 self._on_depth_camera_info,
                 qos_profile_sensor_data,
             )
+        if self._audio_enabled:
+            self._audio_subscription = self.create_subscription(
+                AudioFrame,
+                AUDIO_TOPIC,
+                self._on_audio_frame,
+                qos_profile_sensor_data,
+            )
         self._visual_evaluated_this_activation = False
         self._active = True
         return TransitionCallbackReturn.SUCCESS
@@ -1155,6 +1306,9 @@ class AyyoWorldModelNode(LifecycleNode):
         if self._depth_camera_info_subscription is not None:
             self.destroy_subscription(self._depth_camera_info_subscription)
             self._depth_camera_info_subscription = None
+        if self._audio_subscription is not None:
+            self.destroy_subscription(self._audio_subscription)
+            self._audio_subscription = None
         self._pending_image = None
         self._pending_camera_info = None
         self._visual_evaluated_this_activation = False
@@ -1184,6 +1338,15 @@ class AyyoWorldModelNode(LifecycleNode):
                 self._memory.reset()
             if self._trust_boundary is not None:
                 self._trust_boundary.reset()
+        if (
+            self._audio_adapter is not None
+            and self._audio_adapter.state is AudioLifecycleState.ACTIVE
+        ):
+            self._audio_adapter.deactivate()
+            if self._memory is not None:
+                self._memory.reset()
+            if self._trust_boundary is not None:
+                self._trust_boundary.reset()
         return TransitionCallbackReturn.SUCCESS
 
     def on_cleanup(self, state: State) -> TransitionCallbackReturn:
@@ -1208,6 +1371,10 @@ class AyyoWorldModelNode(LifecycleNode):
             if self._depth_camera_adapter.state is DepthLifecycleState.ACTIVE:
                 self._depth_camera_adapter.deactivate()
             self._depth_camera_adapter.cleanup()
+        if self._audio_adapter is not None:
+            if self._audio_adapter.state is AudioLifecycleState.ACTIVE:
+                self._audio_adapter.deactivate()
+            self._audio_adapter.cleanup()
         if self._memory is not None:
             self._memory.reset()
         if self._trust_boundary is not None:
@@ -1220,12 +1387,15 @@ class AyyoWorldModelNode(LifecycleNode):
         self._diagnostic_provenance = None
         self._camera_provenance = None
         self._depth_provenance = None
+        self._audio_provenance = None
         self._camera_enabled = False
         self._depth_enabled = False
         self._rgbd_enabled = False
+        self._audio_enabled = False
         self._physical_camera_adapter = None
         self._depth_camera_adapter = None
         self._rgbd_fusion_adapter = None
+        self._audio_adapter = None
         self._visual_reference_adapter = None
         self._visual_evaluation_bundle = None
         self._visual_evaluation_report = None
@@ -1243,6 +1413,8 @@ class AyyoWorldModelNode(LifecycleNode):
             self._rgbd_fusion_adapter.shutdown()
         if self._depth_camera_adapter is not None:
             self._depth_camera_adapter.shutdown()
+        if self._audio_adapter is not None:
+            self._audio_adapter.shutdown()
         if self._memory is not None:
             self._memory.reset()
         if self._trust_boundary is not None:
@@ -1255,12 +1427,15 @@ class AyyoWorldModelNode(LifecycleNode):
         self._diagnostic_provenance = None
         self._camera_provenance = None
         self._depth_provenance = None
+        self._audio_provenance = None
         self._camera_enabled = False
         self._depth_enabled = False
         self._rgbd_enabled = False
+        self._audio_enabled = False
         self._physical_camera_adapter = None
         self._depth_camera_adapter = None
         self._rgbd_fusion_adapter = None
+        self._audio_adapter = None
         self._visual_reference_adapter = None
         self._visual_evaluation_bundle = None
         self._visual_evaluation_report = None
@@ -1516,6 +1691,67 @@ class AyyoWorldModelNode(LifecycleNode):
             PerceptionConfigurationError,
             RgbdFusionLifecycleError,
             RgbdFusionValidationError,
+            WorldModelValidationError,
+            WorkingMemoryConfigurationError,
+        ) as error:
+            self._warn_bounded('invalid', str(error))
+
+    def _on_audio_frame(self, message: AudioFrame) -> None:
+        if not self._active or self._audio_adapter is None:
+            return
+        try:
+            session_id = self._audio_adapter.active_session_id
+            source = self._audio_adapter.source
+            if session_id is None or source is None:
+                raise HeadAudioLifecycleError(
+                    'audio callback has no active source session'
+                )
+            previous_rejected = self._audio_adapter.diagnostics.rejected_count
+            admission = self._audio_adapter.submit(
+                normalize_audio_frame(message, source, session_id),
+                now_ns=self.get_clock().now().nanoseconds,
+            )
+            diagnostics = self._audio_adapter.diagnostics
+            if admission is None:
+                if diagnostics.rejected_count != previous_rejected:
+                    self._warn_bounded(
+                        'rejected',
+                        f'head audio {diagnostics.event.value}',
+                    )
+                return
+            if (
+                self._trust_boundary is None
+                or not self._trust_boundary.authorize_audio(admission)
+            ):
+                self._warn_bounded(
+                    'rejected',
+                    'sealed audio evidence did not match the trust policy',
+                )
+                return
+            frame_result = self._admit_and_retain(admission.frame)
+            if (
+                frame_result is None
+                or frame_result.status is not AdmissionStatus.ACCEPTED
+            ):
+                self._warn_bounded(
+                    'rejected',
+                    'sealed audio frame did not enter trusted state',
+                )
+                return
+            health_result = self._admit_and_retain(admission.health)
+            if (
+                health_result is None
+                or health_result.status is not AdmissionStatus.ACCEPTED
+            ):
+                self._warn_bounded(
+                    'rejected',
+                    'sealed audio diagnostics did not enter trusted state',
+                )
+        except (
+            HeadAudioLifecycleError,
+            HeadAudioRosAdapterError,
+            HeadAudioValidationError,
+            PerceptionConfigurationError,
             WorldModelValidationError,
             WorkingMemoryConfigurationError,
         ) as error:
@@ -1899,6 +2135,7 @@ class AyyoWorldModelNode(LifecycleNode):
         response.environment_entity_count = len(snapshot.entities)
         response.recent_evidence_count = stats.recent_evidence_count
         response.current_visual_count = stats.current_visual_count
+        response.current_audio_count = stats.current_audio_count
         response.current_depth_count = stats.current_depth_count
         response.current_fused_rgbd_count = stats.current_fused_rgbd_count
         response.current_visual_interpretation_count = (
@@ -1998,6 +2235,21 @@ class AyyoWorldModelNode(LifecycleNode):
             SensorAvailability.UNAVAILABLE
             if visual_sensor_state is None
             else visual_sensor_state.availability
+        )
+        audio_sensor_state = next(
+            (
+                state
+                for state in snapshot.robot.sensor_states
+                if state.sensor == HEAD_MICROPHONE_SENSOR
+            ),
+            None,
+        )
+        response.audio_sensor_id = HEAD_MICROPHONE_SENSOR.sensor_id
+        response.audio_frame_id = HEAD_MICROPHONE_SENSOR.frame_id
+        response.audio_availability = self._availability_code(
+            SensorAvailability.UNAVAILABLE
+            if audio_sensor_state is None
+            else audio_sensor_state.availability
         )
         depth_sensor_state = next(
             (
@@ -2178,6 +2430,42 @@ class AyyoWorldModelNode(LifecycleNode):
             response.visual_source_clock = observation.provenance.clock.value
             response.visual_source_transport = observation.provenance.transport.value
             response.visual_source_interface = observation.provenance.interface
+        if snapshot.robot.audio_states:
+            audio = snapshot.robot.audio_states[0]
+            observation = audio.observation
+            response.has_audio_frame = True
+            response.audio_sensor_id = observation.sensor.sensor_id
+            response.audio_frame_id = observation.sensor.frame_id
+            response.audio_availability = self._availability_code(
+                audio.availability
+            )
+            response.audio_freshness = (
+                GetRobotBodyState.Response.FRESH
+                if audio.freshness is FreshnessState.FRESH
+                else GetRobotBodyState.Response.STALE
+            )
+            _assign_time(response.audio_observed_at, observation.observed_at_ns)
+            _assign_time(response.audio_result_at, observation.result_at_ns)
+            response.audio_producer_id = observation.producer_id
+            response.audio_source_manifest_id = observation.source_manifest_id
+            response.audio_session_id = observation.session_id
+            response.audio_sample_rate_hz = observation.sample_rate_hz
+            response.audio_channel_count = observation.channel_count
+            response.audio_encoding = observation.encoding
+            response.audio_frame_count = observation.frame_count
+            response.audio_sample_count = observation.sample_count
+            response.audio_duration_ns = observation.duration_ns
+            response.audio_data_size_bytes = observation.data_size_bytes
+            response.audio_peak_amplitude = observation.peak_amplitude
+            response.audio_rms_amplitude = observation.rms_amplitude
+            response.audio_payload_sha256 = observation.payload_sha256
+            response.audio_observation_id = observation.observation_id
+            response.audio_observation_fingerprint = str(observation.fingerprint)
+            response.audio_source_kind = observation.provenance.source_kind.value
+            response.audio_source_id = observation.provenance.source_id
+            response.audio_source_clock = observation.provenance.clock.value
+            response.audio_source_transport = observation.provenance.transport.value
+            response.audio_source_interface = observation.provenance.interface
         if snapshot.robot.depth_states:
             depth = snapshot.robot.depth_states[0]
             observation = depth.observation

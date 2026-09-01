@@ -9,6 +9,10 @@ ament_python_install_package(
   PACKAGE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../../world_model/src/ayyo_world_model"
 )
 ament_python_install_package(
+  ayyo_head_audio
+  PACKAGE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../../head_audio/src/ayyo_head_audio"
+)
+ament_python_install_package(
   ayyo_physical_camera
   PACKAGE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../../physical_camera/src/ayyo_physical_camera"
 )
@@ -38,6 +42,8 @@ install(
     scripts/body_state_query.py
     scripts/depth_camera_adapter.py
     scripts/depth_camera_fixture_node.py
+    scripts/head_audio_adapter.py
+    scripts/head_audio_fixture_node.py
     scripts/localization_diagnostics.py
     scripts/physical_camera_adapter.py
     scripts/physical_camera_fixture_node.py
@@ -58,6 +64,8 @@ if(BUILD_TESTING)
       scripts/body_state_query.py
       scripts/depth_camera_adapter.py
       scripts/depth_camera_fixture_node.py
+      scripts/head_audio_adapter.py
+      scripts/head_audio_fixture_node.py
       scripts/localization_diagnostics.py
       scripts/physical_camera_adapter.py
       scripts/physical_camera_fixture_node.py
