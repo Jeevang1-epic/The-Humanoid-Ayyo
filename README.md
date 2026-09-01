@@ -327,7 +327,13 @@ Run Head Audio Perception Foundation tests:
 
 ```bash
 PYTHONPATH=world_model/src:head_audio/src:physical_camera/src:depth_camera/src:rgbd_fusion/src:visual_evaluation/src:perception/src:working_memory/src \
-python3 -m pytest -q head_audio/tests perception/tests working_memory/tests world_model/tests
+python3 -m pytest -q head_audio/tests
+PYTHONPATH=world_model/src:head_audio/src:physical_camera/src:depth_camera/src:rgbd_fusion/src:visual_evaluation/src:perception/src:working_memory/src \
+python3 -m pytest -q perception/tests
+PYTHONPATH=world_model/src:head_audio/src:physical_camera/src:depth_camera/src:rgbd_fusion/src:visual_evaluation/src:perception/src:working_memory/src \
+python3 -m pytest -q working_memory/tests
+PYTHONPATH=world_model/src:head_audio/src:physical_camera/src:depth_camera/src:rgbd_fusion/src:visual_evaluation/src:perception/src:working_memory/src \
+python3 -m pytest -q world_model/tests
 ```
 
 Run visual producer evaluation tests:

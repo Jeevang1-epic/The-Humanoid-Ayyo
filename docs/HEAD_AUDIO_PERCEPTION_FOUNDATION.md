@@ -185,7 +185,13 @@ From the repository root:
 
 ```bash
 PYTHONPATH=world_model/src:head_audio/src:physical_camera/src:depth_camera/src:rgbd_fusion/src:visual_evaluation/src:perception/src:working_memory/src \
-python3 -m pytest -q head_audio/tests perception/tests working_memory/tests world_model/tests
+python3 -m pytest -q head_audio/tests
+PYTHONPATH=world_model/src:head_audio/src:physical_camera/src:depth_camera/src:rgbd_fusion/src:visual_evaluation/src:perception/src:working_memory/src \
+python3 -m pytest -q perception/tests
+PYTHONPATH=world_model/src:head_audio/src:physical_camera/src:depth_camera/src:rgbd_fusion/src:visual_evaluation/src:perception/src:working_memory/src \
+python3 -m pytest -q working_memory/tests
+PYTHONPATH=world_model/src:head_audio/src:physical_camera/src:depth_camera/src:rgbd_fusion/src:visual_evaluation/src:perception/src:working_memory/src \
+python3 -m pytest -q world_model/tests
 
 rm -rf ros2_ws/build ros2_ws/install ros2_ws/log
 ./scripts/build_workspace.sh
