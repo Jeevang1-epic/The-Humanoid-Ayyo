@@ -59,8 +59,13 @@ transport-neutral
 [Head Depth / RGB-D Sensor Foundation](HEAD_DEPTH_RGBD_FOUNDATION.md) adds a
 distinct depth sensor/optical frame, exact Image/CameraInfo and source-session
 validation, explicit `16UC1`/`32FC1` metric semantics, sealed admission, and
-bounded compact depth projection. Raw depth, RGB-D fusion, geometry, and
-authority remain outside the implemented path. The deterministic
+bounded compact depth projection. The
+[Head RGB-D Synchronization and Fused Observation Foundation](HEAD_RGBD_FUSION_FOUNDATION.md)
+then binds separately admitted compact RGB and depth observations by exact
+source acquisition time, sealed source/session identity, and deterministic
+pair identity through bounded memory and immutable projection. It explicitly
+does not validate spatial registration, retain raw data, or grant authority.
+The deterministic
 [World Model and Working Memory Foundation](WORLD_MODEL_WORKING_MEMORY.md)
 implements immutable current embodied/environment evidence, deterministic
 snapshots, freshness, and bounded temporary retention ahead of durable memory.
@@ -139,7 +144,13 @@ replace proxy geometry without duplicating or bypassing frame semantics.
   record, optical frame, active session, exact-time bounded pairing, strict
   metric encoding/payload validation, compact statistics, and acquisition
   health. Only its sealed frame/health pair may enter Perception; raw depth,
-  RGB association, point clouds, geometry, and authority are not represented.
+  point clouds, geometry, and authority are not represented.
+- The RGB-D synchronizer owns exact source-time pairing of separately admitted
+  RGB and depth evidence, typed source/producer/frame/calibration/session
+  relationships, bounded pending queues, deterministic pair identity, and a
+  sealed one-use Perception admission. Temporal synchronization does not imply
+  spatial registration. Fused evidence contains no raw buffers and cannot
+  command, authorize, execute, persist, or learn.
 - Visual interpretation producers operate only after frame admission. The
   existing trust boundary owns exact source-frame, camera, optical-frame,
   acquisition/result-time, producer, provenance, ordering, fingerprint, and

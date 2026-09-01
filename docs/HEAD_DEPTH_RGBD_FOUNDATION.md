@@ -3,7 +3,10 @@
 ## Purpose and status
 
 This milestone adds a transport-neutral, trustworthy head-depth evidence path.
-It is a sensor foundation, not RGB-D fusion or scene perception. The live
+Its scope is the independent depth sensor foundation, not RGB-D fusion or scene
+perception. The subsequent
+[Head RGB-D Fusion Foundation](HEAD_RGBD_FUSION_FOUNDATION.md) consumes this
+unchanged compact depth contract. The live
 end-to-end automated path validated here is a programmatic TEST source. A
 default-off Gazebo simulation seam is implemented and contract-tested, but the
 dedicated depth smoke does not claim a Gazebo sensor-performance validation.
@@ -158,8 +161,8 @@ a dedicated `PROJECT_REVIEWED_DEVICE` manifest/profile, verified driver and
 implementation identity, controlled calibration import, device identity where
 truthfully available, ROS system-time behavior, and hardware diagnostics. It
 must not rename or reuse the TEST/simulation profile. RGB and depth remain
-independent evidence until a later synchronization and fusion contract is
-reviewed.
+independently admitted evidence; the separate reviewed temporal fusion layer
+does not turn this TEST depth profile into physical trust.
 
 ## Resource and adversarial proof
 
@@ -182,8 +185,9 @@ The fixture also verifies that the Gazebo manifest remains explicitly
 ## Explicit limitations and non-goals
 
 Not implemented: physical depth hardware, vendor driver, device discovery,
-calibration file loader, hardware timing/rate/latency/drop validation, RGB-depth
-synchronization or fusion, PointCloud2, 3D geometry, obstacle extraction,
+calibration file loader, hardware timing/rate/latency/drop validation,
+physical RGB-depth synchronization, spatial registration, PointCloud2, 3D
+geometry, obstacle extraction,
 objects/faces/people, tracking, segmentation, OCR, scene understanding, SLAM,
 visual localization, navigation, manipulation, motion planning, autonomous
 movement, production ML, cloud/network services, or authority of any kind.

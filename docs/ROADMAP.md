@@ -85,6 +85,14 @@ bounded exact-time Image/CameraInfo admission, compact pixel-free Working
 Memory/World Model state, and default-off TEST/Gazebo seams. It does not add a
 physical depth device, RGB-D fusion, point clouds, geometry, SLAM, navigation,
 manipulation, or authority.
+Head RGB-D Synchronization and Fused Observation Foundation v1 now adds a
+bounded exact-source-time synchronizer for separately admitted compact RGB and
+depth evidence, deterministic pair/source/session identity, sealed Perception
+admission, bounded current/recent Working Memory references, immutable World
+Model projection, and a default-off owned TEST composition. It establishes
+temporal synchronization only; physical hardware, clock behavior, extrinsics,
+pixel registration, point clouds, geometry, inference, SLAM, navigation,
+manipulation, and authority remain unvalidated or out of scope.
 
 Final Ayyo assets, graphical controlled-design validation, additional joints,
 trajectory/whole-body controllers, validated dynamics/contact behavior,
@@ -93,8 +101,9 @@ attestation, production typed ROS services, audit persistence,
 timeout/resource enforcement, runtime skill implementations, and
 physical-safety integration remain future work. Production visual producer
 promotion and live physical audio/depth/force/touch perception, physical
-camera/IMU/localization validation, production diagnostic producers, SLAM,
-sensor fusion, environment entity production, and
+camera/IMU/localization validation, production diagnostic producers, spatial
+RGB-D registration, physical sensor fusion, SLAM, environment entity
+production, and
 reviewed Working-Memory-to-Memory-Validation consolidation also remain future
 work. Executive proposals, Safety
 eligibility, Skill Manager runtime-handoff eligibility, Runtime Bridge

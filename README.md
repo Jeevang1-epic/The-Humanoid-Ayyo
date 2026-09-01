@@ -7,8 +7,8 @@ can mature behind stable boundaries before physical hardware is introduced.
 
 ## Current status
 
-Ayyo has reached the Head Depth / RGB-D Sensor Foundation v1 milestone with
-hardware-free TEST and default-off simulation seams.
+Ayyo has reached the Head RGB-D Synchronization and Fused Observation
+Foundation v1 milestone with a hardware-free, default-off exact-time proof.
 
 Implemented:
 
@@ -111,10 +111,19 @@ Implemented:
   frame, calibration, encoding, metric-range, session, and provenance contracts
 - Compact depth validity/range/fingerprint state admitted through Perception
   into bounded Working Memory and immutable World Model without raw-depth
-  retention, RGB-D fusion, geometry, or authority
+  retention, geometry, or authority; temporal fusion is a separate layer
 - Distinct default-off TEST and Gazebo depth paths plus an owned 5,000-cycle
   adversarial smoke proving standard Image/CameraInfo transport, lifecycle
   isolation, recovery, resource bounds, and clean teardown
+- An immutable compact RGB-D pair contract that binds already-admitted RGB and
+  depth evidence by exact source acquisition time, component producer/source,
+  frame, calibration, lifecycle session, provenance, policy, and fingerprints
+- A sealed fusion admission path through Perception, one bounded current fused
+  Working Memory state, immutable World Model projection, and additive compact
+  query fields with spatial registration explicitly unvalidated
+- A default-off four-topic TEST fixture and owned smoke proving exact temporal
+  pairing, 5,000-cycle bounds, adversarial/lifecycle isolation, no execution
+  authority, and empty teardown
 - Exact per-smoke process ownership and bounded graceful/scoped teardown,
   including direct shell-free Gazebo ownership and survivor regression tests
 
@@ -125,7 +134,8 @@ Planned, but not implemented:
 - Additional commandable joints, trajectory/whole-body control, and validated
   dynamics/contact behavior
 - Physical localization/camera/sensor validation, real diagnostic producers,
-  SLAM/fusion/physical calibration, and production visual producer promotion
+  spatial registration/SLAM/physical calibration, and production visual
+  producer promotion
 - Natural-language/model integration and authenticated identity/approval
 - Runtime skill implementations, manipulation, and navigation
 - Production-authorized typed ROS services, runtime scheduling, and resource
@@ -155,6 +165,8 @@ independent of cognition and learned policies. See
 [docs/VISUAL_PERCEPTION_PROCESSING.md](docs/VISUAL_PERCEPTION_PROCESSING.md),
 [docs/VISUAL_PRODUCER_EVALUATION.md](docs/VISUAL_PRODUCER_EVALUATION.md),
 [docs/PHYSICAL_HEAD_CAMERA_CALIBRATION_DIAGNOSTICS.md](docs/PHYSICAL_HEAD_CAMERA_CALIBRATION_DIAGNOSTICS.md),
+[docs/HEAD_DEPTH_RGBD_FOUNDATION.md](docs/HEAD_DEPTH_RGBD_FOUNDATION.md),
+[docs/HEAD_RGBD_FUSION_FOUNDATION.md](docs/HEAD_RGBD_FUSION_FOUNDATION.md),
 [docs/AYYO_MESH_IMPORT.md](docs/AYYO_MESH_IMPORT.md), and
 [docs/SAFETY.md](docs/SAFETY.md).
 
@@ -291,6 +303,19 @@ python3 -m pytest -q depth_camera/tests perception/tests/test_depth_boundary.py 
   working_memory/tests/test_depth_resources.py world_model/tests/test_depth_camera.py
 ```
 
+Run head RGB-D synchronization foundation tests:
+
+```bash
+PYTHONPATH=world_model/src:depth_camera/src:physical_camera/src:rgbd_fusion/src:visual_evaluation/src:perception/src:working_memory/src \
+python3 -m pytest -q rgbd_fusion/tests
+PYTHONPATH=world_model/src:depth_camera/src:physical_camera/src:rgbd_fusion/src:visual_evaluation/src:perception/src \
+python3 -m pytest -q perception/tests/test_rgbd_fusion_boundary.py
+PYTHONPATH=world_model/src:depth_camera/src:working_memory/src \
+python3 -m pytest -q working_memory/tests/test_rgbd_fusion_resources.py
+PYTHONPATH=world_model/src \
+python3 -m pytest -q world_model/tests/test_rgbd_fusion.py
+```
+
 Run visual producer evaluation tests:
 
 ```bash
@@ -349,6 +374,13 @@ Run the hardware-free Head Depth / RGB-D foundation smoke twice:
 ./scripts/smoke_head_depth_rgbd.sh
 ```
 
+Run the hardware-free exact-time Head RGB-D fusion smoke twice:
+
+```bash
+./scripts/smoke_head_rgbd_fusion.sh
+./scripts/smoke_head_rgbd_fusion.sh
+```
+
 ## Repository layout
 
 ```text
@@ -364,6 +396,7 @@ simulation_control/  Bounded deterministic simulation-control policy and feedbac
 world_model/  Transport-neutral embodied/environment observations and snapshots
 perception/  Deterministic sensor/provenance/time admission trust boundary
 physical_camera/  Driver-neutral physical source, calibration, lifecycle, and diagnostics
+rgbd_fusion/  Exact-time bounded compact RGB-D synchronization and admission
 visual_evaluation/  Deterministic producer/model/dataset evaluation quality gate
 working_memory/  Bounded temporary current-state and recent-evidence retention
 ros2_ws/src/   ROS 2 interfaces, description, simulation, Runtime Bridge, and bringup
@@ -382,8 +415,10 @@ Head RGB Camera and Visual Observation Foundation v1, and Visual Perception
 Processing Foundation v1, Recorded Visual Producer Evaluation and Perception
 Quality Gate v1, and Physical Head Camera Adapter, Calibration, and Camera
 Diagnostics Foundation v1, plus Head Depth / RGB-D Sensor Foundation v1 are
-implemented. The physical-camera and depth milestones have only TEST/simulation
-sources; they do not validate real hardware or physical calibration.
+implemented. Head RGB-D Synchronization and Fused Observation Foundation v1 is
+also implemented as exact-time TEST evidence. The physical-camera, depth, and
+fusion milestones do not validate real RGB-D hardware, hardware clocks,
+physical calibration, extrinsics, or spatial registration.
 Production motion remains
 closed because Safety v1 defers physical movement; only explicit development
 injection can exercise the simulated neck joint. The perception path adds
