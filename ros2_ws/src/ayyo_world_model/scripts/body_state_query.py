@@ -252,6 +252,24 @@ def main() -> None:
                 if response.has_audio_frame
                 else None
             ),
+            'audio_diagnostics': (
+                {
+                    'accepted_count': response.audio_accepted_count,
+                    'diagnostic_event': response.audio_diagnostic_event,
+                    'duplicate_count': response.audio_duplicate_count,
+                    'error_count': response.audio_error_count,
+                    'lifecycle_state': response.audio_lifecycle_state,
+                    'rejected_count': response.audio_rejected_count,
+                    'retained_payload_bytes': (
+                        response.audio_retained_payload_bytes
+                    ),
+                    'transport_invalid_count': (
+                        response.audio_transport_invalid_count
+                    ),
+                }
+                if response.has_audio_diagnostics
+                else None
+            ),
             'depth_frame': (
                 {
                     'availability': response.depth_availability,

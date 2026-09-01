@@ -127,6 +127,15 @@ string visual_source_clock
 string visual_source_transport
 string visual_source_interface
 uint32 current_audio_count
+bool has_audio_diagnostics
+string audio_lifecycle_state
+string audio_diagnostic_event
+uint64 audio_accepted_count
+uint64 audio_rejected_count
+uint64 audio_duplicate_count
+uint64 audio_error_count
+uint64 audio_retained_payload_bytes
+uint64 audio_transport_invalid_count
 bool has_audio_frame
 string audio_sensor_id
 string audio_frame_id

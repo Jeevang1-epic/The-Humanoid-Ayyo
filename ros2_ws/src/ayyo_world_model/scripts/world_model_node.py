@@ -2136,6 +2136,19 @@ class AyyoWorldModelNode(LifecycleNode):
         response.recent_evidence_count = stats.recent_evidence_count
         response.current_visual_count = stats.current_visual_count
         response.current_audio_count = stats.current_audio_count
+        if self._audio_adapter is not None:
+            diagnostics = self._audio_adapter.diagnostics
+            response.has_audio_diagnostics = True
+            response.audio_lifecycle_state = diagnostics.lifecycle_state.value
+            response.audio_diagnostic_event = diagnostics.event.value
+            response.audio_accepted_count = diagnostics.accepted_count
+            response.audio_rejected_count = diagnostics.rejected_count
+            response.audio_duplicate_count = diagnostics.duplicate_count
+            response.audio_error_count = diagnostics.error_count
+            response.audio_retained_payload_bytes = (
+                diagnostics.retained_payload_bytes
+            )
+            response.audio_transport_invalid_count = self._invalid_message_count
         response.current_depth_count = stats.current_depth_count
         response.current_fused_rgbd_count = stats.current_fused_rgbd_count
         response.current_visual_interpretation_count = (

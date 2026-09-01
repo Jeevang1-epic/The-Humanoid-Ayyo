@@ -119,6 +119,11 @@ def test_read_only_service_contract_is_bounded_and_typed() -> None:
         'string visual_calibration_id',
         'string visual_observation_fingerprint',
         'uint32 current_audio_count',
+        'bool has_audio_diagnostics',
+        'string audio_lifecycle_state',
+        'uint64 audio_rejected_count',
+        'uint64 audio_retained_payload_bytes',
+        'uint64 audio_transport_invalid_count',
         'bool has_audio_frame',
         'string audio_producer_id',
         'string audio_source_manifest_id',
@@ -1186,10 +1191,37 @@ def test_audio_adapter_is_sealed_lifecycle_scoped_and_query_compact() -> None:
         "'audio_frame': (",
         "'payload_sha256': response.audio_payload_sha256",
         "'session_id': response.audio_session_id",
+        "'audio_diagnostics': (",
+        "'retained_payload_bytes': (",
     ):
         assert expected in query
     for forbidden in ("'data':", 'audio_samples', 'audio_command', 'wake_word'):
         assert forbidden not in query
+
+
+def test_audio_smoke_proves_adversarial_lifecycle_bounds_and_teardown() -> None:
+    path = REPOSITORY_ROOT / 'scripts' / 'smoke_head_audio.sh'
+    source = path.read_text(encoding='utf-8')
+    for expected in (
+        'head_audio_fixture.launch.py',
+        'enable_head_audio_fixture:=false',
+        'enable_head_audio_fixture:=true',
+        'head_audio_profile:=test_fixture_v1',
+        'ayyo_interfaces/msg/AudioFrame',
+        'sample_rate_hz: 8000',
+        'ros.audio.head.spoofed.v1',
+        'audio-session-sha256-',
+        'current_audio_count',
+        'transport_invalid_count',
+        'retained_payload_bytes',
+        'ayyo_smoke_shutdown_owned_launch',
+        'ayyo_smoke_owned_pids',
+        'graph_empty',
+    ):
+        assert expected in source
+    for forbidden in ('microphone hardware', 'speech recognition', 'wake word'):
+        assert forbidden not in source
+    assert path.stat().st_mode & 0o111
 
 
 def test_physical_camera_adapter_is_sealed_lifecycle_scoped_and_query_compact() -> None:
