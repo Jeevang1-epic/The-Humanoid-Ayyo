@@ -1,0 +1,290 @@
+"""Compact person and object observation contracts without authority."""
+
+from __future__ import annotations
+
+import json
+import math
+import re
+from dataclasses import dataclass
+from enum import StrEnum
+from hashlib import sha256
+
+from ayyo_world_model import (
+    ImageRegion2D,
+    MAX_OBSERVATION_TIME_NS,
+    MAX_VISUAL_LABEL_LENGTH,
+    ObservationProvenance,
+    SensorIdentity,
+    SensorKind,
+)
+
+from .errors import PerceptionObservationValidationError
+
+
+_IDENTIFIER = re.compile(r"^[a-z0-9]+(?:[._-][a-z0-9]+)*$")
+_SOURCE_VISUAL_OBSERVATION_ID = re.compile(r"^world-observation-[0-9a-f]{64}$")
+
+
+class SemanticObservationKind(StrEnum):
+    """The only semantic facts represented by this contract slice."""
+
+    PERSON = "person"
+    OBJECT = "object"
+
+
+def _fail(detail: str) -> None:
+    raise PerceptionObservationValidationError(detail)
+
+
+def _identifier(value: object, field_name: str, *, maximum: int = 256) -> str:
+    if (
+        type(value) is not str
+        or not value
+        or value != value.strip()
+        or len(value) > maximum
+        or _IDENTIFIER.fullmatch(value) is None
+    ):
+        _fail(f"{field_name} must be a bounded lowercase ASCII identifier")
+    return value
+
+
+def _confidence(value: object) -> float:
+    if type(value) not in {int, float} or not math.isfinite(value):
+        _fail("semantic observation confidence must be finite")
+    result = float(value)
+    if not 0.0 <= result <= 1.0:
+        _fail("semantic observation confidence must be between 0.0 and 1.0")
+    return 0.0 if result == 0.0 else result
+
+
+def _canonical_sha256(document: dict[str, object]) -> str:
+    encoded = json.dumps(
+        document,
+        allow_nan=False,
+        ensure_ascii=True,
+        separators=(",", ":"),
+        sort_keys=True,
+    ).encode("ascii")
+    return sha256(encoded).hexdigest()
+
+
+def _validate_common(
+    *,
+    kind: SemanticObservationKind,
+    robot_id: str,
+    sensor: SensorIdentity,
+    reference_frame_id: str,
+    source_visual_observation_id: str,
+    observed_at_ns: int,
+    result_at_ns: int,
+    confidence: float,
+    region: ImageRegion2D,
+    provenance: ObservationProvenance,
+    specific: dict[str, object],
+    observation_id: str | None,
+) -> tuple[float, str]:
+    _identifier(robot_id, "semantic observation robot_id")
+    if (
+        type(sensor) is not SensorIdentity
+        or sensor.kind is not SensorKind.RGB_CAMERA
+    ):
+        _fail("semantic observation requires one typed RGB camera")
+    if (
+        type(reference_frame_id) is not str
+        or reference_frame_id != sensor.frame_id
+    ):
+        _fail("semantic observation frame must match its camera optical frame")
+    if (
+        type(source_visual_observation_id) is not str
+        or _SOURCE_VISUAL_OBSERVATION_ID.fullmatch(
+            source_visual_observation_id
+        )
+        is None
+    ):
+        _fail("semantic observation source-frame identity is malformed")
+    if (
+        type(observed_at_ns) is not int
+        or type(result_at_ns) is not int
+        or not 0 <= observed_at_ns <= result_at_ns <= MAX_OBSERVATION_TIME_NS
+    ):
+        _fail("semantic observation timestamps are malformed or reversed")
+    confidence_value = _confidence(confidence)
+    if type(region) is not ImageRegion2D:
+        _fail("semantic observation region must be a normalized ImageRegion2D")
+    if type(provenance) is not ObservationProvenance:
+        _fail("semantic observation provenance must be typed")
+    document: dict[str, object] = {
+        "confidence": confidence_value,
+        "kind": kind.value,
+        "observed_at_ns": observed_at_ns,
+        "provenance": provenance.document(),
+        "reference_frame_id": reference_frame_id,
+        "region": region.document(),
+        "result_at_ns": result_at_ns,
+        "robot_id": robot_id,
+        "schema": f"ayyo.{kind.value}-observation.v1",
+        "sensor": sensor.document(),
+        "source_visual_observation_id": source_visual_observation_id,
+        **specific,
+    }
+    semantic_digest = _canonical_sha256(document)
+    derived_id = f"{kind.value}-observation-sha256-{semantic_digest}"
+    if observation_id is not None and observation_id != derived_id:
+        _fail("semantic observation identity does not match its content")
+    return confidence_value, derived_id
+
+
+def _common_document(observation) -> dict[str, object]:
+    return {
+        "confidence": observation.confidence,
+        "kind": observation.kind.value,
+        "observation_id": observation.observation_id,
+        "observed_at_ns": observation.observed_at_ns,
+        "provenance": observation.provenance.document(),
+        "reference_frame_id": observation.reference_frame_id,
+        "region": observation.region.document(),
+        "result_at_ns": observation.result_at_ns,
+        "robot_id": observation.robot_id,
+        "sensor": observation.sensor.document(),
+        "source_visual_observation_id": (
+            observation.source_visual_observation_id
+        ),
+    }
+
+
+@dataclass(frozen=True, slots=True, init=False)
+class PersonObservation:
+    """One person region without biometric or persistent identity."""
+
+    kind: SemanticObservationKind
+    robot_id: str
+    sensor: SensorIdentity
+    reference_frame_id: str
+    source_visual_observation_id: str
+    observed_at_ns: int
+    result_at_ns: int
+    confidence: float
+    region: ImageRegion2D
+    provenance: ObservationProvenance
+    observation_id: str
+
+    def __init__(
+        self,
+        *,
+        robot_id: str,
+        sensor: SensorIdentity,
+        reference_frame_id: str,
+        source_visual_observation_id: str,
+        observed_at_ns: int,
+        result_at_ns: int,
+        confidence: float,
+        region: ImageRegion2D,
+        provenance: ObservationProvenance,
+        observation_id: str | None = None,
+    ) -> None:
+        kind = SemanticObservationKind.PERSON
+        confidence_value, derived_id = _validate_common(
+            kind=kind,
+            robot_id=robot_id,
+            sensor=sensor,
+            reference_frame_id=reference_frame_id,
+            source_visual_observation_id=source_visual_observation_id,
+            observed_at_ns=observed_at_ns,
+            result_at_ns=result_at_ns,
+            confidence=confidence,
+            region=region,
+            provenance=provenance,
+            specific={},
+            observation_id=observation_id,
+        )
+        for field_name, value in (
+            ("kind", kind),
+            ("robot_id", robot_id),
+            ("sensor", sensor),
+            ("reference_frame_id", reference_frame_id),
+            ("source_visual_observation_id", source_visual_observation_id),
+            ("observed_at_ns", observed_at_ns),
+            ("result_at_ns", result_at_ns),
+            ("confidence", confidence_value),
+            ("region", region),
+            ("provenance", provenance),
+            ("observation_id", derived_id),
+        ):
+            object.__setattr__(self, field_name, value)
+
+    def document(self) -> dict[str, object]:
+        return _common_document(self)
+
+
+@dataclass(frozen=True, slots=True, init=False)
+class ObjectObservation:
+    """One bounded object-category region; it is evidence, never a command."""
+
+    kind: SemanticObservationKind
+    robot_id: str
+    sensor: SensorIdentity
+    reference_frame_id: str
+    source_visual_observation_id: str
+    observed_at_ns: int
+    result_at_ns: int
+    category: str
+    confidence: float
+    region: ImageRegion2D
+    provenance: ObservationProvenance
+    observation_id: str
+
+    def __init__(
+        self,
+        *,
+        robot_id: str,
+        sensor: SensorIdentity,
+        reference_frame_id: str,
+        source_visual_observation_id: str,
+        observed_at_ns: int,
+        result_at_ns: int,
+        category: str,
+        confidence: float,
+        region: ImageRegion2D,
+        provenance: ObservationProvenance,
+        observation_id: str | None = None,
+    ) -> None:
+        kind = SemanticObservationKind.OBJECT
+        category_value = _identifier(
+            category,
+            "object observation category",
+            maximum=MAX_VISUAL_LABEL_LENGTH,
+        )
+        if category_value == SemanticObservationKind.PERSON.value:
+            _fail("object observation category cannot substitute for a person")
+        confidence_value, derived_id = _validate_common(
+            kind=kind,
+            robot_id=robot_id,
+            sensor=sensor,
+            reference_frame_id=reference_frame_id,
+            source_visual_observation_id=source_visual_observation_id,
+            observed_at_ns=observed_at_ns,
+            result_at_ns=result_at_ns,
+            confidence=confidence,
+            region=region,
+            provenance=provenance,
+            specific={"category": category_value},
+            observation_id=observation_id,
+        )
+        for field_name, value in (
+            ("kind", kind),
+            ("robot_id", robot_id),
+            ("sensor", sensor),
+            ("reference_frame_id", reference_frame_id),
+            ("source_visual_observation_id", source_visual_observation_id),
+            ("observed_at_ns", observed_at_ns),
+            ("result_at_ns", result_at_ns),
+            ("category", category_value),
+            ("confidence", confidence_value),
+            ("region", region),
+            ("provenance", provenance),
+            ("observation_id", derived_id),
+        ):
+            object.__setattr__(self, field_name, value)
+
+    def document(self) -> dict[str, object]:
+        return {**_common_document(self), "category": self.category}

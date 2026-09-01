@@ -13,3 +13,7 @@ class PerceptionConfigurationError(PerceptionError, ValueError):
 
 class PerceptionClockRegressionError(PerceptionError):
     """The configured source clock moved backwards across an evidence epoch."""
+
+
+class PerceptionObservationValidationError(PerceptionError, ValueError):
+    """A transport-neutral perception observation contract is malformed."""
