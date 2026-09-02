@@ -8,6 +8,7 @@ from ayyo_perception import (
     ObjectObservation,
     PerceptionObservationValidationError,
     PersonObservation,
+    SemanticDetectionSource,
     SemanticObservationKind,
 )
 
@@ -38,6 +39,10 @@ PROVENANCE = ObservationProvenance(
     "direct.person-object-observation.v1",
 )
 SOURCE_VISUAL_OBSERVATION_ID = "world-observation-" + "1" * 64
+SOURCE_DETECTION = SemanticDetectionSource(
+    visual_interpretation_observation_id="world-observation-" + "2" * 64,
+    visual_detection_id="visual-detection-sha256-" + "3" * 64,
+)
 REGION = ImageRegion2D(x_min=0.1, y_min=0.2, x_max=0.7, y_max=0.9)
 
 
@@ -47,6 +52,7 @@ def person(**overrides) -> PersonObservation:
         "sensor": CAMERA,
         "reference_frame_id": CAMERA.frame_id,
         "source_visual_observation_id": SOURCE_VISUAL_OBSERVATION_ID,
+        "source_detection": SOURCE_DETECTION,
         "observed_at_ns": 100,
         "result_at_ns": 110,
         "confidence": 0.75,
@@ -63,6 +69,7 @@ def object_observation(**overrides) -> ObjectObservation:
         "sensor": CAMERA,
         "reference_frame_id": CAMERA.frame_id,
         "source_visual_observation_id": SOURCE_VISUAL_OBSERVATION_ID,
+        "source_detection": SOURCE_DETECTION,
         "observed_at_ns": 100,
         "result_at_ns": 110,
         "category": "cup",
@@ -86,6 +93,7 @@ class PersonObjectObservationContractTest(unittest.TestCase):
             SOURCE_VISUAL_OBSERVATION_ID,
             observation.source_visual_observation_id,
         )
+        self.assertEqual(SOURCE_DETECTION, observation.source_detection)
         self.assertTrue(
             observation.observation_id.startswith(
                 "person-observation-sha256-"
@@ -141,12 +149,22 @@ class PersonObjectObservationContractTest(unittest.TestCase):
             {"sensor": imu, "reference_frame_id": imu.frame_id},
             {"reference_frame_id": "another_optical_frame"},
             {"source_visual_observation_id": "visual-frame-1"},
+            {"source_detection": "visual-detection-1"},
             {"provenance": "test.camera.person-object.v1"},
         )
         for overrides in invalid:
             with self.subTest(overrides=overrides):
                 with self.assertRaises(PerceptionObservationValidationError):
                     person(**overrides)
+        for interpretation_id, detection_id in (
+            ("visual-result-1", SOURCE_DETECTION.visual_detection_id),
+            (
+                SOURCE_DETECTION.visual_interpretation_observation_id,
+                "detection-1",
+            ),
+        ):
+            with self.assertRaises(PerceptionObservationValidationError):
+                SemanticDetectionSource(interpretation_id, detection_id)
 
     def test_timestamps_fail_closed(self) -> None:
         invalid = (
@@ -167,6 +185,13 @@ class PersonObjectObservationContractTest(unittest.TestCase):
         self.assertEqual(0.0, person(confidence=0).confidence)
         self.assertEqual(1.0, person(confidence=1).confidence)
 
+    def test_absent_confidence_is_explicit_and_distinct_from_zero(self) -> None:
+        absent = person(confidence=None)
+        zero = person(confidence=0.0)
+        self.assertIsNone(absent.confidence)
+        self.assertIsNone(absent.document()["confidence"])
+        self.assertNotEqual(absent.observation_id, zero.observation_id)
+
     def test_invalid_confidence_fails_closed(self) -> None:
         invalid = (
             -0.01,
@@ -176,7 +201,6 @@ class PersonObjectObservationContractTest(unittest.TestCase):
             -math.inf,
             True,
             "0.5",
-            None,
         )
         for confidence in invalid:
             with self.subTest(confidence=confidence):

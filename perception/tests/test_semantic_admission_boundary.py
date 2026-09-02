@@ -13,6 +13,7 @@ from ayyo_perception import (
     PerceptionTrustBoundary,
     PerceptionTrustConfig,
     PersonObservation,
+    semantic_observation_from_detection,
 )
 from ayyo_world_model import (
     AYYO_ROBOT_ID,
@@ -24,7 +25,12 @@ from ayyo_world_model import (
     SensorAvailability,
     SensorIdentity,
     SensorKind,
+    VisualDetection,
     VisualFrameObservation,
+    VisualInterpretationObservation,
+    VisualInterpretationProducer,
+    VisualProducerKind,
+    VisualSemanticCategory,
     WorldModelValidationError,
 )
 
@@ -49,6 +55,13 @@ OTHER_PROVENANCE = ObservationProvenance(
     "direct.visual-frame.v1",
 )
 REGION = ImageRegion2D(x_min=0.1, y_min=0.2, x_max=0.7, y_max=0.9)
+PRODUCER = VisualInterpretationProducer(
+    "ayyo.visual.semantic-test.v1",
+    VisualProducerKind.TEST_FIXTURE,
+    "none",
+    "ayyo.visual.semantic-test.adapter.v1",
+    "ayyo.visual-interpretation.v1",
+)
 
 
 def frame(time_ns: int = 100, **overrides) -> VisualFrameObservation:
@@ -70,17 +83,88 @@ def frame(time_ns: int = 100, **overrides) -> VisualFrameObservation:
     return VisualFrameObservation(**values)
 
 
-def person(source: VisualFrameObservation, **overrides) -> PersonObservation:
+def detection(
+    source: VisualFrameObservation,
+    *,
+    category: VisualSemanticCategory,
+    label: str,
+    confidence: float | None,
+) -> VisualDetection:
+    return VisualDetection(
+        source_visual_observation_id=source.observation_id,
+        category=category,
+        label=label,
+        region=REGION,
+        confidence=confidence,
+    )
+
+
+def interpretation(
+    source: VisualFrameObservation,
+    *,
+    result_at_ns: int | None = None,
+    detections: tuple[VisualDetection, ...] | None = None,
+    producer: VisualInterpretationProducer = PRODUCER,
+) -> VisualInterpretationObservation:
+    if detections is None:
+        detections = (
+            detection(
+                source,
+                category=VisualSemanticCategory.PERSON,
+                label="person",
+                confidence=0.75,
+            ),
+            detection(
+                source,
+                category=VisualSemanticCategory.OBJECT,
+                label="cup",
+                confidence=0.625,
+            ),
+        )
+    return VisualInterpretationObservation(
+        robot_id=source.robot_id,
+        sensor=source.sensor,
+        reference_frame_id=source.sensor.frame_id,
+        source_visual_observation_id=source.observation_id,
+        source_visual_fingerprint=source.fingerprint,
+        observed_at_ns=source.observed_at_ns,
+        result_at_ns=(
+            source.observed_at_ns + 1
+            if result_at_ns is None
+            else result_at_ns
+        ),
+        producer=producer,
+        detections=detections,
+        provenance=source.provenance,
+        availability=source.availability,
+    )
+
+
+def person(
+    source: VisualFrameObservation,
+    source_interpretation: VisualInterpretationObservation | None = None,
+    **overrides,
+) -> PersonObservation:
+    result = source_interpretation or interpretation(source)
+    base = semantic_observation_from_detection(
+        result,
+        detection_id=next(
+            item.detection_id
+            for item in result.detections
+            if item.category is VisualSemanticCategory.PERSON
+        ),
+    )
     values = {
-        "robot_id": source.robot_id,
-        "sensor": source.sensor,
-        "reference_frame_id": source.sensor.frame_id,
-        "source_visual_observation_id": source.observation_id,
-        "observed_at_ns": source.observed_at_ns,
-        "result_at_ns": source.observed_at_ns + 1,
-        "confidence": 0.75,
-        "region": REGION,
-        "provenance": source.provenance,
+        "robot_id": base.robot_id,
+        "sensor": base.sensor,
+        "reference_frame_id": base.reference_frame_id,
+        "source_visual_observation_id": base.source_visual_observation_id,
+        "source_detection": base.source_detection,
+        "observed_at_ns": base.observed_at_ns,
+        "result_at_ns": base.result_at_ns,
+        "confidence": base.confidence,
+        "region": base.region,
+        "provenance": base.provenance,
     }
     values.update(overrides)
     return PersonObservation(**values)
@@ -88,19 +172,30 @@ def person(source: VisualFrameObservation, **overrides) -> PersonObservation:
 
 def object_observation(
     source: VisualFrameObservation,
+    source_interpretation: VisualInterpretationObservation | None = None,
     **overrides,
 ) -> ObjectObservation:
+    result = source_interpretation or interpretation(source)
+    base = semantic_observation_from_detection(
+        result,
+        detection_id=next(
+            item.detection_id
+            for item in result.detections
+            if item.category is VisualSemanticCategory.OBJECT
+        ),
+    )
     values = {
-        "robot_id": source.robot_id,
-        "sensor": source.sensor,
-        "reference_frame_id": source.sensor.frame_id,
-        "source_visual_observation_id": source.observation_id,
-        "observed_at_ns": source.observed_at_ns,
-        "result_at_ns": source.observed_at_ns + 1,
-        "category": "cup",
-        "confidence": 0.625,
-        "region": REGION,
-        "provenance": source.provenance,
+        "robot_id": base.robot_id,
+        "sensor": base.sensor,
+        "reference_frame_id": base.reference_frame_id,
+        "source_visual_observation_id": base.source_visual_observation_id,
+        "source_detection": base.source_detection,
+        "observed_at_ns": base.observed_at_ns,
+        "result_at_ns": base.result_at_ns,
+        "category": base.category,
+        "confidence": base.confidence,
+        "region": base.region,
+        "provenance": base.provenance,
     }
     values.update(overrides)
     return ObjectObservation(**values)
@@ -115,6 +210,7 @@ def boundary(*, freshness_ns: int = 50, retention_ttl_ns: int = 100):
             freshness_ns=freshness_ns,
             retention_ttl_ns=retention_ttl_ns,
             permitted_future_skew_ns=5,
+            visual_interpretation_producers=(PRODUCER,),
         )
     )
 
@@ -135,17 +231,27 @@ class SemanticAdmissionBoundaryTest(unittest.TestCase):
             AdmissionStatus.ACCEPTED,
             admit(trust, source, now=100, receipt=1).status,
         )
+        source_interpretation = interpretation(source)
+        self.assertIs(
+            AdmissionStatus.ACCEPTED,
+            admit(
+                trust,
+                source_interpretation,
+                now=101,
+                receipt=2,
+            ).status,
+        )
         admitted_person = admit(
             trust,
-            person(source),
+            person(source, source_interpretation),
             now=101,
-            receipt=2,
+            receipt=3,
         )
         admitted_object = admit(
             trust,
-            object_observation(source),
+            object_observation(source, source_interpretation),
             now=101,
-            receipt=3,
+            receipt=4,
         )
         self.assertIs(AdmissionStatus.ACCEPTED, admitted_person.status)
         self.assertIsInstance(admitted_person.observation, PersonObservation)
@@ -167,11 +273,12 @@ class SemanticAdmissionBoundaryTest(unittest.TestCase):
         trust = boundary()
         source = frame()
         admit(trust, source, now=100, receipt=1)
+        admit(trust, interpretation(source), now=101, receipt=2)
         result = admit(
             trust,
             person(source, robot_id="other.robot.v1"),
             now=101,
-            receipt=2,
+            receipt=3,
         )
         self.assertIs(AdmissionReason.WRONG_ROBOT_IDENTITY, result.reason)
 
@@ -200,15 +307,17 @@ class SemanticAdmissionBoundaryTest(unittest.TestCase):
             with self.subTest(reason=reason):
                 trust = boundary()
                 admit(trust, source, now=100, receipt=1)
+                admit(trust, interpretation(source), now=101, receipt=2)
                 self.assertIs(
                     reason,
-                    admit(trust, observation, now=101, receipt=2).reason,
+                    admit(trust, observation, now=101, receipt=3).reason,
                 )
 
     def test_wrong_camera_reference_frame_is_rejected(self) -> None:
         trust = boundary()
         source = frame()
         admit(trust, source, now=100, receipt=1)
+        admit(trust, interpretation(source), now=101, receipt=2)
         wrong_frame_camera = SensorIdentity(
             CAMERA.sensor_id,
             SensorKind.RGB_CAMERA,
@@ -221,7 +330,7 @@ class SemanticAdmissionBoundaryTest(unittest.TestCase):
         )
         self.assertIs(
             AdmissionReason.FRAME_MISMATCH,
-            admit(trust, observation, now=101, receipt=2).reason,
+            admit(trust, observation, now=101, receipt=3).reason,
         )
 
     def test_source_visual_identity_must_match_its_exact_frame(self) -> None:
@@ -229,7 +338,8 @@ class SemanticAdmissionBoundaryTest(unittest.TestCase):
         first = frame(100)
         second = frame(101)
         admit(trust, first, now=100, receipt=1)
-        admit(trust, second, now=101, receipt=2)
+        admit(trust, interpretation(first), now=101, receipt=2)
+        admit(trust, second, now=101, receipt=3)
         mismatched = person(
             first,
             source_visual_observation_id=second.observation_id,
@@ -237,16 +347,17 @@ class SemanticAdmissionBoundaryTest(unittest.TestCase):
         )
         self.assertIs(
             AdmissionReason.SOURCE_FRAME_MISMATCH,
-            admit(trust, mismatched, now=102, receipt=3).reason,
+            admit(trust, mismatched, now=102, receipt=4).reason,
         )
 
     def test_reversed_time_tampering_fails_closed(self) -> None:
         trust = boundary()
         source = frame()
         admit(trust, source, now=100, receipt=1)
+        admit(trust, interpretation(source), now=101, receipt=2)
         observation = person(source)
         object.__setattr__(observation, "result_at_ns", 99)
-        result = admit(trust, observation, now=101, receipt=2)
+        result = admit(trust, observation, now=101, receipt=3)
         self.assertIs(AdmissionReason.MALFORMED_OBSERVATION, result.reason)
         self.assertIsNone(result.observation)
 
@@ -254,19 +365,21 @@ class SemanticAdmissionBoundaryTest(unittest.TestCase):
         trust = boundary()
         source = frame()
         admit(trust, source, now=100, receipt=1)
+        admit(trust, interpretation(source), now=101, receipt=2)
         observation = person(source, result_at_ns=107)
         self.assertIs(
             AdmissionReason.RESULT_TIME_INVALID,
-            admit(trust, observation, now=101, receipt=2).reason,
+            admit(trust, observation, now=101, receipt=3).reason,
         )
 
     def test_stale_or_unavailable_source_evidence_is_rejected(self) -> None:
         trust = boundary()
         source = frame()
         admit(trust, source, now=100, receipt=1)
+        admit(trust, interpretation(source), now=101, receipt=2)
         self.assertIs(
             AdmissionReason.STALE_OBSERVATION,
-            admit(trust, person(source), now=151, receipt=2).reason,
+            admit(trust, person(source), now=151, receipt=3).reason,
         )
 
         with self.assertRaises(WorldModelValidationError):
@@ -277,11 +390,12 @@ class SemanticAdmissionBoundaryTest(unittest.TestCase):
         source = frame()
         observation = person(source)
         admit(trust, source, now=100, receipt=1)
+        admit(trust, interpretation(source), now=101, receipt=2)
         self.assertIs(
             AdmissionStatus.ACCEPTED,
-            admit(trust, observation, now=101, receipt=2).status,
+            admit(trust, observation, now=101, receipt=3).status,
         )
-        replay = admit(trust, observation, now=101, receipt=3)
+        replay = admit(trust, observation, now=101, receipt=4)
         self.assertIs(AdmissionStatus.DUPLICATE, replay.status)
         self.assertIs(AdmissionReason.DUPLICATE, replay.reason)
         self.assertIsNone(replay.observation)
@@ -291,9 +405,10 @@ class SemanticAdmissionBoundaryTest(unittest.TestCase):
         trust = boundary()
         source = frame()
         admit(trust, source, now=100, receipt=1)
+        admit(trust, interpretation(source), now=101, receipt=2)
         observation = object_observation(source)
         object.__setattr__(observation, "confidence", 0.9)
-        result = admit(trust, observation, now=101, receipt=2)
+        result = admit(trust, observation, now=101, receipt=3)
         self.assertIs(AdmissionStatus.REJECTED, result.status)
         self.assertIs(AdmissionReason.IDENTITY_MISMATCH, result.reason)
         self.assertIsNone(result.observation)
@@ -306,11 +421,12 @@ class SemanticAdmissionBoundaryTest(unittest.TestCase):
         trust = boundary()
         first = frame(100)
         admit(trust, first, now=100, receipt=1)
-        admit(trust, person(first), now=101, receipt=2)
+        admit(trust, interpretation(first), now=101, receipt=2)
+        admit(trust, person(first), now=101, receipt=3)
         self.assertEqual(1, trust.stats().tracked_semantic_admission_count)
 
         current = frame(201)
-        admit(trust, current, now=201, receipt=3)
+        admit(trust, current, now=201, receipt=4)
         self.assertEqual(0, trust.stats().tracked_semantic_admission_count)
 
         trust.reset()
@@ -324,7 +440,8 @@ class SemanticAdmissionBoundaryTest(unittest.TestCase):
         trust = boundary()
         source = frame()
         admit(trust, source, now=100, receipt=1)
-        accepted = admit(trust, person(source), now=101, receipt=2)
+        admit(trust, interpretation(source), now=101, receipt=2)
+        accepted = admit(trust, person(source), now=101, receipt=3)
         observation = accepted.observation
         self.assertIsInstance(observation, PersonObservation)
         forbidden = {
@@ -349,46 +466,100 @@ class SemanticAdmissionBoundaryTest(unittest.TestCase):
         self.assertFalse(set(observation.document()) & forbidden)
 
     def test_semantic_admission_capacity_is_hard_bounded(self) -> None:
-        trust = boundary()
+        trust = boundary(freshness_ns=500, retention_ttl_ns=1000)
         source = frame()
         admit(trust, source, now=100, receipt=1)
         admitted = []
-        for index in range(MAX_SEMANTIC_ADMISSIONS):
-            observation = object_observation(
+        receipt = 1
+        for batch in range(2):
+            source_interpretation = interpretation(
                 source,
-                category=f"object-{index:03d}",
+                result_at_ns=101 + batch,
+                detections=tuple(
+                    detection(
+                        source,
+                        category=VisualSemanticCategory.OBJECT,
+                        label=f"object-{batch * 32 + index:03d}",
+                        confidence=0.5,
+                    )
+                    for index in range(32)
+                ),
             )
-            admitted.append(observation)
+            receipt += 1
             self.assertIs(
                 AdmissionStatus.ACCEPTED,
                 admit(
                     trust,
-                    observation,
-                    now=101,
-                    receipt=index + 2,
+                    source_interpretation,
+                    now=source_interpretation.result_at_ns,
+                    receipt=receipt,
                 ).status,
             )
+            for source_detection in source_interpretation.detections:
+                observation = semantic_observation_from_detection(
+                    source_interpretation,
+                    detection_id=source_detection.detection_id,
+                )
+                admitted.append(observation)
+                receipt += 1
+                self.assertIs(
+                    AdmissionStatus.ACCEPTED,
+                    admit(
+                        trust,
+                        observation,
+                        now=source_interpretation.result_at_ns,
+                        receipt=receipt,
+                    ).status,
+                )
+        self.assertEqual(MAX_SEMANTIC_ADMISSIONS, len(admitted))
         self.assertEqual(
             MAX_SEMANTIC_ADMISSIONS,
             trust.stats().tracked_semantic_admission_count,
         )
-        overflow = object_observation(source, category="overflow")
+        overflow_interpretation = interpretation(
+            source,
+            result_at_ns=103,
+            detections=(
+                detection(
+                    source,
+                    category=VisualSemanticCategory.OBJECT,
+                    label="overflow",
+                    confidence=0.5,
+                ),
+            ),
+        )
+        receipt += 1
+        self.assertIs(
+            AdmissionStatus.ACCEPTED,
+            admit(
+                trust,
+                overflow_interpretation,
+                now=103,
+                receipt=receipt,
+            ).status,
+        )
+        overflow = semantic_observation_from_detection(
+            overflow_interpretation,
+            detection_id=overflow_interpretation.detections[0].detection_id,
+        )
+        receipt += 1
         self.assertIs(
             AdmissionReason.SEMANTIC_CAPACITY_REACHED,
             admit(
                 trust,
                 overflow,
-                now=101,
-                receipt=MAX_SEMANTIC_ADMISSIONS + 2,
+                now=103,
+                receipt=receipt,
             ).reason,
         )
+        receipt += 1
         self.assertIs(
             AdmissionReason.DUPLICATE,
             admit(
                 trust,
                 admitted[0],
-                now=101,
-                receipt=MAX_SEMANTIC_ADMISSIONS + 3,
+                now=103,
+                receipt=receipt,
             ).reason,
         )
 
