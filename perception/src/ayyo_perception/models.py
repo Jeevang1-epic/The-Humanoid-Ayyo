@@ -41,6 +41,7 @@ from .semantic_observations import (
 MAX_PERCEPTION_SOURCES = 32
 MAX_PERCEPTION_RETENTION_NS = 300_000_000_000
 MAX_SEMANTIC_ADMISSIONS = MAX_VISUAL_SOURCE_REFERENCES
+MAX_SEMANTIC_SOURCE_INTERPRETATIONS = MAX_VISUAL_SOURCE_REFERENCES
 _FRAME = re.compile(r"^[A-Za-z][A-Za-z0-9_/-]*$")
 
 
@@ -94,6 +95,9 @@ class AdmissionReason(StrEnum):
     AUDIO_MISMATCH = "audio_mismatch"
     AUDIO_NOT_AUTHORIZED = "audio_not_authorized"
     SEMANTIC_CAPACITY_REACHED = "semantic_capacity_reached"
+    SOURCE_INTERPRETATION_NOT_ADMITTED = "source_interpretation_not_admitted"
+    SOURCE_DETECTION_NOT_ADMITTED = "source_detection_not_admitted"
+    SEMANTIC_MAPPING_MISMATCH = "semantic_mapping_mismatch"
 
 
 class EvidenceFailureKind(StrEnum):
@@ -460,6 +464,7 @@ class PerceptionStats:
     tracked_rgbd_fusion_count: int = 0
     tracked_audio_count: int = 0
     tracked_semantic_admission_count: int = 0
+    tracked_semantic_source_interpretation_count: int = 0
 
     def __post_init__(self) -> None:
         values = (
@@ -476,6 +481,7 @@ class PerceptionStats:
             self.tracked_rgbd_fusion_count,
             self.tracked_audio_count,
             self.tracked_semantic_admission_count,
+            self.tracked_semantic_source_interpretation_count,
         )
         if any(type(value) is not int or value < 0 for value in values):
             raise PerceptionConfigurationError("perception statistics are invalid")
@@ -516,6 +522,13 @@ class PerceptionStats:
         if self.tracked_semantic_admission_count > MAX_SEMANTIC_ADMISSIONS:
             raise PerceptionConfigurationError(
                 "tracked semantic admissions exceed their hard bound"
+            )
+        if (
+            self.tracked_semantic_source_interpretation_count
+            > MAX_SEMANTIC_SOURCE_INTERPRETATIONS
+        ):
+            raise PerceptionConfigurationError(
+                "tracked semantic source interpretations exceed their hard bound"
             )
 
 

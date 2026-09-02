@@ -14,9 +14,15 @@ from ayyo_world_model import (
     ImageRegion2D,
     MAX_OBSERVATION_TIME_NS,
     MAX_VISUAL_LABEL_LENGTH,
+    ObservationIdentityError,
     ObservationProvenance,
     SensorIdentity,
     SensorKind,
+    VisualDetection,
+    VisualInterpretationObservation,
+    VisualSemanticCategory,
+    WorldModelValidationError,
+    rebuild_observation,
 )
 
 from .errors import (
@@ -27,6 +33,9 @@ from .errors import (
 
 _IDENTIFIER = re.compile(r"^[a-z0-9]+(?:[._-][a-z0-9]+)*$")
 _SOURCE_VISUAL_OBSERVATION_ID = re.compile(r"^world-observation-[0-9a-f]{64}$")
+_VISUAL_DETECTION_ID = re.compile(
+    r"^visual-detection-sha256-[0-9a-f]{64}$"
+)
 
 
 class SemanticObservationKind(StrEnum):
@@ -52,7 +61,9 @@ def _identifier(value: object, field_name: str, *, maximum: int = 256) -> str:
     return value
 
 
-def _confidence(value: object) -> float:
+def _confidence(value: object) -> float | None:
+    if value is None:
+        return None
     if type(value) not in {int, float} or not math.isfinite(value):
         _fail("semantic observation confidence must be finite")
     result = float(value)
@@ -72,6 +83,37 @@ def _canonical_sha256(document: dict[str, object]) -> str:
     return sha256(encoded).hexdigest()
 
 
+@dataclass(frozen=True, slots=True)
+class SemanticDetectionSource:
+    """Compact content-addressed link to one interpreted visual detection."""
+
+    visual_interpretation_observation_id: str
+    visual_detection_id: str
+
+    def __post_init__(self) -> None:
+        if (
+            type(self.visual_interpretation_observation_id) is not str
+            or _SOURCE_VISUAL_OBSERVATION_ID.fullmatch(
+                self.visual_interpretation_observation_id
+            )
+            is None
+        ):
+            _fail("semantic source interpretation identity is malformed")
+        if (
+            type(self.visual_detection_id) is not str
+            or _VISUAL_DETECTION_ID.fullmatch(self.visual_detection_id) is None
+        ):
+            _fail("semantic source detection identity is malformed")
+
+    def document(self) -> dict[str, str]:
+        return {
+            "visual_detection_id": self.visual_detection_id,
+            "visual_interpretation_observation_id": (
+                self.visual_interpretation_observation_id
+            ),
+        }
+
+
 def _validate_common(
     *,
     kind: SemanticObservationKind,
@@ -79,14 +121,15 @@ def _validate_common(
     sensor: SensorIdentity,
     reference_frame_id: str,
     source_visual_observation_id: str,
+    source_detection: SemanticDetectionSource,
     observed_at_ns: int,
     result_at_ns: int,
-    confidence: float,
+    confidence: float | None,
     region: ImageRegion2D,
     provenance: ObservationProvenance,
     specific: dict[str, object],
     observation_id: str | None,
-) -> tuple[float, str]:
+) -> tuple[float | None, str]:
     _identifier(robot_id, "semantic observation robot_id")
     if (
         type(sensor) is not SensorIdentity
@@ -106,6 +149,8 @@ def _validate_common(
         is None
     ):
         _fail("semantic observation source-frame identity is malformed")
+    if type(source_detection) is not SemanticDetectionSource:
+        _fail("semantic observation requires one typed detection source")
     if (
         type(observed_at_ns) is not int
         or type(result_at_ns) is not int
@@ -128,6 +173,7 @@ def _validate_common(
         "robot_id": robot_id,
         "schema": f"ayyo.{kind.value}-observation.v1",
         "sensor": sensor.document(),
+        "source_detection": source_detection.document(),
         "source_visual_observation_id": source_visual_observation_id,
         **specific,
     }
@@ -152,6 +198,7 @@ def _common_document(observation) -> dict[str, object]:
         "result_at_ns": observation.result_at_ns,
         "robot_id": observation.robot_id,
         "sensor": observation.sensor.document(),
+        "source_detection": observation.source_detection.document(),
         "source_visual_observation_id": (
             observation.source_visual_observation_id
         ),
@@ -167,9 +214,10 @@ class PersonObservation:
     sensor: SensorIdentity
     reference_frame_id: str
     source_visual_observation_id: str
+    source_detection: SemanticDetectionSource
     observed_at_ns: int
     result_at_ns: int
-    confidence: float
+    confidence: float | None
     region: ImageRegion2D
     provenance: ObservationProvenance
     observation_id: str
@@ -181,9 +229,10 @@ class PersonObservation:
         sensor: SensorIdentity,
         reference_frame_id: str,
         source_visual_observation_id: str,
+        source_detection: SemanticDetectionSource,
         observed_at_ns: int,
         result_at_ns: int,
-        confidence: float,
+        confidence: float | None,
         region: ImageRegion2D,
         provenance: ObservationProvenance,
         observation_id: str | None = None,
@@ -195,6 +244,7 @@ class PersonObservation:
             sensor=sensor,
             reference_frame_id=reference_frame_id,
             source_visual_observation_id=source_visual_observation_id,
+            source_detection=source_detection,
             observed_at_ns=observed_at_ns,
             result_at_ns=result_at_ns,
             confidence=confidence,
@@ -209,6 +259,7 @@ class PersonObservation:
             ("sensor", sensor),
             ("reference_frame_id", reference_frame_id),
             ("source_visual_observation_id", source_visual_observation_id),
+            ("source_detection", source_detection),
             ("observed_at_ns", observed_at_ns),
             ("result_at_ns", result_at_ns),
             ("confidence", confidence_value),
@@ -231,10 +282,11 @@ class ObjectObservation:
     sensor: SensorIdentity
     reference_frame_id: str
     source_visual_observation_id: str
+    source_detection: SemanticDetectionSource
     observed_at_ns: int
     result_at_ns: int
     category: str
-    confidence: float
+    confidence: float | None
     region: ImageRegion2D
     provenance: ObservationProvenance
     observation_id: str
@@ -246,10 +298,11 @@ class ObjectObservation:
         sensor: SensorIdentity,
         reference_frame_id: str,
         source_visual_observation_id: str,
+        source_detection: SemanticDetectionSource,
         observed_at_ns: int,
         result_at_ns: int,
         category: str,
-        confidence: float,
+        confidence: float | None,
         region: ImageRegion2D,
         provenance: ObservationProvenance,
         observation_id: str | None = None,
@@ -268,6 +321,7 @@ class ObjectObservation:
             sensor=sensor,
             reference_frame_id=reference_frame_id,
             source_visual_observation_id=source_visual_observation_id,
+            source_detection=source_detection,
             observed_at_ns=observed_at_ns,
             result_at_ns=result_at_ns,
             confidence=confidence,
@@ -282,6 +336,7 @@ class ObjectObservation:
             ("sensor", sensor),
             ("reference_frame_id", reference_frame_id),
             ("source_visual_observation_id", source_visual_observation_id),
+            ("source_detection", source_detection),
             ("observed_at_ns", observed_at_ns),
             ("result_at_ns", result_at_ns),
             ("category", category_value),
@@ -299,6 +354,52 @@ class ObjectObservation:
 SemanticObservation: TypeAlias = PersonObservation | ObjectObservation
 
 
+def semantic_observation_from_detection(
+    interpretation: VisualInterpretationObservation,
+    *,
+    detection_id: str,
+) -> SemanticObservation:
+    """Map one exact typed detection without guessing or fabricating facts."""
+    if type(interpretation) is not VisualInterpretationObservation:
+        _fail("semantic source must be one visual interpretation")
+    try:
+        rebuilt = rebuild_observation(interpretation)
+    except (ObservationIdentityError, WorldModelValidationError) as error:
+        detail = getattr(error, "detail", str(error))
+        _fail(f"semantic source interpretation is invalid: {detail}")
+    if type(rebuilt) is not VisualInterpretationObservation:
+        _fail("semantic source must be one visual interpretation")
+    source = SemanticDetectionSource(
+        visual_interpretation_observation_id=rebuilt.observation_id,
+        visual_detection_id=detection_id,
+    )
+    matches = tuple(
+        detection
+        for detection in rebuilt.detections
+        if detection.detection_id == source.visual_detection_id
+    )
+    if len(matches) != 1:
+        _fail("semantic source detection is not present in the interpretation")
+    detection: VisualDetection = matches[0]
+    common = {
+        "robot_id": rebuilt.robot_id,
+        "sensor": rebuilt.sensor,
+        "reference_frame_id": rebuilt.reference_frame_id,
+        "source_visual_observation_id": rebuilt.source_visual_observation_id,
+        "source_detection": source,
+        "observed_at_ns": rebuilt.observed_at_ns,
+        "result_at_ns": rebuilt.result_at_ns,
+        "confidence": detection.confidence,
+        "region": detection.region,
+        "provenance": rebuilt.provenance,
+    }
+    if detection.category is VisualSemanticCategory.PERSON:
+        return PersonObservation(**common)
+    if detection.category is VisualSemanticCategory.OBJECT:
+        return ObjectObservation(category=detection.label, **common)
+    _fail("visual detection category cannot produce person or object evidence")
+
+
 def rebuild_semantic_observation(
     observation: SemanticObservation,
 ) -> SemanticObservation:
@@ -311,6 +412,7 @@ def rebuild_semantic_observation(
             source_visual_observation_id=(
                 observation.source_visual_observation_id
             ),
+            source_detection=observation.source_detection,
             observed_at_ns=observation.observed_at_ns,
             result_at_ns=observation.result_at_ns,
             confidence=observation.confidence,
@@ -326,6 +428,7 @@ def rebuild_semantic_observation(
             source_visual_observation_id=(
                 observation.source_visual_observation_id
             ),
+            source_detection=observation.source_detection,
             observed_at_ns=observation.observed_at_ns,
             result_at_ns=observation.result_at_ns,
             category=observation.category,

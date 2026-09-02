@@ -21,6 +21,7 @@ from ayyo_world_model import (
     SensorAvailability,
     SensorHealthObservation,
     SensorKind,
+    VisualSemanticCategory,
     VisualFrameObservation,
     VisualInterpretationObservation,
     MAX_VISUAL_SOURCE_REFERENCES,
@@ -41,6 +42,7 @@ from .models import (
     AdmissionStatus,
     EvidenceFailureKind,
     MAX_SEMANTIC_ADMISSIONS,
+    MAX_SEMANTIC_SOURCE_INTERPRETATIONS,
     PerceptionSourceContract,
     PerceptionStats,
     PerceptionTrustConfig,
@@ -73,6 +75,7 @@ class PerceptionTrustBoundary:
         "_rejected_count",
         "_rgbd_fusion_authorizations",
         "_semantic_admissions",
+        "_visual_interpretations",
         "_visual_sources",
     )
 
@@ -98,6 +101,9 @@ class PerceptionTrustBoundary:
             str, FusedRgbdObservation
         ] = {}
         self._semantic_admissions: dict[str, SemanticObservation] = {}
+        self._visual_interpretations: dict[
+            str, VisualInterpretationObservation
+        ] = {}
         self._lock = RLock()
 
     @property
@@ -120,6 +126,7 @@ class PerceptionTrustBoundary:
             self._depth_sources.clear()
             self._rgbd_fusion_authorizations.clear()
             self._semantic_admissions.clear()
+            self._visual_interpretations.clear()
 
     def _reject(
         self,
@@ -189,10 +196,18 @@ class PerceptionTrustBoundary:
         for observation_id in expired:
             del self._visual_sources[observation_id]
         retained_source_ids = set(self._visual_sources)
+        self._visual_interpretations = {
+            observation_id: observation
+            for observation_id, observation in self._visual_interpretations.items()
+            if observation.source_visual_observation_id in retained_source_ids
+        }
+        retained_interpretation_ids = set(self._visual_interpretations)
         self._semantic_admissions = {
             observation_id: observation
             for observation_id, observation in self._semantic_admissions.items()
             if observation.source_visual_observation_id in retained_source_ids
+            and observation.source_detection.visual_interpretation_observation_id
+            in retained_interpretation_ids
         }
         self._evaluated_visual_authorizations = {
             observation_id: observation
@@ -236,6 +251,37 @@ class PerceptionTrustBoundary:
                 observation_id: observation
                 for observation_id, observation in self._semantic_admissions.items()
                 if observation.source_visual_observation_id != oldest_id
+            }
+            self._visual_interpretations = {
+                observation_id: observation
+                for observation_id, observation in self._visual_interpretations.items()
+                if observation.source_visual_observation_id != oldest_id
+            }
+
+    def _remember_visual_interpretation(
+        self,
+        interpretation: VisualInterpretationObservation,
+    ) -> None:
+        self._visual_interpretations[interpretation.observation_id] = interpretation
+        while (
+            len(self._visual_interpretations)
+            > MAX_SEMANTIC_SOURCE_INTERPRETATIONS
+        ):
+            oldest_id = min(
+                self._visual_interpretations,
+                key=lambda observation_id: (
+                    self._visual_interpretations[observation_id].result_at_ns,
+                    observation_id,
+                ),
+            )
+            del self._visual_interpretations[oldest_id]
+            self._semantic_admissions = {
+                observation_id: observation
+                for observation_id, observation in self._semantic_admissions.items()
+                if (
+                    observation.source_detection.visual_interpretation_observation_id
+                    != oldest_id
+                )
             }
 
     def _remember_depth_source(self, frame: DepthFrameObservation) -> None:
@@ -801,6 +847,70 @@ class PerceptionTrustBoundary:
                         "semantic result time is beyond permitted future skew",
                         rebuilt.observation_id,
                     )
+                source_interpretation = self._visual_interpretations.get(
+                    rebuilt.source_detection.visual_interpretation_observation_id
+                )
+                if source_interpretation is None:
+                    return self._reject(
+                        AdmissionReason.SOURCE_INTERPRETATION_NOT_ADMITTED,
+                        "semantic evidence does not reference a retained "
+                        "admitted interpretation",
+                        rebuilt.observation_id,
+                    )
+                if (
+                    source_interpretation.robot_id != rebuilt.robot_id
+                    or source_interpretation.sensor != rebuilt.sensor
+                    or source_interpretation.reference_frame_id
+                    != rebuilt.reference_frame_id
+                    or source_interpretation.source_visual_observation_id
+                    != rebuilt.source_visual_observation_id
+                    or source_interpretation.observed_at_ns
+                    != rebuilt.observed_at_ns
+                    or source_interpretation.result_at_ns != rebuilt.result_at_ns
+                    or source_interpretation.provenance != rebuilt.provenance
+                ):
+                    return self._reject(
+                        AdmissionReason.SEMANTIC_MAPPING_MISMATCH,
+                        "semantic evidence metadata differs from its "
+                        "admitted interpretation",
+                        rebuilt.observation_id,
+                    )
+                source_detection = next(
+                    (
+                        detection
+                        for detection in source_interpretation.detections
+                        if detection.detection_id
+                        == rebuilt.source_detection.visual_detection_id
+                    ),
+                    None,
+                )
+                if source_detection is None:
+                    return self._reject(
+                        AdmissionReason.SOURCE_DETECTION_NOT_ADMITTED,
+                        "semantic evidence does not reference a detection in "
+                        "its admitted interpretation",
+                        rebuilt.observation_id,
+                    )
+                category_matches = (
+                    type(rebuilt) is PersonObservation
+                    and source_detection.category is VisualSemanticCategory.PERSON
+                ) or (
+                    type(rebuilt) is ObjectObservation
+                    and source_detection.category is VisualSemanticCategory.OBJECT
+                    and rebuilt.category == source_detection.label
+                )
+                if (
+                    not category_matches
+                    or source_detection.source_visual_observation_id
+                    != rebuilt.source_visual_observation_id
+                    or rebuilt.region != source_detection.region
+                    or rebuilt.confidence != source_detection.confidence
+                ):
+                    return self._reject(
+                        AdmissionReason.SEMANTIC_MAPPING_MISMATCH,
+                        "semantic evidence changes its exact source detection",
+                        rebuilt.observation_id,
+                    )
             if type(rebuilt) is VisualInterpretationObservation:
                 producer = next(
                     (
@@ -964,6 +1074,8 @@ class PerceptionTrustBoundary:
                 self._remember_visual_source(rebuilt)
             if type(rebuilt) is DepthFrameObservation:
                 self._remember_depth_source(rebuilt)
+            if type(rebuilt) is VisualInterpretationObservation:
+                self._remember_visual_interpretation(rebuilt)
             if type(rebuilt) in {PersonObservation, ObjectObservation}:
                 self._semantic_admissions[rebuilt.observation_id] = rebuilt
             self._accepted_count += 1
@@ -1059,5 +1171,8 @@ class PerceptionTrustBoundary:
                 tracked_audio_count=len(self._audio_authorizations),
                 tracked_semantic_admission_count=len(
                     self._semantic_admissions
+                ),
+                tracked_semantic_source_interpretation_count=len(
+                    self._visual_interpretations
                 ),
             )
