@@ -24,6 +24,19 @@ No production machine-learning perception is implemented. The only executable
 producer is an explicitly synthetic deterministic reference adapter for tests.
 It is disabled by default and must not be represented as object detection AI.
 
+Person/Object semantic evidence now has a separate bounded continuation that
+stops inside Perception:
+
+```text
+admitted VisualInterpretationObservation
+→ exact VisualDetection
+→ compact anonymous PersonObservation / ObjectObservation
+→ existing Perception Trust Boundary
+```
+
+This continuation does not project Person/Object evidence into Working Memory
+or the World Model.
+
 ## Core contracts
 
 `VisualInterpretationProducer` pins an exact producer ID, producer kind, model
@@ -50,6 +63,15 @@ source acquisition time, separate result time, exact producer, bounded
 canonical detections, source provenance, availability, and a deterministic
 typed fingerprint and observation ID.
 
+`SemanticDetectionSource` is an immutable compact pair containing the exact
+admitted interpretation ID and exact detection ID. Both are content-addressed:
+the interpretation ID commits to producer and optional evaluation provenance,
+while the detection ID commits to source frame, typed category, canonical
+label, normalized region, and optional confidence. The deterministic mapper
+accepts only `PERSON` to `PersonObservation` and `OBJECT` to
+`ObjectObservation`; `TEST_PATTERN` and every other category fail closed.
+Absent confidence remains `None` and is distinct from zero.
+
 There is no generic metadata dictionary or arbitrary JSON extension point.
 Equivalent detection order and negative-zero geometry have the same semantic
 identity. Receipt time is not part of the fingerprint. Processing does not
@@ -64,6 +86,8 @@ rewrite the source-frame identity or acquisition timestamp.
 | Each producer/model/adapter/interface identifier | 128 |
 | Configured interpretation producers | 16 |
 | Trust-boundary admitted source-frame references | 64 |
+| Retained admitted semantic-source interpretations | 64 |
+| Retained admitted Person/Object observations | 64 |
 | Per-camera/per-producer current Working Memory result | 1 |
 | Default Working Memory recent evidence | 256 |
 | Maximum configured recent evidence | 4,096 |
@@ -72,7 +96,10 @@ rewrite the source-frame identity or acquisition timestamp.
 | Default permitted future skew | 50 ms |
 
 Source-frame references use deterministic oldest-acquisition-time then
-observation-ID eviction. Working Memory uses replacement for the current
+observation-ID eviction. Retained semantic-source interpretations use
+oldest-result-time then observation-ID eviction, and dependent semantic
+admissions disappear with their source frame or interpretation. Working Memory
+uses replacement for the current
 camera/producer key and its existing bounded recent-evidence capacity. Exact
 duplicates do not append recent evidence or grow current state. No raw pixel
 buffer, image archive, all-time ID set, durable telemetry, or background queue
@@ -113,6 +140,15 @@ A rejected result never changes current accepted evidence or the retained
 source-frame set. It increments bounded statistics only. It cannot remove the
 last valid result, grant authority, or partially install detections.
 
+Person/Object admission additionally retrieves the exact retained admitted
+interpretation and detection named by `SemanticDetectionSource`. It compares
+robot, RGB camera, optical frame, source-frame ID, acquisition/result time,
+provenance, typed category, label/category mapping, normalized region, and
+optional confidence. A substituted producer or evaluation reference changes
+the content-addressed interpretation ID; changed detection content changes the
+detection ID. Unadmitted, expired, evicted, forged, or reset references fail
+closed without evicting valid retained evidence.
+
 ## Working Memory and World Model
 
 Working Memory accepts only configured producer identities and rechecks that a
@@ -127,6 +163,11 @@ projection time. Camera measurement availability remains based on the actual
 admitted frame, not on a downstream interpretation. Interpretation semantics
 participate in snapshot identity; query/capture time and pixel data do not.
 Repeated read-only queries do not mutate state.
+
+`PersonObservation` and `ObjectObservation` deliberately stop at the
+Perception boundary in this milestone. Working Memory and World Model retain
+their existing visual-interpretation behavior and do not create temporary or
+persistent entities from frame-local person/object detections.
 
 Evaluated producers add an exact compact `VisualEvaluationReference` and must
 arrive as a sealed evaluator-issued admission. Perception consumes that
@@ -233,7 +274,10 @@ unknown producers, missing/spoofed frames, wrong robot/camera/frame/profile,
 simulation/physical substitution, future/stale/out-of-order/conflicting
 evidence, duplicate suppression, projection/query immutability, package
 dependencies, resource ceilings, lifecycle deactivate/reactivate, and exact
-owned-process shutdown.
+owned-process shutdown. Focused semantic-binding tests additionally cover exact
+person/object mappings, optional confidence, producer/evaluation/detection
+substitution, reset/expiry/eviction, rejected-traffic recovery, anonymity, and
+absence of pixel or authority fields.
 
 The headless smoke exercised a real simulated RGB frame through the synthetic
 result, trust, Working Memory, World Model, and fixed query. It also proved

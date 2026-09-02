@@ -45,11 +45,14 @@ adds bounded typed interpretations tied to an exact admitted frame, an exact
 producer allowlist, temporary projection, and a synthetic default-off proof.
 It implements no production model and grants no execution authority. Compact
 anonymous person/object observations now reuse that Perception trust boundary:
-admission requires an exact fresh retained RGB frame and preserves bounded
-confidence, normalized regions, deterministic identity, typed provenance,
-duplicate/reset/expiry behavior, and a hard resource cap. These observations
-are not detectors, identity claims, temporary World Model state, commands, or
-authority. The
+admission requires an exact fresh retained RGB frame, an admitted visual
+interpretation, and one exact `PERSON` or `OBJECT` detection. A compact typed
+source reference carries the interpretation and detection identities; those
+content-addressed identities commit to producer/evaluation provenance, label,
+region, time, and optional confidence without copying the full interpretation.
+`TEST_PATTERN` cannot become person/object evidence. These observations are not
+detectors, identity claims, temporary World Model state, commands, or authority.
+The
 transport-neutral
 [Recorded Visual Producer Evaluation and Perception Quality Gate](VISUAL_PRODUCER_EVALUATION.md)
 adds verified model/dataset/policy identity, bounded deterministic metrics,
@@ -177,10 +180,12 @@ replace proxy geometry without duplicating or bypassing frame semantics.
   command, permission, identity claim, or durable-memory write.
 - Person/object admission reuses the retained visual-frame boundary and accepts
   only content-identity-valid anonymous evidence matching one exact fresh RGB
-  source, camera, optical frame, time, and provenance. Its duplicate register is
-  TTL/reset scoped and capped at 64; it retains no pixels, does not project into
-  Working Memory or World Model, and grants no identity, permission, safety,
-  skill, Executive, movement, or execution authority.
+  source, one retained admitted interpretation, and one exact detection.
+  Interpretation and semantic registers are TTL/reset scoped and capped at 64;
+  deterministic oldest-result eviction invalidates dependent semantics. The
+  path retains no pixels, does not project Person/Object evidence into Working
+  Memory or World Model, and grants no identity, permission, safety, skill,
+  Executive, movement, or execution authority.
 - Evaluated producers additionally require one exact registered manifest,
   verified model artifact, immutable dataset and policy, successful semantic
   report identity, and a sealed one-use authorization. A bare result or

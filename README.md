@@ -7,7 +7,7 @@ can mature behind stable boundaries before physical hardware is introduced.
 
 ## Current status
 
-Ayyo has reached the Person/Object Perception Admission Foundation v1
+Ayyo has reached the Person/Object Semantic Producer Binding Foundation v1
 milestone with transport-neutral deterministic evidence contracts and no
 production detector or identity claim.
 
@@ -68,13 +68,15 @@ Implemented:
 - Bounded typed visual-interpretation contracts tied to one exact admitted
   frame and producer, with normalized regions, optional honest confidence,
   source/result time, deterministic identity, and no generic metadata
-- Compact immutable anonymous person and object observation contracts with
-  normalized regions, bounded confidence, deterministic identity, typed
-  provenance, an explicit TEST-only proof, no raw pixels, and no biometric or
-  persistent identity
+- Compact immutable anonymous person and object observation contracts with an
+  exact content-addressed interpretation/detection source, normalized regions,
+  honest optional confidence, deterministic identity, typed provenance, no raw
+  pixels, and no biometric or persistent identity
 - Fail-closed person/object admission bound to one exact fresh retained RGB
-  frame, camera, optical frame, provenance, and acquisition/result time, with
-  deterministic replay handling, reset/expiry behavior, and a 64-item cap
+  frame, one admitted interpretation, and one exact typed detection, including
+  producer/evaluation provenance through the interpretation identity,
+  deterministic replay/reset/expiry behavior, and 64-item interpretation and
+  semantic caps
 - Immutable IMU, body-pose, covariance, quality, health/availability,
   freshness, and disappearance contracts integrated into Working Memory and
   World Model without fabricating missing state
@@ -304,6 +306,7 @@ Run Perception Trust Boundary tests:
 export PYTHONPATH="world_model/src:head_audio/src:physical_camera/src:depth_camera/src:rgbd_fusion/src:visual_evaluation/src:perception/src:working_memory/src"
 python3 -m pytest -q perception/tests/test_person_object_observations.py
 python3 -m pytest -q perception/tests/test_semantic_admission_boundary.py
+python3 -m pytest -q perception/tests/test_semantic_producer_binding.py
 python3 -m pytest -q perception/tests
 ```
 
@@ -461,10 +464,11 @@ v1 adds TEST-only compact microphone evidence with no raw-sample retention or
 authority. The physical-camera, depth, fusion, and audio milestones do not
 validate real RGB-D/audio hardware, hardware clocks, physical calibration,
 extrinsics, spatial registration, acoustics, or production device timing.
-Person/Object Observation Contracts and Perception Admission Foundation v1
-adds only anonymous compact evidence and exact admitted-frame trust binding; it
-adds no detector, face or persistent identity, physical validation, temporary
-World Model/Working Memory projection, authority, or motion.
+Person/Object Semantic Producer Binding Foundation v1 adds only anonymous
+compact evidence bound to an exact admitted frame, interpretation, and typed
+detection; it adds no detector, face or persistent identity, physical
+validation, temporary World Model/Working Memory projection, authority, or
+motion.
 Production motion remains
 closed because Safety v1 defers physical movement; only explicit development
 injection can exercise the simulated neck joint. The perception path adds

@@ -198,12 +198,14 @@
   one reviewed producer, including simulation/physical provenance separation,
   result ordering, typed rejection, and a 64-reference hard bound
 - Immutable compact anonymous person/object observation contracts with exact
-  robot, RGB camera, optical frame, source-frame identity, source/result time,
-  normalized region, bounded confidence, typed provenance, and deterministic
-  content identity
+  robot, RGB camera, optical frame, source-frame identity, a typed
+  interpretation/detection reference, source/result time, normalized region,
+  honest optional confidence, typed provenance, and deterministic content
+  identity
 - Fail-closed person/object admission through the existing Perception boundary,
-  requiring one exact fresh retained visual source and preserving deterministic
-  duplicate, reset, expiry, tamper rejection, and a 64-item resource bound
+  requiring one exact fresh retained visual source, admitted interpretation,
+  and exact typed detection while preserving deterministic duplicate, reset,
+  expiry, substitution rejection, and 64-item interpretation/semantic bounds
 - Working Memory replacement per camera/producer and immutable World Model
   visual-interpretation projection with additive fixed read-only query fields
 - Default-off deterministic synthetic reference adapter with no model,
