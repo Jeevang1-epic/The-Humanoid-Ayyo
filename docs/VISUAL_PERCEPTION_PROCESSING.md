@@ -24,18 +24,23 @@ No production machine-learning perception is implemented. The only executable
 producer is an explicitly synthetic deterministic reference adapter for tests.
 It is disabled by default and must not be represented as object detection AI.
 
-Person/Object semantic evidence now has a separate bounded continuation that
-stops inside Perception:
+Person/Object semantic evidence now has a separate bounded continuation into
+temporary anonymous scene state:
 
 ```text
 admitted VisualInterpretationObservation
 → exact VisualDetection
 → compact anonymous PersonObservation / ObjectObservation
 → existing Perception Trust Boundary
+→ explicitly selected SemanticEvidenceObservation
+→ conservative bounded Working Memory evidence
+→ immutable WorldSnapshot.semantic_states
 ```
 
-This continuation does not project Person/Object evidence into Working Memory
-or the World Model.
+This continuation is interpretation-scoped recent evidence, not a complete
+scene replacement. An omitted detection is therefore never treated as proof
+that a person or object disappeared. It creates neither a persistent entity
+nor identity, tracking, motion, or execution authority.
 
 ## Core contracts
 
@@ -88,6 +93,9 @@ rewrite the source-frame identity or acquisition timestamp.
 | Trust-boundary admitted source-frame references | 64 |
 | Retained admitted semantic-source interpretations | 64 |
 | Retained admitted Person/Object observations | 64 |
+| Person/Object items in one semantic evidence observation | 32 |
+| Retained current semantic evidence observations | 64 |
+| Semantic source-order watermarks | 512 |
 | Per-camera/per-producer current Working Memory result | 1 |
 | Default Working Memory recent evidence | 256 |
 | Maximum configured recent evidence | 4,096 |
@@ -99,11 +107,12 @@ Source-frame references use deterministic oldest-acquisition-time then
 observation-ID eviction. Retained semantic-source interpretations use
 oldest-result-time then observation-ID eviction, and dependent semantic
 admissions disappear with their source frame or interpretation. Working Memory
-uses replacement for the current
-camera/producer key and its existing bounded recent-evidence capacity. Exact
-duplicates do not append recent evidence or grow current state. No raw pixel
-buffer, image archive, all-time ID set, durable telemetry, or background queue
-is introduced.
+uses replacement for the current camera/producer interpretation key and its
+existing bounded recent-evidence capacity. Semantic evidence is retained as a
+bounded conservative collection because upstream admission does not assert
+that every result is a complete scene. Exact duplicates do not append recent
+evidence or grow current state. No raw pixel buffer, image archive, all-time ID
+set, durable telemetry, or background queue is introduced.
 
 The adversarial fixture admitted 1,000 sequential frame/result pairs and ended
 with 64 retained trust references, 16 recent observations under its deliberately
@@ -164,10 +173,19 @@ admitted frame, not on a downstream interpretation. Interpretation semantics
 participate in snapshot identity; query/capture time and pixel data do not.
 Repeated read-only queries do not mutate state.
 
-`PersonObservation` and `ObjectObservation` deliberately stop at the
-Perception boundary in this milestone. Working Memory and World Model retain
-their existing visual-interpretation behavior and do not create temporary or
-persistent entities from frame-local person/object detections.
+Perception projects only explicitly selected, already admitted Person/Object
+observation IDs. Every selected item must resolve to one retained admitted
+interpretation and source frame, and the projection preserves their exact
+identities, fingerprints, source/result times, producer, provenance, compact
+evaluation reference, region, category, and optional confidence.
+
+Working Memory independently revalidates that source chain and retains bounded
+unexpired semantic evidence. New partial evidence does not erase older
+unexpired evidence, same-time conflicts fail closed, replay does not refresh
+TTL, and source-frame or interpretation eviction removes dependent semantics.
+The World Model exposes this evidence only in
+`WorldSnapshot.semantic_states`; it never promotes it to `WorldEntity` and
+assigns no stable person/object identity.
 
 Evaluated producers add an exact compact `VisualEvaluationReference` and must
 arrive as a sealed evaluator-issued admission. Perception consumes that
@@ -218,6 +236,9 @@ The transport-neutral contracts do not import ROS. The v1 ROS response is
 singular because only one reference producer is configured in this milestone;
 the immutable core snapshot supports bounded current results for multiple
 camera/producer keys.
+
+Anonymous semantic scene state has no ROS topic, service, or query projection
+in this milestone. The fixed body-state response remains unchanged.
 
 ## Deterministic smoke-process teardown
 
@@ -277,7 +298,11 @@ dependencies, resource ceilings, lifecycle deactivate/reactivate, and exact
 owned-process shutdown. Focused semantic-binding tests additionally cover exact
 person/object mappings, optional confidence, producer/evaluation/detection
 substitution, reset/expiry/eviction, rejected-traffic recovery, anonymity, and
-absence of pixel or authority fields.
+absence of pixel or authority fields. Semantic-scene-state tests additionally
+cover exact source-chain revalidation, deterministic identity and ordering,
+partial-evidence retention, duplicate and conflict handling, source-time TTL,
+dependency eviction, bounded 2,000-update behavior, snapshot freshness, and
+the absence of entities, pixels, identity, or authority.
 
 The headless smoke exercised a real simulated RGB frame through the synthetic
 result, trust, Working Memory, World Model, and fixed query. It also proved
@@ -289,6 +314,9 @@ Not validated or implemented:
 - production object/person detection, tracking, segmentation, OCR, face or
   owner identity, gesture, pose, depth, SLAM, localization, or scene-language
   understanding;
+- complete-scene or negative-presence claims, persistent semantic entities,
+  cross-frame association, tracking, biometric identity, or person naming;
+- ROS transport or query exposure for anonymous semantic scene state;
 - model accuracy, calibration, dataset quality, GPU/edge performance, physical
   camera behavior, or production latency;
 - graphical camera review in this milestone;
@@ -299,7 +327,6 @@ Run the focused proof with:
 
 ```bash
 ./scripts/build_workspace.sh
-./scripts/smoke_visual_perception.sh
 ./scripts/smoke_visual_perception.sh
 ```
 

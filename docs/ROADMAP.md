@@ -74,8 +74,17 @@ retained RGB source frame, admitted visual interpretation, and typed detection
 through the existing Perception boundary. It preserves optional confidence
 without fabrication and adds deterministic identity, duplicate/reset/expiry
 behavior, and hard interpretation/semantic bounds, but no detector, tracking,
-face or persistent identity, Working Memory/World Model projection, physical
-validation, authority, or motion.
+face or persistent identity, physical validation, authority, or motion.
+Anonymous Person/Object Semantic Scene State Foundation v1 now adds the narrow
+next step: Perception can project actually retained admissions into an
+interpretation-scoped transport-neutral evidence batch, Working Memory retains
+bounded recent batches under source-time freshness/TTL and dependency expiry,
+and immutable World Snapshots expose canonically ordered anonymous semantic
+state. Because upstream admission does not promise complete negative results,
+this is deliberately a conservative recent-evidence model: newer partial
+evidence does not claim that omitted people or objects are absent. It creates
+no tracker, stable entity, persistent identity, environment entity, ROS
+semantic transport, Memory OS write, authority, or motion path.
 Recorded Visual Producer Evaluation and Perception Quality Gate v1 now adds
 explicit producer registration, verified model artifact identity, immutable
 recorded dataset/policy/report contracts, deterministic bounded evaluation,

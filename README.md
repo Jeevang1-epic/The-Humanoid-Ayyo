@@ -7,9 +7,9 @@ can mature behind stable boundaries before physical hardware is introduced.
 
 ## Current status
 
-Ayyo has reached the Person/Object Semantic Producer Binding Foundation v1
-milestone with transport-neutral deterministic evidence contracts and no
-production detector or identity claim.
+Ayyo has reached the Anonymous Person/Object Semantic Scene State Foundation
+v1 milestone with bounded temporary evidence and no production detector,
+tracking, or identity claim.
 
 Implemented:
 
@@ -77,6 +77,17 @@ Implemented:
   producer/evaluation provenance through the interpretation identity,
   deterministic replay/reset/expiry behavior, and 64-item interpretation and
   semantic caps
+- A transport-neutral `SemanticEvidenceObservation` that projects a non-empty
+  anonymous subset from one exact admitted interpretation while preserving
+  source frame, interpretation, detection, producer/evaluation, region,
+  category, provenance, and optional-confidence identities
+- Conservative bounded Working Memory retention of recent semantic evidence
+  batches, with source-chain revalidation, 500 ms default freshness, 2 second
+  TTL, reset/clock-epoch isolation, deterministic eviction, and no negative
+  scene knowledge from omitted detections
+- Immutable canonically ordered semantic states in `WorldSnapshot`, included
+  in snapshot identity without creating `WorldEntity` records or stable
+  person/object identities
 - Immutable IMU, body-pose, covariance, quality, health/availability,
   freshness, and disappearance contracts integrated into Working Memory and
   World Model without fabricating missing state
@@ -153,7 +164,8 @@ Planned, but not implemented:
   spatial registration/SLAM/physical calibration, and production visual
   producer promotion
 - Production person/object detectors, tracking, face recognition, persistent
-  identity, and Working Memory/World Model semantic projection
+  identity, complete-scene/negative-detection claims, and semantic projection
+  into persistent environment entities
 - Natural-language/model integration and authenticated identity/approval
 - Runtime skill implementations, manipulation, and navigation
 - Production-authorized typed ROS services, runtime scheduling, and resource
@@ -296,7 +308,7 @@ Run World Model and Working Memory tests:
 PYTHONPATH=world_model/src \
 python3 -m unittest discover -s world_model/tests -v
 
-PYTHONPATH=world_model/src:working_memory/src \
+PYTHONPATH=world_model/src:head_audio/src:physical_camera/src:depth_camera/src:rgbd_fusion/src:visual_evaluation/src:perception/src:working_memory/src \
 python3 -m unittest discover -s working_memory/tests -v
 ```
 
@@ -307,6 +319,8 @@ export PYTHONPATH="world_model/src:head_audio/src:physical_camera/src:depth_came
 python3 -m pytest -q perception/tests/test_person_object_observations.py
 python3 -m pytest -q perception/tests/test_semantic_admission_boundary.py
 python3 -m pytest -q perception/tests/test_semantic_producer_binding.py
+python3 -m pytest -q perception/tests/test_semantic_world_projection.py
+python3 -m pytest -q perception/tests/test_semantic_scene_state_integration.py
 python3 -m pytest -q perception/tests
 ```
 
@@ -464,11 +478,11 @@ v1 adds TEST-only compact microphone evidence with no raw-sample retention or
 authority. The physical-camera, depth, fusion, and audio milestones do not
 validate real RGB-D/audio hardware, hardware clocks, physical calibration,
 extrinsics, spatial registration, acoustics, or production device timing.
-Person/Object Semantic Producer Binding Foundation v1 adds only anonymous
-compact evidence bound to an exact admitted frame, interpretation, and typed
-detection; it adds no detector, face or persistent identity, physical
-validation, temporary World Model/Working Memory projection, authority, or
-motion.
+Anonymous Person/Object Semantic Scene State Foundation v1 now projects
+already-admitted compact evidence into conservative bounded Working Memory and
+immutable World Snapshot semantic state. It preserves exact source identity
+and expiry without claiming scene completeness, tracking, persistent entities,
+face/owner identity, physical validation, authority, or motion.
 Production motion remains
 closed because Safety v1 defers physical movement; only explicit development
 injection can exercise the simulated neck joint. The perception path adds

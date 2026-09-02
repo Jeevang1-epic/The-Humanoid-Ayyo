@@ -139,6 +139,18 @@ dataset/policy/report reference. The evaluator report, manifests, model bytes,
 dataset bytes, and pixels remain outside Working Memory and snapshots; see
 [VISUAL_PRODUCER_EVALUATION.md](VISUAL_PRODUCER_EVALUATION.md).
 
+`SemanticEvidenceObservation` is the transport-neutral projection of one
+non-empty anonymous subset from one exact admitted visual interpretation. Each
+item preserves its Perception semantic observation ID, source detection ID,
+person/object kind, normalized region, object category where applicable, and
+optional confidence. The enclosing observation preserves exact source frame
+and interpretation identities/fingerprints, RGB camera/optical frame,
+producer, compact evaluated-reference digest, source/result time, provenance,
+and availability. Its deterministic identity rechecks the source
+Person/Object observation content. It contains no pixels, entity ID, tracking
+ID, command, or authority field and does not assert that omitted detections are
+absent.
+
 ## Provenance
 
 Every meaningful observation retains source kind, canonical source identity,
@@ -198,7 +210,9 @@ by Working Memory. It creates an immutable `WorldSnapshot` containing:
   observed joint states, zero or more current IMU and compact visual states,
   optional base pose, per-sensor availability, and explicit
   unavailable/partial/available joint coverage;
-- zero or more canonically ordered `WorldEntity` records; and
+- zero or more canonically ordered `WorldEntity` records;
+- zero or more canonically ordered anonymous `ObservedSemanticEvidenceState`
+  values, separate from persistent environment entities; and
 - a typed canonical snapshot version and derived snapshot ID.
 
 Each observed joint retains its source observation identity, fingerprint,
@@ -233,6 +247,19 @@ messages update only the joints they contain and do not clear other unexpired
 state. A same-key message with an older timestamp is rejected. Different
 evidence for the same key and exact timestamp is rejected as a temporal
 conflict. Exact duplicates are no-ops and do not extend TTL or recent history.
+
+Anonymous semantic state uses a conservative recent-evidence model because the
+upstream Person/Object contract does not promise complete negative detection.
+One immutable batch contains one or more admitted items from one exact
+interpretation. Working Memory rechecks the retained source frame,
+interpretation, producer/evaluation digest, detection category/label/region,
+confidence, robot, camera, frame, time, and provenance. Newer batches do not
+erase older unexpired batches merely because an item is omitted. Older arrivals
+and same-result-time conflicts are rejected; exact duplicates do not refresh
+TTL. Batches disappear at source-time TTL, reset, deterministic capacity
+eviction, or earlier if their required retained frame/interpretation reference
+is evicted. This represents “recent anonymous evidence,” never “the scene is
+empty” or “the same person/object persists.”
 
 Environment state is keyed by canonical identity. Newer observations replace
 older current state. Capacity overflow deterministically evicts by:
@@ -281,6 +308,7 @@ Defaults and hard maxima are explicit:
 | --- | ---: | ---: |
 | Recent evidence | 256 observations | 4,096 |
 | Current environment entities | 128 | 256 |
+| Current anonymous semantic evidence batches | 64 | 64 |
 | Retention TTL | 2 seconds | 300 seconds |
 | One observation joint count | 128 | 128 |
 | JSON depth | 16 | 16 |
@@ -293,6 +321,10 @@ Defaults and hard maxima are explicit:
 Current robot-joint entries are additionally bounded by the immutable joint
 catalog (18 movable joints presently). IMU, visual, pose, and health current
 entries are bounded by the immutable sensor catalog (four identities presently).
+One semantic batch is capped at 32 unique detections, semantic current state at
+64 batches, and source-order watermarks at the fixed 32-sensor by 16-producer
+catalog product. The 2,000-update semantic regression retains at most the
+configured current batches and recent references.
 The camera adapter keeps at most one pending `Image` and one pending
 `CameraInfo`, clearing both after an exact pair; pixels never enter trust,
 Working Memory, World Model, fingerprints, or Memory OS. Counters use constant
@@ -445,7 +477,7 @@ rollback-capable.
 PYTHONPATH=world_model/src \
 python3 -m unittest discover -s world_model/tests -v
 
-PYTHONPATH=world_model/src:working_memory/src \
+PYTHONPATH=world_model/src:head_audio/src:physical_camera/src:depth_camera/src:rgbd_fusion/src:visual_evaluation/src:perception/src:working_memory/src \
 python3 -m unittest discover -s working_memory/tests -v
 
 PYTHONPATH=world_model/src:perception/src \
@@ -474,8 +506,11 @@ Shutdown must be clean.
 - Compact TEST/simulation depth metadata now has a live adapter, bounded state,
   and read-only query path. Environment entities, force/torque, touch, physical
   depth/audio hardware, navigation, manipulation, human tracking, RGB-D
-  geometry, speech/audio interpretation, and semantic visual processing have
-  typed or architectural space but no live production adapter.
+  geometry and speech/audio interpretation have typed or architectural space
+  but no live production adapter. Anonymous semantic visual evidence now has a
+  transport-neutral bounded state path, but no production detector, tracking,
+  complete-scene claim, persistent identity/entity projection, or live ROS
+  semantic transport.
 - Covariance and optional quality are preserved when supplied; v1 has no sensor
   fusion, calibration/bias estimation, trust scoring, probabilistic estimation,
   or cross-sensor conflict resolution.
@@ -484,7 +519,7 @@ Shutdown must be clean.
 - Working Memory is in-process/non-durable; node restart loses temporary state.
 - The ROS query exposes joint, IMU, pose, sensor-summary, explicit health, and
   compact pixel-free RGB, interpretation, depth, RGB-D fusion, and sample-free
-  audio state only.
+  audio state only; anonymous semantic state is not yet exposed through ROS.
 - No automatic Memory Validation candidate selection or learning consolidation
   exists.
 - No edge-hardware benchmark or Raspberry Pi/Jetson compatibility claim exists.

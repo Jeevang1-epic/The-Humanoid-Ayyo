@@ -206,6 +206,17 @@
   requiring one exact fresh retained visual source, admitted interpretation,
   and exact typed detection while preserving deterministic duplicate, reset,
   expiry, substitution rejection, and 64-item interpretation/semantic bounds
+- Perception-owned projection from the actually retained semantic-admission
+  register into one immutable, non-empty, interpretation-scoped anonymous
+  `SemanticEvidenceObservation`; unadmitted, mixed-interpretation, expired, or
+  reset sources cannot use the seam
+- Conservative Working Memory retention of bounded semantic evidence batches
+  with exact frame/interpretation/detection/producer/evaluation revalidation,
+  source-time freshness/TTL, duplicate and temporal rejection, dependency
+  expiry, bounded watermarks, and no fabricated negative scene knowledge
+- Canonically ordered immutable `WorldSnapshot.semantic_states` with optional
+  confidence preserved as `float | None`, semantic meaning included in snapshot
+  identity, and no conversion into persistent `WorldEntity` records
 - Working Memory replacement per camera/producer and immutable World Model
   visual-interpretation projection with additive fixed read-only query fields
 - Default-off deterministic synthetic reference adapter with no model,
@@ -264,8 +275,8 @@
   perception,
   navigation, manipulation, and non-synthetic visual producer adapters
 - Person/object tracking, face recognition, biometric or persistent person
-  identity, and Working Memory/World Model projection of the compact semantic
-  contracts
+  identity, complete-scene/negative-detection claims, semantic ROS transport,
+  and persistent environment-entity projection of semantic evidence
 - Production diagnostic producers, SLAM, visual localization, sensor fusion,
   calibration/bias estimation, trust scoring, clock
   synchronization, and environment-state ROS query transport

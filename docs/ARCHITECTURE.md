@@ -51,7 +51,12 @@ source reference carries the interpretation and detection identities; those
 content-addressed identities commit to producer/evaluation provenance, label,
 region, time, and optional confidence without copying the full interpretation.
 `TEST_PATTERN` cannot become person/object evidence. These observations are not
-detectors, identity claims, temporary World Model state, commands, or authority.
+detectors, identity claims, commands, or authority. The anonymous semantic-state
+continuation projects only actually admitted observations into a compact
+interpretation-scoped World Model contract. Working Memory retains bounded
+recent evidence under source-time freshness/TTL; immutable snapshots expose it
+without creating persistent entities, tracking identity, or negative scene
+knowledge from omitted detections.
 The
 transport-neutral
 [Recorded Visual Producer Evaluation and Perception Quality Gate](VISUAL_PRODUCER_EVALUATION.md)
@@ -183,8 +188,13 @@ replace proxy geometry without duplicating or bypassing frame semantics.
   source, one retained admitted interpretation, and one exact detection.
   Interpretation and semantic registers are TTL/reset scoped and capped at 64;
   deterministic oldest-result eviction invalidates dependent semantics. The
-  path retains no pixels, does not project Person/Object evidence into Working
-  Memory or World Model, and grants no identity, permission, safety, skill,
+  projection seam reads only that actually admitted register and preserves
+  exact frame, interpretation, detection, producer/evaluation, region,
+  confidence, and provenance identities. Working Memory rechecks those sources,
+  retains at most 64 conservative evidence batches plus its bounded recent
+  window, and removes dependent state with source expiry/reset. World Snapshot
+  state remains anonymous and separate from persistent entities. The path
+  retains no pixels and grants no identity, permission, safety, skill,
   Executive, movement, or execution authority.
 - Evaluated producers additionally require one exact registered manifest,
   verified model artifact, immutable dataset and policy, successful semantic
@@ -192,11 +202,14 @@ replace proxy geometry without duplicating or bypassing frame semantics.
   self-asserted pass reference cannot establish Perception trust.
 - World Model owns transport-neutral provenance-bound current robot/environment
   observations, authoritative body-value validation, IMU/pose/covariance/
-  availability contracts, discrete freshness, and canonical immutable
-  snapshots without importing ROS or Gazebo.
+  availability contracts, compact anonymous semantic evidence, discrete
+  freshness, and canonical immutable snapshots without importing Perception,
+  ROS, or Gazebo.
 - Working Memory owns bounded temporary current/recent evidence, TTL, duplicate
-  suppression, temporal ordering, and deterministic eviction. It cannot write
-  Memory OS; future durable candidates must still pass Memory Validation.
+  suppression, temporal ordering, source-dependent semantic expiry, and
+  deterministic eviction through public World Model contracts only. It cannot
+  import Perception or write Memory OS; future durable candidates must still
+  pass Memory Validation.
 - Memory validation owns deterministic admission, conservative identity
   normalization, duplicate decisions, correction authority, and contradiction
   review without selecting probabilistic truth.
