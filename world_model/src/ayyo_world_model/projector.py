@@ -20,6 +20,7 @@ from .models import (
     ObservedFusedRgbdState,
     ObservedJointState,
     ObservedPoseState,
+    ObservedSemanticEvidenceState,
     ObservedSensorHealthState,
     ObservedVisualInterpretationState,
     ObservedVisualState,
@@ -31,6 +32,7 @@ from .models import (
     SensorHealthObservation,
     SensorIdentity,
     SensorKind,
+    SemanticEvidenceObservation,
     WorldEntity,
     WorldSnapshot,
     VisualFrameObservation,
@@ -103,6 +105,8 @@ class WorldModelProjector:
             tuple[str, str], VisualInterpretationObservation
         ]
         | None = None,
+        semantic_evidence: Mapping[str, SemanticEvidenceObservation]
+        | None = None,
     ) -> WorldSnapshot:
         audio_sources = {} if audio_evidence is None else dict(audio_evidence)
         imu_sources = {} if imu_evidence is None else dict(imu_evidence)
@@ -120,6 +124,9 @@ class WorldModelProjector:
             if visual_interpretation_evidence is None
             else dict(visual_interpretation_evidence)
         )
+        semantic_sources = (
+            {} if semantic_evidence is None else dict(semantic_evidence)
+        )
         known_sensor_ids = {sensor.sensor_id for sensor in self._sensors}
         supplied_sensor_ids = (
             set(audio_sources)
@@ -130,6 +137,10 @@ class WorldModelProjector:
             | set(fused_rgbd_sources)
             | set(visual_sources)
             | {key[0] for key in interpretation_sources}
+            | {
+                observation.sensor.sensor_id
+                for observation in semantic_sources.values()
+            }
         )
         if not supplied_sensor_ids <= known_sensor_ids:
             raise WorldModelValidationError(
@@ -421,6 +432,37 @@ class WorldModelProjector:
                 )
             )
 
+        semantic_states: list[ObservedSemanticEvidenceState] = []
+        for observation_id in sorted(semantic_sources):
+            rebuilt = rebuild_observation(semantic_sources[observation_id])
+            assert type(rebuilt) is SemanticEvidenceObservation
+            if rebuilt.observation_id != observation_id:
+                raise WorldModelValidationError(
+                    WorldModelFailureCode.SNAPSHOT_INVARIANT,
+                    "semantic evidence key and identity disagree",
+                )
+            if rebuilt.robot_id != self._catalog.robot_id:
+                raise WorldModelValidationError(
+                    WorldModelFailureCode.WRONG_ROBOT_IDENTITY,
+                    "semantic evidence belongs to another robot",
+                )
+            semantic_freshness = freshness_for(
+                observed_at_ns=rebuilt.observed_at_ns,
+                now_ns=now_ns,
+                fresh_for_ns=fresh_for_ns,
+            )
+            semantic_states.append(
+                ObservedSemanticEvidenceState(
+                    observation=rebuilt,
+                    freshness=semantic_freshness,
+                    availability=(
+                        SensorAvailability.STALE
+                        if semantic_freshness is FreshnessState.STALE
+                        else rebuilt.availability
+                    ),
+                )
+            )
+
         sensor_health_states: list[ObservedSensorHealthState] = []
         for sensor_id in sorted(health_sources):
             rebuilt = rebuild_observation(health_sources[sensor_id])
@@ -539,4 +581,5 @@ class WorldModelProjector:
             captured_at_ns=now_ns,
             robot=robot,
             entities=tuple(entities),
+            semantic_states=tuple(semantic_states),
         )

@@ -14,16 +14,20 @@ from ayyo_world_model import (
     MAX_OBSERVATION_TIME_NS,
     RobotJointCatalog,
     RobotStateObservation,
+    SemanticEvidenceKind,
+    SemanticEvidenceObservation,
     SensorHealthObservation,
     SensorIdentity,
     VisualFrameObservation,
     VisualInterpretationObservation,
+    VisualSemanticCategory,
     WorldEntity,
     WorldModelFailureCode,
     WorldModelProjector,
     WorldModelValidationError,
     WorldSnapshot,
     rebuild_observation,
+    visual_evaluation_reference_sha256,
 )
 
 from .errors import (
@@ -81,6 +85,8 @@ class WorkingMemory:
         "_projector",
         "_recent",
         "_rejected_count",
+        "_semantic_evidence",
+        "_semantic_watermarks",
     )
 
     def __init__(self, catalog: RobotJointCatalog, config: WorkingMemoryConfig) -> None:
@@ -110,6 +116,10 @@ class WorkingMemory:
         self._body_pose_evidence: dict[str, BodyPoseObservation] = {}
         self._health_evidence: dict[str, SensorHealthObservation] = {}
         self._entity_evidence: dict[str, EnvironmentEntityObservation] = {}
+        self._semantic_evidence: dict[str, SemanticEvidenceObservation] = {}
+        self._semantic_watermarks: dict[
+            tuple[str, str], tuple[int, str]
+        ] = {}
         self._recent: list[EvidenceEnvelope] = []
         self._last_now_ns: int | None = None
         self._last_receipt_monotonic_ns: int | None = None
@@ -137,6 +147,8 @@ class WorkingMemory:
             self._body_pose_evidence.clear()
             self._health_evidence.clear()
             self._entity_evidence.clear()
+            self._semantic_evidence.clear()
+            self._semantic_watermarks.clear()
             self._recent.clear()
             self._last_now_ns = None
             self._last_receipt_monotonic_ns = None
@@ -204,6 +216,11 @@ class WorkingMemory:
             for key, observation in self._visual_interpretation_evidence.items()
             if observation.observed_at_ns >= threshold
         }
+        self._semantic_evidence = {
+            observation_id: observation
+            for observation_id, observation in self._semantic_evidence.items()
+            if observation.observed_at_ns >= threshold
+        }
         self._body_pose_evidence = {
             sensor_id: observation
             for sensor_id, observation in self._body_pose_evidence.items()
@@ -226,6 +243,53 @@ class WorkingMemory:
             for item in self._recent
             if item.observation.observed_at_ns >= threshold
         ]
+        self._drop_orphaned_semantic_evidence()
+
+    def _retained_visual_sources(self) -> dict[str, VisualFrameObservation]:
+        retained = {
+            observation.observation_id: observation
+            for observation in self._visual_evidence.values()
+        }
+        retained.update(
+            {
+                item.observation.observation_id: item.observation
+                for item in self._recent
+                if type(item.observation) is VisualFrameObservation
+            }
+        )
+        return retained
+
+    def _retained_visual_interpretations(
+        self,
+    ) -> dict[str, VisualInterpretationObservation]:
+        retained = {
+            observation.observation_id: observation
+            for observation in self._visual_interpretation_evidence.values()
+        }
+        retained.update(
+            {
+                item.observation.observation_id: item.observation
+                for item in self._recent
+                if type(item.observation) is VisualInterpretationObservation
+            }
+        )
+        return retained
+
+    def _drop_orphaned_semantic_evidence(self) -> tuple[str, ...]:
+        frame_ids = set(self._retained_visual_sources())
+        interpretation_ids = set(self._retained_visual_interpretations())
+        orphaned = tuple(
+            sorted(
+                observation_id
+                for observation_id, observation in self._semantic_evidence.items()
+                if observation.source_visual_observation_id not in frame_ids
+                or observation.source_interpretation_observation_id
+                not in interpretation_ids
+            )
+        )
+        for observation_id in orphaned:
+            del self._semantic_evidence[observation_id]
+        return orphaned
 
     def _current_observation_ids(self) -> set[str]:
         identities = {item.observation_id for item in self._joint_evidence.values()}
@@ -251,6 +315,7 @@ class WorkingMemory:
             item.observation_id for item in self._body_pose_evidence.values()
         )
         identities.update(item.observation_id for item in self._health_evidence.values())
+        identities.update(self._semantic_evidence)
         return identities
 
     def _reject(
@@ -312,6 +377,7 @@ class WorkingMemory:
                 FusedRgbdObservation,
                 VisualFrameObservation,
                 VisualInterpretationObservation,
+                SemanticEvidenceObservation,
                 SensorHealthObservation,
             }:
                 known_sensors = {
@@ -333,6 +399,7 @@ class WorkingMemory:
                 type(rebuilt) in {
                     AudioFrameObservation,
                     VisualInterpretationObservation,
+                    SemanticEvidenceObservation,
                     FusedRgbdObservation,
                 }
                 and rebuilt.result_at_ns
@@ -372,6 +439,8 @@ class WorkingMemory:
                         error.detail,
                     )
                 return self._ingest_robot(rebuilt, envelope)
+            if type(rebuilt) is SemanticEvidenceObservation:
+                return self._ingest_semantic(rebuilt, envelope)
             if type(rebuilt) in {
                 AudioFrameObservation,
                 ImuObservation,
@@ -475,6 +544,155 @@ class WorkingMemory:
             envelope,
             (key,),
             replaced=decision == "newer",
+        )
+
+    def _ingest_semantic(
+        self,
+        observation: SemanticEvidenceObservation,
+        envelope: EvidenceEnvelope,
+    ) -> IngestionResult:
+        producer = next(
+            (
+                candidate
+                for candidate in self._config.visual_interpretation_producers
+                if candidate.producer_id == observation.producer.producer_id
+            ),
+            None,
+        )
+        if producer is None or producer != observation.producer:
+            return self._reject(
+                observation.observation_id,
+                IngestionReason.UNKNOWN_PRODUCER,
+                "semantic evidence producer is outside the reviewed catalog",
+            )
+        source_interpretation = self._retained_visual_interpretations().get(
+            observation.source_interpretation_observation_id
+        )
+        if source_interpretation is None:
+            return self._reject(
+                observation.observation_id,
+                IngestionReason.SOURCE_OBSERVATION_MISMATCH,
+                "semantic evidence does not reference a retained interpretation",
+            )
+        if (
+            source_interpretation.fingerprint
+            != observation.source_interpretation_fingerprint
+            or source_interpretation.robot_id != observation.robot_id
+            or source_interpretation.sensor != observation.sensor
+            or source_interpretation.reference_frame_id
+            != observation.reference_frame_id
+            or source_interpretation.source_visual_observation_id
+            != observation.source_visual_observation_id
+            or source_interpretation.source_visual_fingerprint
+            != observation.source_visual_fingerprint
+            or source_interpretation.observed_at_ns
+            != observation.observed_at_ns
+            or source_interpretation.result_at_ns != observation.result_at_ns
+            or source_interpretation.producer != observation.producer
+            or visual_evaluation_reference_sha256(
+                source_interpretation.evaluation_reference
+            )
+            != observation.evaluation_reference_sha256
+            or source_interpretation.provenance != observation.provenance
+            or source_interpretation.availability != observation.availability
+        ):
+            return self._reject(
+                observation.observation_id,
+                IngestionReason.SOURCE_OBSERVATION_MISMATCH,
+                "semantic evidence metadata differs from its retained interpretation",
+            )
+        source_frame = self._retained_visual_sources().get(
+            observation.source_visual_observation_id
+        )
+        if source_frame is None or (
+            source_frame.fingerprint != observation.source_visual_fingerprint
+            or source_frame.robot_id != observation.robot_id
+            or source_frame.sensor != observation.sensor
+            or source_frame.observed_at_ns != observation.observed_at_ns
+            or source_frame.provenance != observation.provenance
+        ):
+            return self._reject(
+                observation.observation_id,
+                IngestionReason.SOURCE_OBSERVATION_MISMATCH,
+                "semantic evidence does not match a retained source frame",
+            )
+        detections = {
+            detection.detection_id: detection
+            for detection in source_interpretation.detections
+        }
+        for item in observation.items:
+            detection = detections.get(item.source_detection_id)
+            category_matches = detection is not None and (
+                (
+                    item.kind is SemanticEvidenceKind.PERSON
+                    and detection.category is VisualSemanticCategory.PERSON
+                    and item.category is None
+                )
+                or (
+                    item.kind is SemanticEvidenceKind.OBJECT
+                    and detection.category is VisualSemanticCategory.OBJECT
+                    and item.category == detection.label
+                )
+            )
+            if (
+                not category_matches
+                or detection.source_visual_observation_id
+                != observation.source_visual_observation_id
+                or detection.region != item.region
+                or detection.confidence != item.confidence
+            ):
+                return self._reject(
+                    observation.observation_id,
+                    IngestionReason.SOURCE_OBSERVATION_MISMATCH,
+                    "semantic evidence changes or invents its source detection",
+                )
+        source_key = (
+            observation.sensor.sensor_id,
+            observation.producer.producer_id,
+        )
+        watermark = self._semantic_watermarks.get(source_key)
+        if watermark is not None:
+            current_result_at_ns, current_observation_id = watermark
+            if observation.result_at_ns < current_result_at_ns:
+                return self._reject(
+                    observation.observation_id,
+                    IngestionReason.OLDER_OBSERVATION,
+                    "newer semantic evidence is already retained for this source",
+                )
+            if observation.result_at_ns == current_result_at_ns:
+                reason = (
+                    IngestionReason.DUPLICATE_OBSERVATION
+                    if observation.observation_id == current_observation_id
+                    else IngestionReason.TEMPORAL_CONFLICT
+                )
+                if reason is IngestionReason.DUPLICATE_OBSERVATION:
+                    self._duplicate_count += 1
+                    return IngestionResult(
+                        status=IngestionStatus.DUPLICATE,
+                        reason=reason,
+                        observation_id=observation.observation_id,
+                        detail="equivalent semantic evidence is already retained",
+                    )
+                return self._reject(
+                    observation.observation_id,
+                    reason,
+                    "same semantic source and result time carry different evidence",
+                )
+        self._semantic_evidence[observation.observation_id] = observation
+        self._semantic_watermarks[source_key] = (
+            observation.result_at_ns,
+            observation.observation_id,
+        )
+        return self._accept(
+            observation,
+            envelope,
+            (
+                StateKey(
+                    StateKeyKind.ROBOT_SEMANTIC_EVIDENCE,
+                    observation.observation_id,
+                ),
+            ),
+            replaced=False,
         )
 
     def _ingest_sensor(
@@ -670,6 +888,39 @@ class WorkingMemory:
             for entity_id, _ in victims:
                 del self._entity_evidence[entity_id]
                 evicted.append(StateKey(StateKeyKind.ENVIRONMENT_ENTITY, entity_id))
+        if len(self._semantic_evidence) > self._config.semantic_evidence_capacity:
+            semantic_victims = sorted(
+                self._semantic_evidence.items(),
+                key=lambda item: (
+                    item[1].observed_at_ns,
+                    item[1].result_at_ns,
+                    item[0],
+                ),
+            )[
+                : len(self._semantic_evidence)
+                - self._config.semantic_evidence_capacity
+            ]
+            for observation_id, _ in semantic_victims:
+                del self._semantic_evidence[observation_id]
+                evicted.append(
+                    StateKey(
+                        StateKeyKind.ROBOT_SEMANTIC_EVIDENCE,
+                        observation_id,
+                    )
+                )
+        for observation_id in self._drop_orphaned_semantic_evidence():
+            evicted.append(
+                StateKey(
+                    StateKeyKind.ROBOT_SEMANTIC_EVIDENCE,
+                    observation_id,
+                )
+            )
+        evicted = list(
+            sorted(
+                set(evicted),
+                key=lambda item: (item.kind.value, item.identity),
+            )
+        )
         self._accepted_count += 1
         self._eviction_count += len(evicted)
         return IngestionResult(
@@ -682,7 +933,7 @@ class WorkingMemory:
             observation_id=observation.observation_id,
             updated_keys=updated,
             evicted_keys=tuple(
-                sorted(evicted, key=lambda item: (item.kind.value, item.identity))
+                evicted
             ),
             detail="observation retained within configured bounds",
         )
@@ -706,6 +957,7 @@ class WorkingMemory:
                 visual_interpretation_evidence=dict(
                     self._visual_interpretation_evidence
                 ),
+                semantic_evidence=dict(self._semantic_evidence),
             )
 
     def get_robot_state(self, *, now_ns: int):
@@ -752,6 +1004,8 @@ class WorkingMemory:
                     if len(parts) == 2
                     else None
                 )
+            elif key.kind is StateKeyKind.ROBOT_SEMANTIC_EVIDENCE:
+                observation = self._semantic_evidence.get(key.identity)
             elif key.kind is StateKeyKind.SENSOR_HEALTH:
                 observation = self._health_evidence.get(key.identity)
             else:
@@ -794,6 +1048,7 @@ class WorkingMemory:
                 + len(self._body_pose_evidence)
                 + len(self._health_evidence)
                 + len(self._entity_evidence)
+                + len(self._semantic_evidence)
                 + len(self._recent)
             )
             return WorkingMemoryStats(
@@ -816,5 +1071,11 @@ class WorkingMemory:
                 current_audio_count=len(self._audio_evidence),
                 current_visual_interpretation_count=len(
                     self._visual_interpretation_evidence
+                ),
+                current_semantic_evidence_count=len(
+                    self._semantic_evidence
+                ),
+                semantic_source_watermark_count=len(
+                    self._semantic_watermarks
                 ),
             )

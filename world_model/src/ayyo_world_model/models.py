@@ -34,6 +34,8 @@ MAX_VISUAL_LABEL_LENGTH = 64
 MAX_VISUAL_PRODUCER_ID_LENGTH = 128
 MAX_VISUAL_SOURCE_REFERENCES = 64
 MAX_VISUAL_EVALUATION_REQUIREMENTS = 16
+MAX_SEMANTIC_EVIDENCE_ITEMS = MAX_VISUAL_DETECTIONS
+MAX_SEMANTIC_EVIDENCE_STATES = MAX_VISUAL_SOURCE_REFERENCES
 QUATERNION_NORM_TOLERANCE = 1e-6
 
 _IDENTIFIER = re.compile(r"^[a-z0-9]+(?:[._-][a-z0-9]+)*$")
@@ -52,6 +54,12 @@ _AUDIO_SOURCE_MANIFEST_ID = re.compile(
 )
 _AUDIO_SESSION_ID = re.compile(r"^audio-session-sha256-[0-9a-f]{64}$")
 _OBSERVATION_ID = re.compile(r"^world-observation-[0-9a-f]{64}$")
+_SEMANTIC_OBSERVATION_ID = re.compile(
+    r"^(person|object)-observation-sha256-[0-9a-f]{64}$"
+)
+_VISUAL_DETECTION_ID = re.compile(
+    r"^visual-detection-sha256-[0-9a-f]{64}$"
+)
 
 
 def _invalid(code: WorldModelFailureCode, detail: str) -> None:
@@ -195,6 +203,13 @@ class VisualSemanticCategory(StrEnum):
     LANDMARK = "landmark"
     OBSTACLE = "obstacle"
     UNKNOWN = "unknown"
+
+
+class SemanticEvidenceKind(StrEnum):
+    """Anonymous semantic meanings that may enter temporary world state."""
+
+    PERSON = "person"
+    OBJECT = "object"
 
 
 class VisualProducerKind(StrEnum):
@@ -564,6 +579,20 @@ class VisualEvaluationReference:
         }
 
 
+def visual_evaluation_reference_sha256(
+    reference: VisualEvaluationReference | None,
+) -> str | None:
+    """Return the compact deterministic identity of evaluated provenance."""
+    if reference is None:
+        return None
+    if type(reference) is not VisualEvaluationReference:
+        _invalid(
+            WorldModelFailureCode.MALFORMED_OBSERVATION,
+            "visual evaluation reference must be typed",
+        )
+    return sha256_document(reference.document())
+
+
 @dataclass(frozen=True, slots=True)
 class VisualEvaluationRequirement:
     """Exact allowlist binding for one evaluated producer and policy."""
@@ -773,6 +802,102 @@ class VisualDetection:
             "label": self.label,
             "region": self.region.document(),
             "source_visual_observation_id": self.source_visual_observation_id,
+        }
+
+
+@dataclass(frozen=True, slots=True, init=False)
+class SemanticEvidenceItem:
+    """One anonymous frame-local semantic fact, never a persistent entity."""
+
+    kind: SemanticEvidenceKind
+    source_semantic_observation_id: str
+    source_detection_id: str
+    region: ImageRegion2D
+    confidence: float | None
+    category: str | None
+
+    def __init__(
+        self,
+        *,
+        kind: SemanticEvidenceKind,
+        source_semantic_observation_id: str,
+        source_detection_id: str,
+        region: ImageRegion2D,
+        confidence: float | None,
+        category: str | None = None,
+    ) -> None:
+        if not isinstance(kind, SemanticEvidenceKind):
+            _invalid(
+                WorldModelFailureCode.MALFORMED_OBSERVATION,
+                "semantic evidence kind must be typed",
+            )
+        if (
+            type(source_semantic_observation_id) is not str
+            or _SEMANTIC_OBSERVATION_ID.fullmatch(
+                source_semantic_observation_id
+            )
+            is None
+            or not source_semantic_observation_id.startswith(
+                f"{kind.value}-observation-sha256-"
+            )
+        ):
+            _invalid(
+                WorldModelFailureCode.MALFORMED_OBSERVATION,
+                "semantic source-observation identity is malformed",
+            )
+        if (
+            type(source_detection_id) is not str
+            or _VISUAL_DETECTION_ID.fullmatch(source_detection_id) is None
+        ):
+            _invalid(
+                WorldModelFailureCode.MALFORMED_OBSERVATION,
+                "semantic source-detection identity is malformed",
+            )
+        if type(region) is not ImageRegion2D:
+            _invalid(
+                WorldModelFailureCode.MALFORMED_OBSERVATION,
+                "semantic evidence region must be typed",
+            )
+        confidence_value = None if confidence is None else _confidence(confidence)
+        if kind is SemanticEvidenceKind.PERSON:
+            if category is not None:
+                _invalid(
+                    WorldModelFailureCode.MALFORMED_OBSERVATION,
+                    "anonymous person evidence cannot carry an object category",
+                )
+            category_value = None
+        else:
+            category_value = canonical_identifier(
+                category,
+                "semantic object category",
+                maximum=MAX_VISUAL_LABEL_LENGTH,
+            )
+            if category_value == SemanticEvidenceKind.PERSON.value:
+                _invalid(
+                    WorldModelFailureCode.MALFORMED_OBSERVATION,
+                    "object evidence cannot substitute for person evidence",
+                )
+        object.__setattr__(self, "kind", kind)
+        object.__setattr__(
+            self,
+            "source_semantic_observation_id",
+            source_semantic_observation_id,
+        )
+        object.__setattr__(self, "source_detection_id", source_detection_id)
+        object.__setattr__(self, "region", region)
+        object.__setattr__(self, "confidence", confidence_value)
+        object.__setattr__(self, "category", category_value)
+
+    def document(self) -> dict[str, JSONValue]:
+        return {
+            "category": self.category,
+            "confidence": self.confidence,
+            "kind": self.kind.value,
+            "region": self.region.document(),
+            "source_detection_id": self.source_detection_id,
+            "source_semantic_observation_id": (
+                self.source_semantic_observation_id
+            ),
         }
 
 
@@ -1100,6 +1225,7 @@ class ObservationFingerprintKind(StrEnum):
     FUSED_RGBD = "fused_rgbd"
     AUDIO_FRAME = "audio_frame"
     VISUAL_INTERPRETATION = "visual_interpretation"
+    SEMANTIC_EVIDENCE = "semantic_evidence"
     ENVIRONMENT_ENTITY = "environment_entity"
 
 
@@ -2597,6 +2723,302 @@ class VisualInterpretationObservation:
         return payload
 
 
+def _semantic_source_observation_id(
+    *,
+    item: SemanticEvidenceItem,
+    robot_id: str,
+    sensor: SensorIdentity,
+    reference_frame_id: str,
+    source_visual_observation_id: str,
+    source_interpretation_observation_id: str,
+    observed_at_ns: int,
+    result_at_ns: int,
+    provenance: ObservationProvenance,
+) -> str:
+    document: dict[str, JSONValue] = {
+        "confidence": item.confidence,
+        "kind": item.kind.value,
+        "observed_at_ns": observed_at_ns,
+        "provenance": provenance.document(),
+        "reference_frame_id": reference_frame_id,
+        "region": item.region.document(),
+        "result_at_ns": result_at_ns,
+        "robot_id": robot_id,
+        "schema": f"ayyo.{item.kind.value}-observation.v1",
+        "sensor": sensor.document(),
+        "source_detection": {
+            "visual_detection_id": item.source_detection_id,
+            "visual_interpretation_observation_id": (
+                source_interpretation_observation_id
+            ),
+        },
+        "source_visual_observation_id": source_visual_observation_id,
+    }
+    if item.kind is SemanticEvidenceKind.OBJECT:
+        document["category"] = item.category
+    return (
+        f"{item.kind.value}-observation-sha256-"
+        f"{sha256_document(document)}"
+    )
+
+
+@dataclass(frozen=True, slots=True, init=False)
+class SemanticEvidenceObservation:
+    """A conservative non-empty set of anonymous facts from one interpretation."""
+
+    robot_id: str
+    sensor: SensorIdentity
+    reference_frame_id: str
+    source_visual_observation_id: str
+    source_visual_fingerprint: ObservationFingerprint
+    source_interpretation_observation_id: str
+    source_interpretation_fingerprint: ObservationFingerprint
+    observed_at_ns: int
+    result_at_ns: int
+    producer: VisualInterpretationProducer
+    evaluation_reference_sha256: str | None
+    items: tuple[SemanticEvidenceItem, ...]
+    provenance: ObservationProvenance
+    availability: SensorAvailability
+    observation_id: str
+    fingerprint: ObservationFingerprint
+
+    def __init__(
+        self,
+        *,
+        robot_id: str,
+        sensor: SensorIdentity,
+        reference_frame_id: str,
+        source_visual_observation_id: str,
+        source_visual_fingerprint: ObservationFingerprint,
+        source_interpretation_observation_id: str,
+        source_interpretation_fingerprint: ObservationFingerprint,
+        observed_at_ns: int,
+        result_at_ns: int,
+        producer: VisualInterpretationProducer,
+        evaluation_reference_sha256: str | None,
+        items: tuple[SemanticEvidenceItem, ...],
+        provenance: ObservationProvenance,
+        availability: SensorAvailability,
+        observation_id: str | None = None,
+        fingerprint: ObservationFingerprint | None = None,
+    ) -> None:
+        canonical_identifier(robot_id, "robot_id")
+        if (
+            type(sensor) is not SensorIdentity
+            or sensor.kind is not SensorKind.RGB_CAMERA
+        ):
+            _invalid(
+                WorldModelFailureCode.MALFORMED_OBSERVATION,
+                "semantic evidence requires a typed RGB camera identity",
+            )
+        frame = _frame_id(reference_frame_id, "semantic evidence frame")
+        if frame != sensor.frame_id:
+            _invalid(
+                WorldModelFailureCode.MALFORMED_OBSERVATION,
+                "semantic evidence frame must match its camera optical frame",
+            )
+        if (
+            type(source_visual_observation_id) is not str
+            or _OBSERVATION_ID.fullmatch(source_visual_observation_id) is None
+            or type(source_visual_fingerprint) is not ObservationFingerprint
+            or source_visual_fingerprint.kind
+            is not ObservationFingerprintKind.VISUAL_FRAME
+            or source_visual_observation_id
+            != f"world-observation-{source_visual_fingerprint.digest}"
+        ):
+            _invalid(
+                WorldModelFailureCode.MALFORMED_OBSERVATION,
+                "semantic evidence source-frame identity is inconsistent",
+            )
+        if (
+            type(source_interpretation_observation_id) is not str
+            or _OBSERVATION_ID.fullmatch(source_interpretation_observation_id)
+            is None
+            or type(source_interpretation_fingerprint)
+            is not ObservationFingerprint
+            or source_interpretation_fingerprint.kind
+            is not ObservationFingerprintKind.VISUAL_INTERPRETATION
+            or source_interpretation_observation_id
+            != f"world-observation-{source_interpretation_fingerprint.digest}"
+        ):
+            _invalid(
+                WorldModelFailureCode.MALFORMED_OBSERVATION,
+                "semantic evidence source-interpretation identity is inconsistent",
+            )
+        if (
+            type(observed_at_ns) is not int
+            or type(result_at_ns) is not int
+            or not 0 <= observed_at_ns <= result_at_ns <= MAX_OBSERVATION_TIME_NS
+        ):
+            _invalid(
+                WorldModelFailureCode.MALFORMED_OBSERVATION,
+                "semantic source/result timestamps are malformed or reversed",
+            )
+        if type(producer) is not VisualInterpretationProducer:
+            _invalid(
+                WorldModelFailureCode.MALFORMED_OBSERVATION,
+                "semantic evidence producer must be typed",
+            )
+        evaluation_digest = (
+            None
+            if evaluation_reference_sha256 is None
+            else _sha256_digest(
+                evaluation_reference_sha256,
+                "semantic evaluation reference",
+            )
+        )
+        if (
+            type(items) is not tuple
+            or not items
+            or len(items) > MAX_SEMANTIC_EVIDENCE_ITEMS
+            or any(type(item) is not SemanticEvidenceItem for item in items)
+        ):
+            _invalid(
+                WorldModelFailureCode.MALFORMED_OBSERVATION,
+                "semantic evidence items must be a non-empty bounded typed tuple",
+            )
+        canonical_items = tuple(
+            sorted(
+                items,
+                key=lambda item: (
+                    item.source_detection_id,
+                    item.source_semantic_observation_id,
+                ),
+            )
+        )
+        semantic_ids = tuple(
+            item.source_semantic_observation_id for item in canonical_items
+        )
+        detection_ids = tuple(
+            item.source_detection_id for item in canonical_items
+        )
+        if (
+            len(semantic_ids) != len(set(semantic_ids))
+            or len(detection_ids) != len(set(detection_ids))
+        ):
+            _invalid(
+                WorldModelFailureCode.MALFORMED_OBSERVATION,
+                "semantic evidence sources must be unique within one interpretation",
+            )
+        if type(provenance) is not ObservationProvenance:
+            _invalid(
+                WorldModelFailureCode.MALFORMED_PROVENANCE,
+                "semantic evidence provenance is required",
+            )
+        for item in canonical_items:
+            expected_source_id = _semantic_source_observation_id(
+                item=item,
+                robot_id=robot_id,
+                sensor=sensor,
+                reference_frame_id=frame,
+                source_visual_observation_id=source_visual_observation_id,
+                source_interpretation_observation_id=(
+                    source_interpretation_observation_id
+                ),
+                observed_at_ns=observed_at_ns,
+                result_at_ns=result_at_ns,
+                provenance=provenance,
+            )
+            if item.source_semantic_observation_id != expected_source_id:
+                raise ObservationIdentityError(
+                    WorldModelFailureCode.IDENTITY_MISMATCH,
+                    "semantic source-observation identity does not match projected content",
+                )
+        if availability not in {
+            SensorAvailability.AVAILABLE,
+            SensorAvailability.DEGRADED,
+        }:
+            _invalid(
+                WorldModelFailureCode.MALFORMED_OBSERVATION,
+                "semantic evidence must be available or degraded",
+            )
+        payload: dict[str, JSONValue] = {
+            "availability": availability.value,
+            "evaluation_reference_sha256": evaluation_digest,
+            "items": [item.document() for item in canonical_items],
+            "producer": producer.document(),
+            "reference_frame_id": frame,
+            "result_at_ns": result_at_ns,
+            "sensor": sensor.document(),
+            "source_interpretation_fingerprint": str(
+                source_interpretation_fingerprint
+            ),
+            "source_interpretation_observation_id": (
+                source_interpretation_observation_id
+            ),
+            "source_visual_fingerprint": str(source_visual_fingerprint),
+            "source_visual_observation_id": source_visual_observation_id,
+        }
+        document = _observation_document(
+            kind=ObservationFingerprintKind.SEMANTIC_EVIDENCE,
+            robot_id=robot_id,
+            observed_at_ns=observed_at_ns,
+            provenance=provenance,
+            confidence=None,
+            payload=payload,
+        )
+        derived = ObservationFingerprint(
+            kind=ObservationFingerprintKind.SEMANTIC_EVIDENCE,
+            digest=sha256_document(document),
+        )
+        derived_id = f"world-observation-{derived.digest}"
+        if fingerprint is not None and fingerprint != derived:
+            raise ObservationIdentityError(
+                WorldModelFailureCode.IDENTITY_MISMATCH,
+                "semantic evidence fingerprint does not match its content",
+            )
+        if observation_id is not None and observation_id != derived_id:
+            raise ObservationIdentityError(
+                WorldModelFailureCode.IDENTITY_MISMATCH,
+                "semantic evidence observation ID does not match its content",
+            )
+        for field_name, value in (
+            ("robot_id", robot_id),
+            ("sensor", sensor),
+            ("reference_frame_id", frame),
+            ("source_visual_observation_id", source_visual_observation_id),
+            ("source_visual_fingerprint", source_visual_fingerprint),
+            (
+                "source_interpretation_observation_id",
+                source_interpretation_observation_id,
+            ),
+            (
+                "source_interpretation_fingerprint",
+                source_interpretation_fingerprint,
+            ),
+            ("observed_at_ns", observed_at_ns),
+            ("result_at_ns", result_at_ns),
+            ("producer", producer),
+            ("evaluation_reference_sha256", evaluation_digest),
+            ("items", canonical_items),
+            ("provenance", provenance),
+            ("availability", availability),
+            ("observation_id", derived_id),
+            ("fingerprint", derived),
+        ):
+            object.__setattr__(self, field_name, value)
+
+    def payload_document(self) -> dict[str, JSONValue]:
+        return {
+            "availability": self.availability.value,
+            "evaluation_reference_sha256": self.evaluation_reference_sha256,
+            "items": [item.document() for item in self.items],
+            "producer": self.producer.document(),
+            "reference_frame_id": self.reference_frame_id,
+            "result_at_ns": self.result_at_ns,
+            "sensor": self.sensor.document(),
+            "source_interpretation_fingerprint": str(
+                self.source_interpretation_fingerprint
+            ),
+            "source_interpretation_observation_id": (
+                self.source_interpretation_observation_id
+            ),
+            "source_visual_fingerprint": str(self.source_visual_fingerprint),
+            "source_visual_observation_id": self.source_visual_observation_id,
+        }
+
+
 @dataclass(frozen=True, slots=True, init=False)
 class BodyPoseObservation:
     robot_id: str
@@ -2899,6 +3321,7 @@ Observation: TypeAlias = (
     | DepthFrameObservation
     | FusedRgbdObservation
     | VisualInterpretationObservation
+    | SemanticEvidenceObservation
     | BodyPoseObservation
     | SensorHealthObservation
     | EnvironmentEntityObservation
@@ -3056,6 +3479,33 @@ def rebuild_observation(observation: Observation) -> Observation:
             provenance=observation.provenance,
             availability=observation.availability,
             evaluation_reference=observation.evaluation_reference,
+            observation_id=observation.observation_id,
+            fingerprint=observation.fingerprint,
+        )
+    if type(observation) is SemanticEvidenceObservation:
+        return SemanticEvidenceObservation(
+            robot_id=observation.robot_id,
+            sensor=observation.sensor,
+            reference_frame_id=observation.reference_frame_id,
+            source_visual_observation_id=(
+                observation.source_visual_observation_id
+            ),
+            source_visual_fingerprint=observation.source_visual_fingerprint,
+            source_interpretation_observation_id=(
+                observation.source_interpretation_observation_id
+            ),
+            source_interpretation_fingerprint=(
+                observation.source_interpretation_fingerprint
+            ),
+            observed_at_ns=observation.observed_at_ns,
+            result_at_ns=observation.result_at_ns,
+            producer=observation.producer,
+            evaluation_reference_sha256=(
+                observation.evaluation_reference_sha256
+            ),
+            items=observation.items,
+            provenance=observation.provenance,
+            availability=observation.availability,
             observation_id=observation.observation_id,
             fingerprint=observation.fingerprint,
         )
@@ -3476,6 +3926,51 @@ class ObservedVisualInterpretationState:
 
 
 @dataclass(frozen=True, slots=True)
+class ObservedSemanticEvidenceState:
+    """Freshness-qualified anonymous semantic evidence from one interpretation."""
+
+    observation: SemanticEvidenceObservation
+    freshness: FreshnessState
+    availability: SensorAvailability
+
+    def __post_init__(self) -> None:
+        if type(self.observation) is not SemanticEvidenceObservation:
+            _invalid(
+                WorldModelFailureCode.SNAPSHOT_INVARIANT,
+                "semantic evidence state is untyped",
+            )
+        if not isinstance(self.freshness, FreshnessState):
+            _invalid(
+                WorldModelFailureCode.SNAPSHOT_INVARIANT,
+                "semantic evidence freshness is invalid",
+            )
+        if not isinstance(self.availability, SensorAvailability):
+            _invalid(
+                WorldModelFailureCode.SNAPSHOT_INVARIANT,
+                "semantic evidence availability is invalid",
+            )
+        if (
+            self.freshness is FreshnessState.STALE
+            and self.availability is not SensorAvailability.STALE
+        ):
+            _invalid(
+                WorldModelFailureCode.SNAPSHOT_INVARIANT,
+                "stale semantic evidence must be explicitly marked stale",
+            )
+
+    def document(self) -> dict[str, JSONValue]:
+        return {
+            "availability": self.availability.value,
+            "fingerprint": str(self.observation.fingerprint),
+            "freshness": self.freshness.value,
+            "observation_id": self.observation.observation_id,
+            "observed_at_ns": self.observation.observed_at_ns,
+            "payload": self.observation.payload_document(),
+            "provenance": self.observation.provenance.document(),
+        }
+
+
+@dataclass(frozen=True, slots=True)
 class ObservedSensorHealthState:
     observation: SensorHealthObservation
     freshness: FreshnessState
@@ -3830,6 +4325,7 @@ class WorldSnapshot:
     captured_at_ns: int
     robot: RobotBodyState
     entities: tuple[WorldEntity, ...]
+    semantic_states: tuple[ObservedSemanticEvidenceState, ...]
     version: WorldModelVersion
 
     def __init__(
@@ -3838,6 +4334,7 @@ class WorldSnapshot:
         captured_at_ns: int,
         robot: RobotBodyState,
         entities: tuple[WorldEntity, ...],
+        semantic_states: tuple[ObservedSemanticEvidenceState, ...] = (),
         snapshot_id: str | None = None,
         version: WorldModelVersion | None = None,
     ) -> None:
@@ -3858,9 +4355,44 @@ class WorldSnapshot:
         ordered = tuple(sorted(entities, key=lambda item: item.identity.entity_id))
         if len({item.identity.entity_id for item in ordered}) != len(ordered):
             _invalid(WorldModelFailureCode.SNAPSHOT_INVARIANT, "snapshot entity IDs repeat")
+        if (
+            type(semantic_states) is not tuple
+            or len(semantic_states) > MAX_SEMANTIC_EVIDENCE_STATES
+            or any(
+                type(item) is not ObservedSemanticEvidenceState
+                for item in semantic_states
+            )
+        ):
+            _invalid(
+                WorldModelFailureCode.SNAPSHOT_INVARIANT,
+                "snapshot semantic evidence states are invalid",
+            )
+        ordered_semantics = tuple(
+            sorted(
+                semantic_states,
+                key=lambda item: (
+                    item.observation.sensor.sensor_id,
+                    item.observation.producer.producer_id,
+                    item.observation.observed_at_ns,
+                    item.observation.result_at_ns,
+                    item.observation.observation_id,
+                ),
+            )
+        )
+        semantic_ids = tuple(
+            item.observation.observation_id for item in ordered_semantics
+        )
+        if len(semantic_ids) != len(set(semantic_ids)):
+            _invalid(
+                WorldModelFailureCode.SNAPSHOT_INVARIANT,
+                "snapshot semantic evidence identities repeat",
+            )
         document: dict[str, JSONValue] = {
             "entities": [item.document() for item in ordered],
             "robot": robot.document(),
+            "semantic_states": [
+                item.document() for item in ordered_semantics
+            ],
             "schema": "ayyo.world-model.snapshot.v1",
         }
         derived = WorldModelVersion(sha256_document(document))
@@ -3878,6 +4410,7 @@ class WorldSnapshot:
         object.__setattr__(self, "captured_at_ns", captured_at_ns)
         object.__setattr__(self, "robot", robot)
         object.__setattr__(self, "entities", ordered)
+        object.__setattr__(self, "semantic_states", ordered_semantics)
         object.__setattr__(self, "version", derived)
         object.__setattr__(self, "snapshot_id", derived_id)
 
@@ -3896,6 +4429,7 @@ def rebuild_snapshot(snapshot: WorldSnapshot) -> WorldSnapshot:
         captured_at_ns=snapshot.captured_at_ns,
         robot=snapshot.robot,
         entities=snapshot.entities,
+        semantic_states=snapshot.semantic_states,
         snapshot_id=snapshot.snapshot_id,
         version=snapshot.version,
     )

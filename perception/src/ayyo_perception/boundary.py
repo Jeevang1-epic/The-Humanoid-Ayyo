@@ -15,18 +15,23 @@ from ayyo_world_model import (
     FusedRgbdObservation,
     EnvironmentEntityObservation,
     ImuObservation,
+    MAX_SEMANTIC_EVIDENCE_ITEMS,
     ObservationIdentityError,
     ObservationSourceKind,
     RobotStateObservation,
     SensorAvailability,
     SensorHealthObservation,
     SensorKind,
+    SemanticEvidenceItem,
+    SemanticEvidenceKind,
+    SemanticEvidenceObservation,
     VisualSemanticCategory,
     VisualFrameObservation,
     VisualInterpretationObservation,
     MAX_VISUAL_SOURCE_REFERENCES,
     WorldModelValidationError,
     rebuild_observation,
+    visual_evaluation_reference_sha256,
 )
 from ayyo_visual_evaluation import EvaluatedVisualAdmission
 
@@ -109,6 +114,107 @@ class PerceptionTrustBoundary:
     @property
     def config(self) -> PerceptionTrustConfig:
         return self._config
+
+    def project_semantic_evidence(
+        self,
+        semantic_observation_ids: tuple[str, ...],
+    ) -> SemanticEvidenceObservation:
+        """Project only retained admitted semantics from one interpretation."""
+        if (
+            type(semantic_observation_ids) is not tuple
+            or not semantic_observation_ids
+            or len(semantic_observation_ids) > MAX_SEMANTIC_EVIDENCE_ITEMS
+            or any(type(item) is not str for item in semantic_observation_ids)
+            or len(semantic_observation_ids)
+            != len(set(semantic_observation_ids))
+        ):
+            raise PerceptionObservationValidationError(
+                "semantic projection requires unique retained admission identities"
+            )
+        with self._lock:
+            observations = tuple(
+                self._semantic_admissions.get(observation_id)
+                for observation_id in semantic_observation_ids
+            )
+            if any(observation is None for observation in observations):
+                raise PerceptionObservationValidationError(
+                    "semantic projection source was not retained as admitted evidence"
+                )
+            admitted = tuple(
+                rebuild_semantic_observation(observation)
+                for observation in observations
+                if observation is not None
+            )
+            interpretation_ids = {
+                observation.source_detection.visual_interpretation_observation_id
+                for observation in admitted
+            }
+            if len(interpretation_ids) != 1:
+                raise PerceptionObservationValidationError(
+                    "semantic projection items must share one admitted interpretation"
+                )
+            interpretation_id = next(iter(interpretation_ids))
+            interpretation = self._visual_interpretations.get(interpretation_id)
+            if interpretation is None:
+                raise PerceptionObservationValidationError(
+                    "semantic projection interpretation is no longer retained"
+                )
+            if (
+                interpretation.source_visual_observation_id
+                not in self._visual_sources
+            ):
+                raise PerceptionObservationValidationError(
+                    "semantic projection source frame is no longer retained"
+                )
+            items = tuple(
+                SemanticEvidenceItem(
+                    kind=(
+                        SemanticEvidenceKind.PERSON
+                        if type(observation) is PersonObservation
+                        else SemanticEvidenceKind.OBJECT
+                    ),
+                    source_semantic_observation_id=(
+                        observation.observation_id
+                    ),
+                    source_detection_id=(
+                        observation.source_detection.visual_detection_id
+                    ),
+                    region=observation.region,
+                    confidence=observation.confidence,
+                    category=(
+                        observation.category
+                        if type(observation) is ObjectObservation
+                        else None
+                    ),
+                )
+                for observation in admitted
+            )
+            return SemanticEvidenceObservation(
+                robot_id=interpretation.robot_id,
+                sensor=interpretation.sensor,
+                reference_frame_id=interpretation.reference_frame_id,
+                source_visual_observation_id=(
+                    interpretation.source_visual_observation_id
+                ),
+                source_visual_fingerprint=(
+                    interpretation.source_visual_fingerprint
+                ),
+                source_interpretation_observation_id=(
+                    interpretation.observation_id
+                ),
+                source_interpretation_fingerprint=interpretation.fingerprint,
+                observed_at_ns=interpretation.observed_at_ns,
+                result_at_ns=interpretation.result_at_ns,
+                producer=interpretation.producer,
+                evaluation_reference_sha256=(
+                    visual_evaluation_reference_sha256(
+                        interpretation.evaluation_reference
+                    )
+                ),
+                items=items,
+                provenance=interpretation.provenance,
+                availability=interpretation.availability,
+            )
 
     def reset(self) -> None:
         with self._lock:

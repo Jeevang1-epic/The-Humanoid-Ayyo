@@ -12,6 +12,8 @@ from ayyo_world_model import (
     SensorIdentity,
     VisualEvaluationRequirement,
     VisualInterpretationProducer,
+    MAX_SEMANTIC_EVIDENCE_STATES,
+    MAX_SENSOR_IDENTITIES,
     MAX_VISUAL_EVALUATION_REQUIREMENTS,
     MAX_VISUAL_INTERPRETATION_PRODUCERS,
     rebuild_observation,
@@ -24,6 +26,9 @@ WORKING_MEMORY_SCHEMA_VERSION = 1
 MAX_RECENT_EVIDENCE_CAPACITY = 4_096
 MAX_ENTITY_CAPACITY = 256
 MAX_RETENTION_NS = 300_000_000_000
+MAX_SEMANTIC_SOURCE_WATERMARKS = (
+    MAX_SENSOR_IDENTITIES * MAX_VISUAL_INTERPRETATION_PRODUCERS
+)
 
 
 class IngestionStatus(StrEnum):
@@ -69,6 +74,7 @@ class StateKeyKind(StrEnum):
     ROBOT_DEPTH = "robot_depth"
     ROBOT_RGBD_FUSION = "robot_rgbd_fusion"
     ROBOT_VISUAL_INTERPRETATION = "robot_visual_interpretation"
+    ROBOT_SEMANTIC_EVIDENCE = "robot_semantic_evidence"
     SENSOR_HEALTH = "sensor_health"
     ENVIRONMENT_ENTITY = "environment_entity"
 
@@ -96,6 +102,7 @@ class WorkingMemoryConfig:
     permitted_future_skew_ns: int = 50_000_000
     recent_evidence_capacity: int = 256
     environment_entity_capacity: int = 128
+    semantic_evidence_capacity: int = MAX_SEMANTIC_EVIDENCE_STATES
     visual_interpretation_producers: tuple[
         VisualInterpretationProducer, ...
     ] = ()
@@ -159,6 +166,15 @@ class WorkingMemoryConfig:
             or not 1 <= self.environment_entity_capacity <= MAX_ENTITY_CAPACITY
         ):
             raise WorkingMemoryConfigurationError("environment entity capacity is invalid")
+        if (
+            type(self.semantic_evidence_capacity) is not int
+            or not 1
+            <= self.semantic_evidence_capacity
+            <= MAX_SEMANTIC_EVIDENCE_STATES
+        ):
+            raise WorkingMemoryConfigurationError(
+                "semantic evidence capacity is invalid"
+            )
         if (
             type(self.visual_interpretation_producers) is not tuple
             or len(self.visual_interpretation_producers)
@@ -283,6 +299,8 @@ class WorkingMemoryStats:
     current_visual_interpretation_count: int = 0
     current_fused_rgbd_count: int = 0
     current_audio_count: int = 0
+    current_semantic_evidence_count: int = 0
+    semantic_source_watermark_count: int = 0
 
     def __post_init__(self) -> None:
         numeric = (
@@ -303,6 +321,16 @@ class WorkingMemoryStats:
             self.current_visual_interpretation_count,
             self.current_fused_rgbd_count,
             self.current_audio_count,
+            self.current_semantic_evidence_count,
+            self.semantic_source_watermark_count,
         )
         if any(type(item) is not int or item < 0 for item in numeric):
             raise WorkingMemoryConfigurationError("Working Memory statistics are invalid")
+        if self.current_semantic_evidence_count > MAX_SEMANTIC_EVIDENCE_STATES:
+            raise WorkingMemoryConfigurationError(
+                "semantic evidence statistics exceed their hard bound"
+            )
+        if self.semantic_source_watermark_count > MAX_SEMANTIC_SOURCE_WATERMARKS:
+            raise WorkingMemoryConfigurationError(
+                "semantic source watermark statistics exceed their hard bound"
+            )
