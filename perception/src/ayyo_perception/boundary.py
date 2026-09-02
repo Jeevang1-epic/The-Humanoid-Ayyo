@@ -29,16 +29,28 @@ from ayyo_world_model import (
 )
 from ayyo_visual_evaluation import EvaluatedVisualAdmission
 
-from .errors import PerceptionClockRegressionError, PerceptionConfigurationError
+from .errors import (
+    PerceptionClockRegressionError,
+    PerceptionConfigurationError,
+    PerceptionObservationIdentityError,
+    PerceptionObservationValidationError,
+)
 from .models import (
     AdmissionReason,
     AdmissionResult,
     AdmissionStatus,
     EvidenceFailureKind,
+    MAX_SEMANTIC_ADMISSIONS,
     PerceptionSourceContract,
     PerceptionStats,
     PerceptionTrustConfig,
     validate_time,
+)
+from .semantic_observations import (
+    ObjectObservation,
+    PersonObservation,
+    SemanticObservation,
+    rebuild_semantic_observation,
 )
 
 
@@ -60,6 +72,7 @@ class PerceptionTrustBoundary:
         "_physical_camera_authorizations",
         "_rejected_count",
         "_rgbd_fusion_authorizations",
+        "_semantic_admissions",
         "_visual_sources",
     )
 
@@ -84,6 +97,7 @@ class PerceptionTrustBoundary:
         self._rgbd_fusion_authorizations: dict[
             str, FusedRgbdObservation
         ] = {}
+        self._semantic_admissions: dict[str, SemanticObservation] = {}
         self._lock = RLock()
 
     @property
@@ -105,6 +119,7 @@ class PerceptionTrustBoundary:
             self._depth_camera_authorizations.clear()
             self._depth_sources.clear()
             self._rgbd_fusion_authorizations.clear()
+            self._semantic_admissions.clear()
 
     def _reject(
         self,
@@ -138,6 +153,8 @@ class PerceptionTrustBoundary:
             VisualFrameObservation,
             VisualInterpretationObservation,
             SensorHealthObservation,
+            PersonObservation,
+            ObjectObservation,
         }:
             matches = tuple(
                 source
@@ -172,6 +189,11 @@ class PerceptionTrustBoundary:
         for observation_id in expired:
             del self._visual_sources[observation_id]
         retained_source_ids = set(self._visual_sources)
+        self._semantic_admissions = {
+            observation_id: observation
+            for observation_id, observation in self._semantic_admissions.items()
+            if observation.source_visual_observation_id in retained_source_ids
+        }
         self._evaluated_visual_authorizations = {
             observation_id: observation
             for observation_id, observation in (
@@ -208,6 +230,11 @@ class PerceptionTrustBoundary:
                 for observation_id, observation in (
                     self._evaluated_visual_authorizations.items()
                 )
+                if observation.source_visual_observation_id != oldest_id
+            }
+            self._semantic_admissions = {
+                observation_id: observation
+                for observation_id, observation in self._semantic_admissions.items()
                 if observation.source_visual_observation_id != oldest_id
             }
 
@@ -498,14 +525,30 @@ class PerceptionTrustBoundary:
         received_at_monotonic_ns: int,
     ) -> AdmissionResult:
         """Reconstruct then admit one canonical observation under exact policy."""
-        try:
-            rebuilt = rebuild_observation(observation)
-        except ObservationIdentityError as error:
-            with self._lock:
-                return self._reject(AdmissionReason.IDENTITY_MISMATCH, error.detail)
-        except WorldModelValidationError as error:
-            with self._lock:
-                return self._reject(AdmissionReason.MALFORMED_OBSERVATION, error.detail)
+        if type(observation) in {PersonObservation, ObjectObservation}:
+            try:
+                rebuilt = rebuild_semantic_observation(observation)
+            except PerceptionObservationIdentityError as error:
+                with self._lock:
+                    return self._reject(
+                        AdmissionReason.IDENTITY_MISMATCH,
+                        str(error),
+                    )
+            except PerceptionObservationValidationError as error:
+                with self._lock:
+                    return self._reject(
+                        AdmissionReason.MALFORMED_OBSERVATION,
+                        str(error),
+                    )
+        else:
+            try:
+                rebuilt = rebuild_observation(observation)
+            except ObservationIdentityError as error:
+                with self._lock:
+                    return self._reject(AdmissionReason.IDENTITY_MISMATCH, error.detail)
+            except WorldModelValidationError as error:
+                with self._lock:
+                    return self._reject(AdmissionReason.MALFORMED_OBSERVATION, error.detail)
         if type(rebuilt) is EnvironmentEntityObservation:
             with self._lock:
                 return self._reject(
@@ -702,6 +745,62 @@ class PerceptionTrustBoundary:
                         "fused RGB-D evidence was not sealed from admitted components",
                         rebuilt.observation_id,
                     )
+            if type(rebuilt) in {PersonObservation, ObjectObservation}:
+                self._purge_visual_sources(now_ns=now)
+                if rebuilt.observed_at_ns > (
+                    now + self._config.permitted_future_skew_ns
+                ):
+                    return self._reject(
+                        AdmissionReason.FUTURE_OBSERVATION,
+                        "semantic source time is beyond permitted future skew",
+                        rebuilt.observation_id,
+                    )
+                if rebuilt.observed_at_ns < now - self._config.freshness_ns:
+                    return self._reject(
+                        AdmissionReason.STALE_OBSERVATION,
+                        "semantic evidence no longer has a fresh source frame",
+                        rebuilt.observation_id,
+                    )
+                source_frame = self._visual_sources.get(
+                    rebuilt.source_visual_observation_id
+                )
+                if source_frame is None:
+                    return self._reject(
+                        AdmissionReason.SOURCE_FRAME_NOT_ADMITTED,
+                        "semantic evidence does not reference a retained admitted frame",
+                        rebuilt.observation_id,
+                    )
+                if source_frame.availability not in {
+                    SensorAvailability.AVAILABLE,
+                    SensorAvailability.DEGRADED,
+                }:
+                    return self._reject(
+                        AdmissionReason.SOURCE_UNAVAILABLE,
+                        "semantic evidence requires an available source frame",
+                        rebuilt.observation_id,
+                    )
+                if (
+                    source_frame.robot_id != rebuilt.robot_id
+                    or source_frame.sensor != rebuilt.sensor
+                    or source_frame.sensor.frame_id
+                    != rebuilt.reference_frame_id
+                    or source_frame.observed_at_ns != rebuilt.observed_at_ns
+                    or source_frame.provenance != rebuilt.provenance
+                ):
+                    return self._reject(
+                        AdmissionReason.SOURCE_FRAME_MISMATCH,
+                        "semantic evidence metadata differs from its admitted frame",
+                        rebuilt.observation_id,
+                    )
+                if (
+                    rebuilt.result_at_ns
+                    > now + self._config.permitted_future_skew_ns
+                ):
+                    return self._reject(
+                        AdmissionReason.RESULT_TIME_INVALID,
+                        "semantic result time is beyond permitted future skew",
+                        rebuilt.observation_id,
+                    )
             if type(rebuilt) is VisualInterpretationObservation:
                 producer = next(
                     (
@@ -809,16 +908,8 @@ class PerceptionTrustBoundary:
                     "observation was already beyond retention at admission",
                     rebuilt.observation_id,
                 )
-            key = self._state_key(rebuilt, source)
-            current = self._last_by_key.get(key)
-            ordering_time = (
-                rebuilt.result_at_ns
-                if type(rebuilt) is VisualInterpretationObservation
-                else rebuilt.observed_at_ns
-            )
-            if current is not None:
-                current_time, current_id = current
-                if rebuilt.observation_id == current_id:
+            if type(rebuilt) in {PersonObservation, ObjectObservation}:
+                if rebuilt.observation_id in self._semantic_admissions:
                     self._duplicate_count += 1
                     return AdmissionResult(
                         status=AdmissionStatus.DUPLICATE,
@@ -827,24 +918,54 @@ class PerceptionTrustBoundary:
                         observation=None,
                         detail="equivalent evidence is already admitted",
                     )
-                if ordering_time < current_time:
+                if len(self._semantic_admissions) >= MAX_SEMANTIC_ADMISSIONS:
                     return self._reject(
-                        AdmissionReason.OUT_OF_ORDER,
-                        "newer evidence for this source key is already admitted",
+                        AdmissionReason.SEMANTIC_CAPACITY_REACHED,
+                        "semantic admission capacity is exhausted for this epoch",
                         rebuilt.observation_id,
                     )
-                if ordering_time == current_time:
-                    return self._reject(
-                        AdmissionReason.TEMPORAL_CONFLICT,
-                        "same source key and time carry conflicting evidence",
-                        rebuilt.observation_id,
-                    )
-            self._last_by_key[key] = (ordering_time, rebuilt.observation_id)
+            else:
+                key = self._state_key(rebuilt, source)
+                current = self._last_by_key.get(key)
+                ordering_time = (
+                    rebuilt.result_at_ns
+                    if type(rebuilt) is VisualInterpretationObservation
+                    else rebuilt.observed_at_ns
+                )
+                if current is not None:
+                    current_time, current_id = current
+                    if rebuilt.observation_id == current_id:
+                        self._duplicate_count += 1
+                        return AdmissionResult(
+                            status=AdmissionStatus.DUPLICATE,
+                            reason=AdmissionReason.DUPLICATE,
+                            observation_id=rebuilt.observation_id,
+                            observation=None,
+                            detail="equivalent evidence is already admitted",
+                        )
+                    if ordering_time < current_time:
+                        return self._reject(
+                            AdmissionReason.OUT_OF_ORDER,
+                            "newer evidence for this source key is already admitted",
+                            rebuilt.observation_id,
+                        )
+                    if ordering_time == current_time:
+                        return self._reject(
+                            AdmissionReason.TEMPORAL_CONFLICT,
+                            "same source key and time carry conflicting evidence",
+                            rebuilt.observation_id,
+                        )
+                self._last_by_key[key] = (
+                    ordering_time,
+                    rebuilt.observation_id,
+                )
             self._purge_visual_sources(now_ns=now)
             if type(rebuilt) is VisualFrameObservation:
                 self._remember_visual_source(rebuilt)
             if type(rebuilt) is DepthFrameObservation:
                 self._remember_depth_source(rebuilt)
+            if type(rebuilt) in {PersonObservation, ObjectObservation}:
+                self._semantic_admissions[rebuilt.observation_id] = rebuilt
             self._accepted_count += 1
             return AdmissionResult(
                 status=AdmissionStatus.ACCEPTED,
@@ -936,4 +1057,7 @@ class PerceptionTrustBoundary:
                     self._rgbd_fusion_authorizations
                 ),
                 tracked_audio_count=len(self._audio_authorizations),
+                tracked_semantic_admission_count=len(
+                    self._semantic_admissions
+                ),
             )

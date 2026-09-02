@@ -17,3 +17,7 @@ class PerceptionClockRegressionError(PerceptionError):
 
 class PerceptionObservationValidationError(PerceptionError, ValueError):
     """A transport-neutral perception observation contract is malformed."""
+
+
+class PerceptionObservationIdentityError(PerceptionObservationValidationError):
+    """A semantic observation identity does not match its content."""

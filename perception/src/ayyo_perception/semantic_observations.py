@@ -8,6 +8,7 @@ import re
 from dataclasses import dataclass
 from enum import StrEnum
 from hashlib import sha256
+from typing import NoReturn, TypeAlias
 
 from ayyo_world_model import (
     ImageRegion2D,
@@ -18,7 +19,10 @@ from ayyo_world_model import (
     SensorKind,
 )
 
-from .errors import PerceptionObservationValidationError
+from .errors import (
+    PerceptionObservationIdentityError,
+    PerceptionObservationValidationError,
+)
 
 
 _IDENTIFIER = re.compile(r"^[a-z0-9]+(?:[._-][a-z0-9]+)*$")
@@ -32,7 +36,7 @@ class SemanticObservationKind(StrEnum):
     OBJECT = "object"
 
 
-def _fail(detail: str) -> None:
+def _fail(detail: str) -> NoReturn:
     raise PerceptionObservationValidationError(detail)
 
 
@@ -130,7 +134,9 @@ def _validate_common(
     semantic_digest = _canonical_sha256(document)
     derived_id = f"{kind.value}-observation-sha256-{semantic_digest}"
     if observation_id is not None and observation_id != derived_id:
-        _fail("semantic observation identity does not match its content")
+        raise PerceptionObservationIdentityError(
+            "semantic observation identity does not match its content"
+        )
     return confidence_value, derived_id
 
 
@@ -288,3 +294,44 @@ class ObjectObservation:
 
     def document(self) -> dict[str, object]:
         return {**_common_document(self), "category": self.category}
+
+
+SemanticObservation: TypeAlias = PersonObservation | ObjectObservation
+
+
+def rebuild_semantic_observation(
+    observation: SemanticObservation,
+) -> SemanticObservation:
+    """Reconstruct one semantic observation and recheck its content identity."""
+    if type(observation) is PersonObservation:
+        return PersonObservation(
+            robot_id=observation.robot_id,
+            sensor=observation.sensor,
+            reference_frame_id=observation.reference_frame_id,
+            source_visual_observation_id=(
+                observation.source_visual_observation_id
+            ),
+            observed_at_ns=observation.observed_at_ns,
+            result_at_ns=observation.result_at_ns,
+            confidence=observation.confidence,
+            region=observation.region,
+            provenance=observation.provenance,
+            observation_id=observation.observation_id,
+        )
+    if type(observation) is ObjectObservation:
+        return ObjectObservation(
+            robot_id=observation.robot_id,
+            sensor=observation.sensor,
+            reference_frame_id=observation.reference_frame_id,
+            source_visual_observation_id=(
+                observation.source_visual_observation_id
+            ),
+            observed_at_ns=observation.observed_at_ns,
+            result_at_ns=observation.result_at_ns,
+            category=observation.category,
+            confidence=observation.confidence,
+            region=observation.region,
+            provenance=observation.provenance,
+            observation_id=observation.observation_id,
+        )
+    _fail("semantic observation has an unsupported concrete type")

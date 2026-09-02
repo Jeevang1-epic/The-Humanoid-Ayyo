@@ -5,6 +5,7 @@ from .errors import (
     PerceptionClockRegressionError,
     PerceptionConfigurationError,
     PerceptionError,
+    PerceptionObservationIdentityError,
     PerceptionObservationValidationError,
 )
 from .models import (
@@ -14,6 +15,7 @@ from .models import (
     EvidenceFailureKind,
     MAX_PERCEPTION_RETENTION_NS,
     MAX_PERCEPTION_SOURCES,
+    MAX_SEMANTIC_ADMISSIONS,
     PerceptionSourceContract,
     PerceptionStats,
     PerceptionTrustConfig,
@@ -21,7 +23,9 @@ from .models import (
 from .semantic_observations import (
     ObjectObservation,
     PersonObservation,
+    SemanticObservation,
     SemanticObservationKind,
+    rebuild_semantic_observation,
 )
 from .visual_reference import (
     DeterministicVisualReferenceAdapter,
@@ -35,9 +39,11 @@ __all__ = [
     "EvidenceFailureKind",
     "MAX_PERCEPTION_RETENTION_NS",
     "MAX_PERCEPTION_SOURCES",
+    "MAX_SEMANTIC_ADMISSIONS",
     "PerceptionClockRegressionError",
     "PerceptionConfigurationError",
     "PerceptionError",
+    "PerceptionObservationIdentityError",
     "PerceptionObservationValidationError",
     "PerceptionSourceContract",
     "PerceptionStats",
@@ -45,7 +51,9 @@ __all__ = [
     "PerceptionTrustConfig",
     "ObjectObservation",
     "PersonObservation",
+    "SemanticObservation",
     "SemanticObservationKind",
+    "rebuild_semantic_observation",
     "DeterministicVisualReferenceAdapter",
     "REFERENCE_VISUAL_PRODUCER",
 ]

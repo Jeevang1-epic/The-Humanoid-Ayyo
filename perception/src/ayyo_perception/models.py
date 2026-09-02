@@ -30,10 +30,17 @@ from ayyo_world_model import (
 )
 
 from .errors import PerceptionConfigurationError
+from .semantic_observations import (
+    ObjectObservation,
+    PersonObservation,
+    SemanticObservation,
+    rebuild_semantic_observation,
+)
 
 
 MAX_PERCEPTION_SOURCES = 32
 MAX_PERCEPTION_RETENTION_NS = 300_000_000_000
+MAX_SEMANTIC_ADMISSIONS = MAX_VISUAL_SOURCE_REFERENCES
 _FRAME = re.compile(r"^[A-Za-z][A-Za-z0-9_/-]*$")
 
 
@@ -86,6 +93,7 @@ class AdmissionReason(StrEnum):
     AUDIO_REQUIRED = "audio_required"
     AUDIO_MISMATCH = "audio_mismatch"
     AUDIO_NOT_AUTHORIZED = "audio_not_authorized"
+    SEMANTIC_CAPACITY_REACHED = "semantic_capacity_reached"
 
 
 class EvidenceFailureKind(StrEnum):
@@ -403,7 +411,7 @@ class AdmissionResult:
     status: AdmissionStatus
     reason: AdmissionReason
     observation_id: str | None
-    observation: Observation | None
+    observation: Observation | SemanticObservation | None
     detail: str
 
     def __post_init__(self) -> None:
@@ -416,16 +424,25 @@ class AdmissionResult:
         if self.status is AdmissionStatus.ACCEPTED:
             if self.observation is None:
                 raise PerceptionConfigurationError("accepted evidence requires an observation")
-            rebuilt = rebuild_observation(self.observation)
+            if type(self.observation) in {PersonObservation, ObjectObservation}:
+                rebuilt = rebuild_semantic_observation(self.observation)
+            else:
+                rebuilt = rebuild_observation(self.observation)
             if self.observation_id != rebuilt.observation_id:
                 raise PerceptionConfigurationError("accepted evidence identity is inconsistent")
             object.__setattr__(self, "observation", rebuilt)
         elif self.observation is not None:
             raise PerceptionConfigurationError("non-accepted evidence cannot carry an observation")
-        if self.observation_id is not None and not self.observation_id.startswith(
-            "world-observation-"
-        ):
-            raise PerceptionConfigurationError("admission evidence identity is malformed")
+        if self.observation_id is not None:
+            allowed_prefixes = (
+                "world-observation-",
+                "person-observation-sha256-",
+                "object-observation-sha256-",
+            )
+            if not self.observation_id.startswith(allowed_prefixes):
+                raise PerceptionConfigurationError(
+                    "admission evidence identity is malformed"
+                )
 
 
 @dataclass(frozen=True, slots=True)
@@ -442,6 +459,7 @@ class PerceptionStats:
     tracked_depth_source_count: int = 0
     tracked_rgbd_fusion_count: int = 0
     tracked_audio_count: int = 0
+    tracked_semantic_admission_count: int = 0
 
     def __post_init__(self) -> None:
         values = (
@@ -457,6 +475,7 @@ class PerceptionStats:
             self.tracked_depth_source_count,
             self.tracked_rgbd_fusion_count,
             self.tracked_audio_count,
+            self.tracked_semantic_admission_count,
         )
         if any(type(value) is not int or value < 0 for value in values):
             raise PerceptionConfigurationError("perception statistics are invalid")
@@ -493,6 +512,10 @@ class PerceptionStats:
         if self.tracked_audio_count > MAX_VISUAL_SOURCE_REFERENCES:
             raise PerceptionConfigurationError(
                 "tracked audio authorizations exceed their hard bound"
+            )
+        if self.tracked_semantic_admission_count > MAX_SEMANTIC_ADMISSIONS:
+            raise PerceptionConfigurationError(
+                "tracked semantic admissions exceed their hard bound"
             )
 
 
