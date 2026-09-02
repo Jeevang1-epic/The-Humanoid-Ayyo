@@ -197,6 +197,13 @@
 - Exact interpreted-evidence admission against one retained trusted frame and
   one reviewed producer, including simulation/physical provenance separation,
   result ordering, typed rejection, and a 64-reference hard bound
+- Immutable compact anonymous person/object observation contracts with exact
+  robot, RGB camera, optical frame, source-frame identity, source/result time,
+  normalized region, bounded confidence, typed provenance, and deterministic
+  content identity
+- Fail-closed person/object admission through the existing Perception boundary,
+  requiring one exact fresh retained visual source and preserving deterministic
+  duplicate, reset, expiry, tamper rejection, and a 64-item resource bound
 - Working Memory replacement per camera/producer and immutable World Model
   visual-interpretation projection with additive fixed read-only query fields
 - Default-off deterministic synthetic reference adapter with no model,
@@ -254,6 +261,9 @@
 - Force/torque, touch, physical depth hardware, audio, production object/person
   perception,
   navigation, manipulation, and non-synthetic visual producer adapters
+- Person/object tracking, face recognition, biometric or persistent person
+  identity, and Working Memory/World Model projection of the compact semantic
+  contracts
 - Production diagnostic producers, SLAM, visual localization, sensor fusion,
   calibration/bias estimation, trust scoring, clock
   synchronization, and environment-state ROS query transport

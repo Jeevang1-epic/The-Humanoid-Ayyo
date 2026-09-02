@@ -7,8 +7,9 @@ can mature behind stable boundaries before physical hardware is introduced.
 
 ## Current status
 
-Ayyo has reached the Head Audio Perception Foundation v1 milestone with a
-hardware-free, default-off deterministic TEST proof.
+Ayyo has reached the Person/Object Perception Admission Foundation v1
+milestone with transport-neutral deterministic evidence contracts and no
+production detector or identity claim.
 
 Implemented:
 
@@ -38,7 +39,7 @@ Implemented:
   validates an exact service-only endpoint allowlist, emits deterministic
   dispatch-eligibility decisions, and models an unavailable-by-default
   transport boundary without a concrete ROS client or robot execution
-- A modular 37-link, 36-joint canonical Ayyo humanoid frame tree with 18
+- A modular 39-link, 38-joint canonical Ayyo humanoid frame tree with 18
   provisional movable joints, fixed body-IMU and head-camera optical frames,
   deterministic
   Xacro/URDF validation, isolated proxy geometry, and a machine-readable
@@ -67,6 +68,13 @@ Implemented:
 - Bounded typed visual-interpretation contracts tied to one exact admitted
   frame and producer, with normalized regions, optional honest confidence,
   source/result time, deterministic identity, and no generic metadata
+- Compact immutable anonymous person and object observation contracts with
+  normalized regions, bounded confidence, deterministic identity, typed
+  provenance, an explicit TEST-only proof, no raw pixels, and no biometric or
+  persistent identity
+- Fail-closed person/object admission bound to one exact fresh retained RGB
+  frame, camera, optical frame, provenance, and acquisition/result time, with
+  deterministic replay handling, reset/expiry behavior, and a 64-item cap
 - Immutable IMU, body-pose, covariance, quality, health/availability,
   freshness, and disappearance contracts integrated into Working Memory and
   World Model without fabricating missing state
@@ -142,6 +150,8 @@ Planned, but not implemented:
 - Physical localization/camera/sensor validation, real diagnostic producers,
   spatial registration/SLAM/physical calibration, and production visual
   producer promotion
+- Production person/object detectors, tracking, face recognition, persistent
+  identity, and Working Memory/World Model semantic projection
 - Natural-language/model integration and authenticated identity/approval
 - Runtime skill implementations, manipulation, and navigation
 - Production-authorized typed ROS services, runtime scheduling, and resource
@@ -291,8 +301,10 @@ python3 -m unittest discover -s working_memory/tests -v
 Run Perception Trust Boundary tests:
 
 ```bash
-PYTHONPATH=world_model/src:physical_camera/src:visual_evaluation/src:perception/src \
-python3 -m unittest discover -s perception/tests -v
+export PYTHONPATH="world_model/src:head_audio/src:physical_camera/src:depth_camera/src:rgbd_fusion/src:visual_evaluation/src:perception/src:working_memory/src"
+python3 -m pytest -q perception/tests/test_person_object_observations.py
+python3 -m pytest -q perception/tests/test_semantic_admission_boundary.py
+python3 -m pytest -q perception/tests
 ```
 
 Run physical head-camera foundation tests:
@@ -449,6 +461,10 @@ v1 adds TEST-only compact microphone evidence with no raw-sample retention or
 authority. The physical-camera, depth, fusion, and audio milestones do not
 validate real RGB-D/audio hardware, hardware clocks, physical calibration,
 extrinsics, spatial registration, acoustics, or production device timing.
+Person/Object Observation Contracts and Perception Admission Foundation v1
+adds only anonymous compact evidence and exact admitted-frame trust binding; it
+adds no detector, face or persistent identity, physical validation, temporary
+World Model/Working Memory projection, authority, or motion.
 Production motion remains
 closed because Safety v1 defers physical movement; only explicit development
 injection can exercise the simulated neck joint. The perception path adds

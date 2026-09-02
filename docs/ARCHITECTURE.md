@@ -43,7 +43,13 @@ does not infer scene semantics or retain video. The
 [Visual Perception Processing Foundation](VISUAL_PERCEPTION_PROCESSING.md)
 adds bounded typed interpretations tied to an exact admitted frame, an exact
 producer allowlist, temporary projection, and a synthetic default-off proof.
-It implements no production model and grants no execution authority. The
+It implements no production model and grants no execution authority. Compact
+anonymous person/object observations now reuse that Perception trust boundary:
+admission requires an exact fresh retained RGB frame and preserves bounded
+confidence, normalized regions, deterministic identity, typed provenance,
+duplicate/reset/expiry behavior, and a hard resource cap. These observations
+are not detectors, identity claims, temporary World Model state, commands, or
+authority. The
 transport-neutral
 [Recorded Visual Producer Evaluation and Perception Quality Gate](VISUAL_PRODUCER_EVALUATION.md)
 adds verified model/dataset/policy identity, bounded deterministic metrics,
@@ -169,6 +175,12 @@ replace proxy geometry without duplicating or bypassing frame semantics.
   resource admission. Working Memory keeps one current result per
   camera/producer plus bounded recent evidence; interpretation is never a
   command, permission, identity claim, or durable-memory write.
+- Person/object admission reuses the retained visual-frame boundary and accepts
+  only content-identity-valid anonymous evidence matching one exact fresh RGB
+  source, camera, optical frame, time, and provenance. Its duplicate register is
+  TTL/reset scoped and capped at 64; it retains no pixels, does not project into
+  Working Memory or World Model, and grants no identity, permission, safety,
+  skill, Executive, movement, or execution authority.
 - Evaluated producers additionally require one exact registered manifest,
   verified model artifact, immutable dataset and policy, successful semantic
   report identity, and a sealed one-use authorization. A bare result or

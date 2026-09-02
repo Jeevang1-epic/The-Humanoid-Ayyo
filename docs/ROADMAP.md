@@ -68,6 +68,13 @@ image-region observations tied to an exact admitted source frame, exact
 producer/model/adapter identity, provenance and source/result time checks,
 bounded Working Memory/World Model projection, and a deterministic synthetic
 reference proof. It does not implement or claim production machine perception.
+Person/Object Observation Contracts and Perception Admission Foundation v1 now
+adds compact anonymous person/object evidence and fail-closed binding to one
+exact fresh retained RGB source frame through the existing Perception boundary.
+It adds deterministic identity, duplicate/reset/expiry behavior, and a hard
+resource bound, but no detector, tracking, face or persistent identity,
+Working Memory/World Model projection, physical validation, authority, or
+motion.
 Recorded Visual Producer Evaluation and Perception Quality Gate v1 now adds
 explicit producer registration, verified model artifact identity, immutable
 recorded dataset/policy/report contracts, deterministic bounded evaluation,
