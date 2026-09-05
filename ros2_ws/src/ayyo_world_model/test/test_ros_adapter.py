@@ -303,6 +303,9 @@ def test_adapter_subscribes_only_to_fixed_standard_proprioceptive_interfaces() -
     assert assignments['LOCALIZATION_TOPIC'] == '/ayyo/localization/odometry'
     assert assignments['DIAGNOSTICS_TOPIC'] == '/diagnostics'
     assert assignments['QUERY_SERVICE'] == '/ayyo/world_model/get_robot_body_state'
+    assert assignments['SEMANTIC_QUERY_SERVICE'] == (
+        '/ayyo/world_model/get_anonymous_semantic_state'
+    )
     assert 'create_subscription(' in source
     assert 'JOINT_STATE_TOPIC' in source
     assert 'IMU_TOPIC' in source
@@ -1033,7 +1036,7 @@ def test_evaluated_visual_fixture_is_sealed_bounded_and_lifecycle_scoped() -> No
         'DeterministicFixtureInvoker()',
         'authorize_evaluated_visual(sealed)',
         'self._visual_evaluated_this_activation = True',
-        "'visual reference and evaluated fixture modes are mutually exclusive'",
+        "'visual reference/semantic and evaluated fixture modes are mutually exclusive'",
     ):
         assert expected in source
     assert source.count('self._visual_evaluated_this_activation = False') >= 5
@@ -1086,6 +1089,8 @@ def test_wrapper_installs_single_owned_core_packages_and_fixed_clients() -> None
     assert '../../../perception/src/ayyo_perception' in cmake
     assert 'scripts/world_model_node.py' in cmake
     assert 'scripts/body_state_query.py' in cmake
+    assert 'scripts/semantic_state_query.py' in cmake
+    assert 'scripts/semantic_state_transport.py' in cmake
     assert 'scripts/localization_diagnostics.py' in cmake
     assert 'scripts/physical_camera_adapter.py' in cmake
     assert 'scripts/physical_camera_fixture_node.py' in cmake
@@ -1552,7 +1557,12 @@ def test_interpreted_visual_smoke_is_synthetic_bounded_and_process_owned() -> No
     fixture = fixture_path.read_text(encoding='utf-8')
     for expected in (
         'enable_visual_reference_interpreter:=true',
+        'enable_anonymous_semantic_test_fixture:=true',
         'visual_interpretation',
+        'semantic_state_query.py',
+        'person-observation-sha256-',
+        'object-observation-sha256-',
+        'synthetic.demo-object.v1',
         'synthetic.test-pattern.v1',
         'confidence"] is None',
         'tracked_visual_source_count',
@@ -1700,9 +1710,14 @@ def test_owned_sources_retain_project_copyright() -> None:
         'scripts/localization_diagnostics.py',
         'scripts/physical_camera_adapter.py',
         'scripts/physical_camera_fixture_node.py',
+        'scripts/semantic_state_query.py',
+        'scripts/semantic_state_transport.py',
         'scripts/visual_camera.py',
         'scripts/world_model_node.py',
         'test/test_ros_adapter.py',
+        'test/test_semantic_interfaces.py',
+        'test/test_semantic_query_adapter.py',
+        'test/test_semantic_query_client.py',
     ):
         assert 'Copyright 2026 Ayyo Project Authors' in (
             PACKAGE_ROOT / relative

@@ -73,7 +73,8 @@ printf 'PASS: adversarial provenance, source identity, duplicate, and 1000-frame
 ayyo_smoke_start_owned_launch "$launch_log" \
   ros2 launch ayyo_simulation simulation.launch.py \
   headless:=true enable_control:=false enable_world_model:=true \
-  enable_camera:=true enable_visual_reference_interpreter:=true
+  enable_camera:=true enable_visual_reference_interpreter:=true \
+  enable_anonymous_semantic_test_fixture:=true
 
 wait_until() {
   local description="$1"
@@ -107,11 +108,22 @@ raise SystemExit(0 if s["status"] == 1 and v and i and i["source_visual_observat
 }
 
 wait_until 'trusted frame reaches deterministic interpreted read-only state' interpreted_ready
+semantic_ready() {
+  timeout 4 ros2 run ayyo_world_model semantic_state_query.py \
+    >"$smoke_root/semantic.json" 2>/dev/null || return 1
+  python3 -c '
+import json,sys
+s=json.load(open(sys.argv[1], encoding="utf-8"))
+kinds={item["kind"] for state in s["semantic_states"] for item in state["items"]}
+raise SystemExit(0 if s["status"] == 1 and kinds == {"person", "object"} else 1)
+' "$smoke_root/semantic.json"
+}
+wait_until 'anonymous person/object state reaches the fixed semantic query' semantic_ready
 python3 -c '
 import json,sys
 s=json.load(open(sys.argv[1], encoding="utf-8")); v=s["visual_frame"]; i=s["visual_interpretation"]
 assert s["current_visual_count"] == 1
-assert s["current_visual_interpretation_count"] == 1
+assert s["current_visual_interpretation_count"] == 2
 assert i["sensor_id"] == "ayyo.camera.head.rgb.v1"
 assert i["reference_frame_id"] == "head_camera_optical_frame"
 assert i["source_observed_at_ns"] == v["observed_at_ns"]
@@ -134,12 +146,60 @@ assert "pixels" not in repr(s).lower() and "image_data" not in repr(s).lower()
 ' "$smoke_root/body.json"
 printf 'PASS: source acquisition identity, synthetic provenance, normalized region, and absent confidence are exact\n'
 
+python3 -c '
+import json,sys
+s=json.load(open(sys.argv[1], encoding="utf-8"))
+assert s["status"] == 1
+assert s["semantic_state_count"] == len(s["semantic_states"])
+assert 1 <= s["semantic_state_count"] <= 64
+assert s["snapshot_id"].startswith("world-snapshot-")
+assert s["snapshot_fingerprint"].startswith("world_snapshot:sha256:")
+for state in s["semantic_states"]:
+    assert state["observation_id"].startswith("world-observation-")
+    assert state["observation_fingerprint"].startswith("semantic_evidence:sha256:")
+    assert state["sensor_id"] == "ayyo.camera.head.rgb.v1"
+    assert state["reference_frame_id"] == "head_camera_optical_frame"
+    assert state["source_visual_observation_id"].startswith("world-observation-")
+    assert state["source_visual_fingerprint"].startswith("visual_frame:sha256:")
+    assert state["source_interpretation_observation_id"].startswith("world-observation-")
+    assert state["source_interpretation_fingerprint"].startswith("visual_interpretation:sha256:")
+    assert state["producer"] == {
+        "adapter_id":"ayyo.visual.semantic-query.fixture-adapter.v1",
+        "id":"ayyo.visual.semantic-query.fixture.v1",
+        "interface":"ayyo.visual-interpretation.v1",
+        "kind":"test_fixture",
+        "model_id":"none",
+    }
+    assert state["source_provenance"] == {
+        "clock":"ros_simulation_time",
+        "id":"ros.camera.head.simulation.gz-harmonic.v1",
+        "interface":"sensor-msgs.image-camera-info.v1",
+        "kind":"simulation",
+        "transport":"ros2",
+    }
+    by_kind={item["kind"]:item for item in state["items"]}
+    assert set(by_kind) == {"person", "object"}
+    assert by_kind["person"]["category"] is None
+    assert by_kind["person"]["confidence"] is None
+    assert by_kind["person"]["region"] == {"x_min":0.1,"y_min":0.1,"x_max":0.4,"y_max":0.8}
+    assert by_kind["object"]["category"] == "synthetic.demo-object.v1"
+    assert by_kind["object"]["confidence"] == 0.0
+    assert by_kind["object"]["region"] == {"x_min":0.55,"y_min":0.25,"x_max":0.9,"y_max":0.75}
+    assert by_kind["person"]["source_semantic_observation_id"].startswith("person-observation-sha256-")
+    assert by_kind["object"]["source_semantic_observation_id"].startswith("object-observation-sha256-")
+text=repr(s).lower()
+for forbidden in ("person_id", "object_id", "track_id", "entity_id", "pixels", "command", "authority"):
+    assert forbidden not in text
+' "$smoke_root/semantic.json"
+printf 'PASS: typed semantic query preserves anonymous source evidence, provenance, regions, and optional confidence\n'
+
 initial_position="$(python3 -c '
 import json,sys
 s=json.load(open(sys.argv[1])); print(s["positions"][s["joint_names"].index("neck_yaw_joint")])
 ' "$smoke_root/body.json")"
 sleep 1
 interpreted_ready
+semantic_ready
 python3 -c '
 import json,sys
 s=json.load(open(sys.argv[1])); p=s["positions"][s["joint_names"].index("neck_yaw_joint")]
@@ -163,12 +223,17 @@ wait_until 'lifecycle deactivation completes' lifecycle_inactive 40
 set +e
 deactivated="$(ros2 run ayyo_world_model body_state_query.py 2>/dev/null)"
 deactivated_status=$?
+semantic_deactivated="$(ros2 run ayyo_world_model semantic_state_query.py 2>/dev/null)"
+semantic_deactivated_status=$?
 set -e
 [[ "$deactivated_status" -eq 2 ]]
+[[ "$semantic_deactivated_status" -eq 2 ]]
 python3 -c 'import json,sys; assert json.loads(sys.argv[1].splitlines()[0])["status"] == 0' "$deactivated"
+python3 -c 'import json,sys; assert json.loads(sys.argv[1].splitlines()[0])["status"] == 0' "$semantic_deactivated"
 wait_until 'lifecycle reactivation completes' lifecycle_active 40
 wait_until 'reactivated adapter admits a new interpreted frame' interpreted_ready 80
-printf 'PASS: visual interpretation obeys lifecycle deactivate/reactivate boundaries\n'
+wait_until 'reactivated semantic state reaches the query' semantic_ready 80
+printf 'PASS: visual interpretation and semantic query obey lifecycle deactivate/reactivate boundaries\n'
 
 ayyo_smoke_shutdown_owned_launch
 if grep -Eq 'Traceback|exception was never retrieved|World Model configure failed' "$launch_log"; then

@@ -254,7 +254,10 @@ class RuntimeBridgePackageBoundaryTest(unittest.TestCase):
         ]
         self.assertEqual(
             {
+                "msg/AnonymousSemanticItem.msg",
+                "msg/AnonymousSemanticState.msg",
                 "msg/AudioFrame.msg",
+                "srv/GetAnonymousSemanticState.srv",
                 "srv/GetRobotBodyState.srv",
                 "srv/SetDevelopmentJointPosition.srv",
             },
@@ -269,12 +272,16 @@ class RuntimeBridgePackageBoundaryTest(unittest.TestCase):
         audio_frame = (interface_root / "msg" / "AudioFrame.msg").read_text(
             encoding="utf-8"
         )
+        semantic_query = (
+            interface_root / "srv" / "GetAnonymousSemanticState.srv"
+        ).read_text(encoding="utf-8")
         self.assertIn("explicit development injection", development)
         self.assertIn("Read-only fixed query", body_query)
+        self.assertIn("Read-only query", semantic_query)
         self.assertIn("uint8[<=32000] data", audio_frame)
         self.assertNotIn(
             "ApplyRuntimeJointPosition",
-            development + body_query + audio_frame,
+            development + body_query + semantic_query + audio_frame,
         )
 
     def test_build_artifacts_are_ignored_and_untracked(self) -> None:

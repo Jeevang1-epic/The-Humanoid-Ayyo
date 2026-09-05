@@ -77,10 +77,28 @@ if(BUILD_TESTING)
       scripts/visual_camera.py
       scripts/world_model_node.py
       test/test_ros_adapter.py
+      test/test_semantic_interfaces.py
+      test/test_semantic_query_adapter.py
+      test/test_semantic_query_client.py
   )
   ament_add_pytest_test(
     world_model_ros_contract
     test/test_ros_adapter.py
+    TIMEOUT 60
+  )
+  ament_add_pytest_test(
+    semantic_ros_interfaces
+    test/test_semantic_interfaces.py
+    TIMEOUT 60
+  )
+  ament_add_pytest_test(
+    semantic_ros_query_adapter
+    test/test_semantic_query_adapter.py
+    TIMEOUT 60
+  )
+  ament_add_pytest_test(
+    semantic_ros_query_client
+    test/test_semantic_query_client.py
     TIMEOUT 60
   )
 endif()

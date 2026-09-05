@@ -389,6 +389,7 @@ def test_launch_defaults_to_headless_proxy_ground_contact() -> None:
     assert defaults['enable_camera'] == 'false'
     assert defaults['enable_depth_camera'] == 'false'
     assert defaults['enable_visual_reference_interpreter'] == 'false'
+    assert defaults['enable_anonymous_semantic_test_fixture'] == 'false'
     assert defaults['enable_visual_producer_evaluation_fixture'] == 'false'
     assert defaults['world_model_retention_ttl_ms'] == '2000'
     assert defaults['use_meshes'] == 'false'
@@ -522,6 +523,19 @@ def test_evaluated_visual_fixture_is_explicit_and_default_off() -> None:
     assert "'enable_visual_producer_evaluation_fixture'" in source
     assert "default_value='false'" in source
     assert "'enable_visual_producer_evaluation_fixture': (" in source
+
+
+def test_anonymous_semantic_fixture_is_explicit_and_default_off() -> None:
+    source = (PACKAGE_ROOT / 'launch' / 'simulation.launch.py').read_text(
+        encoding='utf-8'
+    )
+    assert (
+        'enable_anonymous_semantic_test_fixture = LaunchConfiguration('
+        in source
+    )
+    assert "'enable_anonymous_semantic_test_fixture'" in source
+    assert "default_value='false'" in source
+    assert "'enable_anonymous_semantic_test_fixture': (" in source
 
 
 def test_simulation_installs_only_owned_resources() -> None:
