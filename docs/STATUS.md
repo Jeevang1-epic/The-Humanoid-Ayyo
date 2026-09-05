@@ -47,6 +47,18 @@
 - Anonymous person/object staging limited to exact robot-subject episodic
   propositions with anonymous region/category values and evidence IDs confined
   to provenance, never persistent entity, owner, preference, or social identity
+- Stateless caller-triggered bounded candidate discovery over at most 64
+  currently retained evidence envelopes, with policy identity
+  `ayyo.memory-candidate-discovery.v1`, canonical result/proposal identities,
+  at most 32 immutable stage-compatible `ConsolidationRequest` proposals, and
+  at most 64 typed diagnostics
+- Discovery limited to exact fresh anonymous visual person/object episodic
+  propositions with full retained source chains, reviewed microsecond-compatible
+  `ROS_SYSTEM_TIME`, allowlisted provenance, and real confidence; `None` is
+  diagnosed while genuine `0.0` remains eligible for proposal construction
+- Discovery is an explicit read only: it retains no history, does not refresh
+  TTL, and has no staging, selection, validation, apply, persistence, identity,
+  preference/social inference, correction, ROS, runtime, learning, or action API
 - Stateless reviewed candidate-selection policy over immutable
   `CandidateEvidence` plus optional exact staging eligibility, with a 32-item
   batch cap, versioned policy fingerprint, canonical candidate/selection IDs,
@@ -317,8 +329,8 @@
 - Production diagnostic producers, SLAM, visual localization, sensor fusion,
   calibration/bias estimation, trust scoring, clock
   synchronization, and environment-state ROS query transport
-- Automatic Working-Memory candidate discovery or selection-policy invocation,
-  background/scheduled durable consolidation, and learning promotion
+- Automatic candidate-discovery, staging, or selection-policy invocation;
+  background/scheduled durable consolidation; and learning promotion
 - Provenance aggregation and advanced consolidation policy
 - ROS 2 memory bridge
 - Natural-language/model cognition integration
@@ -341,7 +353,8 @@
 
 The repository contains the engineering foundation, Memory OS core,
 deterministic memory validation policy, a bounded owner-context read model, a
-stateless reviewed memory candidate-selection policy,
+stateless bounded memory candidate-discovery policy, a stateless reviewed memory
+candidate-selection policy,
 a deterministic proposal-only Executive layer, an immutable fail-closed Safety
 proposal-review boundary, an inert declarative Skill Manager boundary, and a
 controlled ROS Runtime Bridge compatibility boundary. The downstream

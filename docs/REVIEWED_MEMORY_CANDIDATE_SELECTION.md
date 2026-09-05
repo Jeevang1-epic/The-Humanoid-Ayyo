@@ -14,6 +14,8 @@ apply a Memory Validation decision.
 
 ```text
 temporary typed evidence
+→ optional explicit bounded discovery returns an exact ConsolidationRequest
+→ caller chooses the request
 → explicit ConsolidationRequest
 → WorkingMemoryCandidateBridge.stage
 → CandidateEvidence
@@ -27,6 +29,10 @@ temporary typed evidence
 
 The selector is stateless. It retains no Working Memory reference, database,
 clock, service, queue, or scheduler, and exposes only `select`.
+The earlier
+[Bounded Memory Candidate Discovery Policy](MEMORY_CANDIDATE_DISCOVERY.md) may
+provide the exact request, but never calls this selector or changes selection
+semantics.
 
 ## Public API
 
@@ -205,16 +211,17 @@ Context, Executive, Safety, or action API. Lower packages do not depend back on
 selection.
 
 The selector has no `evaluate`, `apply`, create, correct, supersede, retract,
-or persistence operation. The focused integration test proves that typed
-Perception evidence can pass through Working Memory, explicit staging,
-selection, and read-only Memory Validation evaluation while Memory OS remains
-empty. Only the test caller's later explicit `MemoryValidationService.apply`
-creates a durable record.
+or persistence operation. Focused integration tests prove that typed Perception
+evidence can pass through Working Memory, optional explicit discovery, explicit
+staging, selection, and read-only Memory Validation evaluation while Memory OS
+remains empty. Only the test caller's later explicit
+`MemoryValidationService.apply` creates a durable record.
 
 ## Deliberate non-goals
 
-- candidate discovery, Working Memory scanning, proposition generation, LLM
-  extraction, automatic invocation, or scheduled/background consolidation;
+- candidate discovery or Working Memory scanning inside the selector, proposition
+  generation, LLM extraction, automatic invocation, or scheduled/background
+  consolidation;
 - truth resolution, confidence synthesis, provenance aggregation, or automatic
   duplicate/conflict winner selection;
 - identity, recognition, tracking, preference, social, scene-absence, or object

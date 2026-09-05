@@ -7,10 +7,10 @@ can mature behind stable boundaries before physical hardware is introduced.
 
 ## Current status
 
-Ayyo has reached the Reviewed Memory Candidate Selection Policy Foundation v1
-milestone with explicit bounded review triage over immutable candidate snapshots,
-deterministic duplicate/conflict deferral, truthful confidence handling, and no
-automatic evaluation, persistence, identity inference, or learning.
+Ayyo has reached the Bounded Memory Candidate Discovery Foundation v1 milestone
+with caller-triggered deterministic discovery of exact anonymous visual
+person/object proposals from currently retained Working Memory evidence, and no
+automatic staging, evaluation, persistence, identity inference, or learning.
 
 Implemented:
 
@@ -23,6 +23,10 @@ Implemented:
 - A standalone, provenance-aware Memory OS core with SQLite persistence
 - A standalone deterministic validation and consolidation policy for candidate
   memory evidence
+- A standalone stateless candidate-discovery policy that inspects a bounded
+  retained-evidence set only when called, emits canonical immutable
+  `ConsolidationRequest` proposals for exact anonymous person/object observations,
+  and never stages, selects, evaluates, applies, or persists them
 - A standalone explicit Working Memory candidate-staging bridge that accepts
   one exact retained evidence reference, reconstructs its immutable identity,
   enforces fresh-only and reviewed UTC-clock eligibility, derives bounded
@@ -185,9 +189,9 @@ Planned, but not implemented:
 - Production person/object detectors, tracking, face recognition, persistent
   identity, complete-scene/negative-detection claims, and semantic projection
   into persistent environment entities
-- Automatic candidate discovery or policy invocation, scheduled consolidation,
-  autonomous durable memory formation, confidence synthesis, and provenance
-  aggregation
+- Automatic candidate-discovery invocation, automatic staging/selection,
+  scheduled consolidation, autonomous durable memory formation, confidence
+  synthesis, and provenance aggregation
 - Natural-language/model integration and authenticated identity/approval
 - Runtime skill implementations, manipulation, and navigation
 - Production-authorized typed ROS services, runtime scheduling, and resource
@@ -211,6 +215,7 @@ independent of cognition and learned policies. See
 [docs/ROBOT_DESCRIPTION_SIMULATION.md](docs/ROBOT_DESCRIPTION_SIMULATION.md),
 [docs/SIMULATION_CONTROL.md](docs/SIMULATION_CONTROL.md),
 [docs/WORLD_MODEL_WORKING_MEMORY.md](docs/WORLD_MODEL_WORKING_MEMORY.md),
+[docs/MEMORY_CANDIDATE_DISCOVERY.md](docs/MEMORY_CANDIDATE_DISCOVERY.md),
 [docs/WORKING_MEMORY_CONSOLIDATION.md](docs/WORKING_MEMORY_CONSOLIDATION.md),
 [docs/REVIEWED_MEMORY_CANDIDATE_SELECTION.md](docs/REVIEWED_MEMORY_CANDIDATE_SELECTION.md),
 [docs/PERCEPTION_TRUST_PROPRIOCEPTION.md](docs/PERCEPTION_TRUST_PROPRIOCEPTION.md),
@@ -284,7 +289,7 @@ PYTHONPATH=memory/src:memory_validation/src \
 python3 -m unittest discover -s memory_validation/tests -v
 ```
 
-Run candidate-staging and reviewed-selection tests:
+Run candidate-discovery, staging, and reviewed-selection tests:
 
 ```bash
 PYTHONPATH=memory/src:memory_validation/src:world_model/src:head_audio/src:physical_camera/src:depth_camera/src:rgbd_fusion/src:visual_evaluation/src:perception/src:working_memory/src:memory_consolidation/src \
@@ -474,7 +479,7 @@ Run the hardware-free Head Audio Perception smoke twice:
 docs/          Architecture, roadmap, safety, and status
 memory/        Standalone Memory OS core and its tests
 memory_validation/  Deterministic evidence policy layer and its tests
-memory_consolidation/  Explicit candidate staging and reviewed selection policy
+memory_consolidation/  Bounded candidate discovery, staging, and review selection
 personal_context/  Deterministic owner-context projection and its tests
 executive/     Deterministic Executive proposal planning and its tests
 safety_kernel/  Immutable deterministic proposal safety review and its tests
@@ -534,6 +539,16 @@ ordering, and resource bounds are deterministic. Exact duplicates, equivalent
 propositions, and conflicts are deferred without a winner. Anonymous evidence
 remains anonymous, and selection grants no truth, owner approval, validation,
 apply, persistence, correction, learning, or physical-action authority.
+Bounded Memory Candidate Discovery Foundation v1 now adds an earlier explicit,
+stateless scan over at most 64 retained evidence envelopes. Versioned canonical
+output contains at most 32 exact stage-compatible anonymous visual person/object
+`ConsolidationRequest` proposals and 64 typed diagnostics. It reuses staging's
+freshness, exact-source-chain, provenance, confidence, and microsecond-compatible
+`ROS_SYSTEM_TIME` eligibility without invoking staging or any later step.
+Exact proposal identities alone are deduplicated; category remains observation
+content, evidence IDs remain provenance, and no identity, preference, social,
+ownership, absence, permanence, correction, persistence, or learning claim is
+created.
 Production motion remains
 closed because Safety v1 defers physical movement; only explicit development
 injection can exercise the simulated neck joint. The perception path adds

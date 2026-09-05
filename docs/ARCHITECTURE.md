@@ -9,6 +9,7 @@ Human / Environment
 → Perception Trust Boundary
 → World Model
 → Working Memory
+→ Explicit Bounded Memory Candidate Discovery
 → Explicit Memory Candidate Staging
 → Reviewed Memory Candidate Selection
 → Memory Validation / Consolidation
@@ -65,6 +66,13 @@ strings are bounded, optional confidence uses explicit presence, and empty
 evidence means only that nothing is currently retained. The lifecycle-owned
 service and fixed JSON client do not admit evidence, run a producer, refresh
 TTL, create entities, persist records, command motion, or grant authority.
+The standalone
+[Bounded Memory Candidate Discovery Policy](MEMORY_CANDIDATE_DISCOVERY.md)
+performs an explicit caller-triggered bounded read of retained Working Memory
+evidence. It emits only canonical immutable requests for exact anonymous visual
+person/object observations that can satisfy the staging eligibility contract.
+It does not stage, select, validate, apply, persist, infer identity/preferences,
+or run automatically.
 The standalone
 [Working Memory Candidate Bridge](WORKING_MEMORY_CONSOLIDATION.md) now occupies
 the explicit seam between temporary evidence and `CandidateEvidence`. It reads
@@ -239,6 +247,12 @@ replace proxy geometry without duplicating or bypassing frame semantics.
   deterministic eviction through public World Model contracts only. It cannot
   import Perception, the candidate bridge, or Memory Validation and cannot
   write Memory OS.
+- Memory candidate discovery owns one explicit bounded scan of retained Working
+  Memory evidence and deterministic construction of stage-compatible immutable
+  `ConsolidationRequest` proposals. Version 1 supports only exact anonymous
+  visual person/object episodic observations. It cannot create
+  `CandidateEvidence`, invoke staging/selection/validation/apply, persist, infer
+  identity/preferences/relationships, retain history, or run in the background.
 - Memory candidate staging owns explicit selection of one exact retained
   evidence reference and fail-closed conversion to immutable
   `CandidateEvidence`. It depends downward on public Working Memory/World Model

@@ -30,6 +30,10 @@ Evaluation is read-only. Persistence occurs only through
 `MemoryValidationService.apply(decision)`.
 
 The separate
+[Bounded Memory Candidate Discovery Policy](MEMORY_CANDIDATE_DISCOVERY.md) can
+explicitly return bounded exact `ConsolidationRequest` proposals from currently
+retained anonymous visual evidence without constructing `CandidateEvidence`.
+The separate
 [Working Memory Candidate Bridge](WORKING_MEMORY_CONSOLIDATION.md) can produce
 one `CandidateEvidence` from an explicit proposition and exact fresh retained
 evidence. The separate
@@ -157,8 +161,9 @@ writes can both be stored; they remain intact evidence records, but policy versi
 - Probabilistic truth selection, confidence-based winner selection, or trust scores
 - Provenance aggregation or destructive duplicate consolidation
 - Automatic application of review decisions
-- Automatic Working Memory scanning, candidate discovery, selection-policy
-  invocation, staging evaluation, or durable-memory promotion
+- Automatic Working Memory scanning or candidate-discovery/selection-policy
+  invocation, staging evaluation, or durable-memory promotion (explicit bounded
+  discovery is implemented in the separate `memory_consolidation/` package)
 - Models, network services, cloud storage, or external databases
 - Personal Context Twin projection or owner-model behavior (the deterministic
   projection is implemented in the separate `personal_context/` package)

@@ -113,6 +113,15 @@ anonymous semantics remain anonymous; and all supplied duplicate propositions
 or conflicts are deferred without choosing a winner. The policy is stateless
 and cannot generate candidates, evaluate/apply Memory Validation, persist,
 correct, learn, infer identity/preferences/relationships, or run automatically.
+Bounded Memory Candidate Discovery Foundation v1 now adds an explicit stateless
+operation over currently retained Working Memory evidence. It inspects at most
+64 retained envelopes and deterministically returns at most 32 immutable exact
+`ConsolidationRequest` proposals plus at most 64 typed diagnostics. Version 1
+supports only fresh, exact-source-chain anonymous visual person/object evidence
+under reviewed microsecond-compatible `ROS_SYSTEM_TIME`, with honest confidence
+including `0.0`. It does not invoke staging, selection, validation, apply,
+persistence, consolidation, learning, identity, preference, social, ownership,
+absence, permanence, correction, ROS, or action behavior.
 Recorded Visual Producer Evaluation and Perception Quality Gate v1 now adds
 explicit producer registration, verified model artifact identity, immutable
 recorded dataset/policy/report contracts, deterministic bounded evaluation,
@@ -157,8 +166,8 @@ physical-safety integration remain future work. Production visual producer
 promotion and live physical audio/depth/force/touch perception, physical
 camera/IMU/localization validation, production diagnostic producers, spatial
 RGB-D registration, physical sensor fusion, SLAM, environment entity
-production, and automatic candidate discovery/invocation, automatic
-consolidation, and learning promotion also remain future work. Executive
+production, and automatic candidate-discovery invocation, automatic staging,
+automatic consolidation, and learning promotion also remain future work. Executive
 proposals, Safety eligibility,
 Skill Manager runtime-handoff eligibility, Runtime Bridge
 eligibility, transport acceptance, development injection, and simulated motion
