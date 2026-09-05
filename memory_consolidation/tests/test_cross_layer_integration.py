@@ -7,7 +7,12 @@ import unittest
 from uuid import UUID
 
 from ayyo_memory import MemoryService, MemoryType, ProvenanceType, SQLiteMemoryStore
-from ayyo_memory_consolidation import WorkingMemoryCandidateBridge
+from ayyo_memory_consolidation import (
+    CandidateReviewItem,
+    CandidateSelectionOutcome,
+    ReviewedMemoryCandidateSelectionPolicy,
+    WorkingMemoryCandidateBridge,
+)
 from ayyo_memory_validation import DecisionType, MemoryValidationService
 from ayyo_perception import (
     AdmissionStatus,
@@ -103,13 +108,33 @@ class CrossLayerCandidateSeamTest(unittest.TestCase):
                     memory_service.query_memories(active_only=False),
                 )
 
-                decision = validation.evaluate(candidate)
-                self.assertEqual(DecisionType.ACCEPT_NEW, decision.decision_type)
+                selector = ReviewedMemoryCandidateSelectionPolicy()
+                selection = selector.select(
+                    [CandidateReviewItem.from_staging(staged)]
+                )
+                self.assertEqual(
+                    CandidateSelectionOutcome.SELECT_FOR_REVIEW,
+                    selection.outcome,
+                )
+                self.assertEqual((candidate,), selection.selected_candidates)
+                self.assertFalse(hasattr(selector, "apply"))
                 self.assertEqual(
                     [],
                     memory_service.query_memories(active_only=False),
                 )
-                validation.apply(decision)
+
+                validation_decision = validation.evaluate(
+                    selection.selected_candidates[0]
+                )
+                self.assertEqual(
+                    DecisionType.ACCEPT_NEW,
+                    validation_decision.decision_type,
+                )
+                self.assertEqual(
+                    [],
+                    memory_service.query_memories(active_only=False),
+                )
+                validation.apply(validation_decision)
                 self.assertEqual(
                     1,
                     len(memory_service.query_memories(active_only=False)),

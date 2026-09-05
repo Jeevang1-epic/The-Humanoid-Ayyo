@@ -71,6 +71,7 @@ class PackageBoundaryTest(unittest.TestCase):
             imports
             & {
                 "builtin_interfaces",
+                "queue",
                 "gazebo",
                 "launch",
                 "rclpy",
@@ -97,6 +98,28 @@ class PackageBoundaryTest(unittest.TestCase):
         ):
             with self.subTest(forbidden=forbidden):
                 self.assertNotIn(forbidden, source)
+
+    def test_selection_policy_is_stateless_and_has_no_runtime_or_storage_edge(self) -> None:
+        selection_source = "\n".join(
+            (
+                self.source_root / "ayyo_memory_consolidation" / name
+            ).read_text(encoding="utf-8")
+            for name in ("selection_models.py", "selection_policy.py")
+        )
+        for forbidden in (
+            "WorkingMemory",
+            "MemoryValidationService",
+            "MemoryService",
+            "SQLiteMemoryStore",
+            ".evaluate(",
+            ".apply(",
+            ".persist(",
+            "threading",
+            "Timer(",
+            "rclpy",
+        ):
+            with self.subTest(forbidden=forbidden):
+                self.assertNotIn(forbidden, selection_source)
 
     def test_public_exports_are_importable(self) -> None:
         self.assertTrue(ayyo_memory_consolidation.__all__)
