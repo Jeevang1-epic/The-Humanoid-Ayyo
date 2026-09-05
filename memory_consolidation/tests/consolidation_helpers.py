@@ -88,9 +88,9 @@ PRODUCER = VisualInterpretationProducer(
 )
 
 
-def catalog() -> RobotJointCatalog:
+def catalog(*, robot_id: str = AYYO_ROBOT_ID) -> RobotJointCatalog:
     return RobotJointCatalog(
-        robot_id=AYYO_ROBOT_ID,
+        robot_id=robot_id,
         joints=(
             JointContract(
                 "neck_yaw_joint",
@@ -111,18 +111,20 @@ def working_memory(
     freshness_ns: int = 1_000_000_000,
     ttl_ns: int = 2_000_000_000,
     visual: bool = False,
+    robot_id: str = AYYO_ROBOT_ID,
+    recent_evidence_capacity: int = 16,
 ) -> WorkingMemory:
     return WorkingMemory(
-        catalog(),
+        catalog(robot_id=robot_id),
         WorkingMemoryConfig(
-            robot_id=AYYO_ROBOT_ID,
+            robot_id=robot_id,
             source_clock=clock,
             allowed_provenance=(provenance,),
             sensors=(CAMERA,) if visual else (),
             freshness_ns=freshness_ns,
             retention_ttl_ns=ttl_ns,
             permitted_future_skew_ns=10_000,
-            recent_evidence_capacity=16,
+            recent_evidence_capacity=recent_evidence_capacity,
             environment_entity_capacity=4,
             semantic_evidence_capacity=8,
             visual_interpretation_producers=(PRODUCER,) if visual else (),
@@ -207,9 +209,15 @@ def semantic_chain(
     confidence: float | None,
     category: str = "cup",
     observed_at_ns: int = SYSTEM_TIME_NS,
+    provenance: ObservationProvenance = VISUAL_PROVENANCE,
+    clock: ObservationClock = ObservationClock.ROS_SYSTEM_TIME,
+    freshness_ns: int = 1_000_000_000,
+    ttl_ns: int = 2_000_000_000,
+    robot_id: str = AYYO_ROBOT_ID,
+    ingest_now_ns: int | None = None,
 ):
     frame = VisualFrameObservation(
-        robot_id=AYYO_ROBOT_ID,
+        robot_id=robot_id,
         sensor=CAMERA,
         width=32,
         height=24,
@@ -219,7 +227,7 @@ def semantic_chain(
         is_bigendian=False,
         calibration_id="camera-calibration-sha256-" + "1" * 64,
         observed_at_ns=observed_at_ns,
-        provenance=VISUAL_PROVENANCE,
+        provenance=provenance,
         availability=SensorAvailability.AVAILABLE,
     )
     detection = VisualDetection(
@@ -279,18 +287,120 @@ def semantic_chain(
         provenance=interpretation.provenance,
         availability=interpretation.availability,
     )
-    store = working_memory(provenance=VISUAL_PROVENANCE, visual=True)
+    store = working_memory(
+        provenance=provenance,
+        clock=clock,
+        freshness_ns=freshness_ns,
+        ttl_ns=ttl_ns,
+        visual=True,
+        robot_id=robot_id,
+    )
     for receipt, observation in enumerate(
         (frame, interpretation, semantic),
         start=1,
     ):
         result = store.ingest(
             observation,
-            now_ns=observed_at_ns,
+            now_ns=(
+                observed_at_ns if ingest_now_ns is None else ingest_now_ns
+            ),
             received_at_monotonic_ns=receipt,
         )
         assert result.status.value == "accepted"
     return store, frame, interpretation, semantic, item
+
+
+def semantic_batch_chain(
+    *,
+    item_count: int,
+    observed_at_ns: int = SYSTEM_TIME_NS,
+    confidence: float | None = 0.75,
+):
+    frame = VisualFrameObservation(
+        robot_id=AYYO_ROBOT_ID,
+        sensor=CAMERA,
+        width=32,
+        height=24,
+        encoding="rgb8",
+        step=96,
+        data_size_bytes=2_304,
+        is_bigendian=False,
+        calibration_id="camera-calibration-sha256-" + "1" * 64,
+        observed_at_ns=observed_at_ns,
+        provenance=VISUAL_PROVENANCE,
+        availability=SensorAvailability.AVAILABLE,
+    )
+    detections = tuple(
+        VisualDetection(
+            source_visual_observation_id=frame.observation_id,
+            category=VisualSemanticCategory.OBJECT,
+            label=f"object-{index:02d}",
+            region=ImageRegion2D(
+                x_min=(index % 16) * 0.05,
+                y_min=0.1 + (index // 16) * 0.3,
+                x_max=(index % 16) * 0.05 + 0.04,
+                y_max=0.2 + (index // 16) * 0.3,
+            ),
+            confidence=confidence,
+        )
+        for index in range(item_count)
+    )
+    interpretation = VisualInterpretationObservation(
+        robot_id=frame.robot_id,
+        sensor=frame.sensor,
+        reference_frame_id=frame.sensor.frame_id,
+        source_visual_observation_id=frame.observation_id,
+        source_visual_fingerprint=frame.fingerprint,
+        observed_at_ns=frame.observed_at_ns,
+        result_at_ns=frame.observed_at_ns,
+        producer=PRODUCER,
+        detections=detections,
+        provenance=frame.provenance,
+        availability=frame.availability,
+    )
+    items = tuple(
+        SemanticEvidenceItem(
+            kind=SemanticEvidenceKind.OBJECT,
+            source_semantic_observation_id=semantic_observation_from_detection(
+                interpretation,
+                detection_id=detection.detection_id,
+            ).observation_id,
+            source_detection_id=detection.detection_id,
+            region=detection.region,
+            confidence=detection.confidence,
+            category=detection.label,
+        )
+        for detection in detections
+    )
+    semantic = SemanticEvidenceObservation(
+        robot_id=interpretation.robot_id,
+        sensor=interpretation.sensor,
+        reference_frame_id=interpretation.reference_frame_id,
+        source_visual_observation_id=interpretation.source_visual_observation_id,
+        source_visual_fingerprint=interpretation.source_visual_fingerprint,
+        source_interpretation_observation_id=interpretation.observation_id,
+        source_interpretation_fingerprint=interpretation.fingerprint,
+        observed_at_ns=interpretation.observed_at_ns,
+        result_at_ns=interpretation.result_at_ns,
+        producer=interpretation.producer,
+        evaluation_reference_sha256=None,
+        items=items,
+        provenance=interpretation.provenance,
+        availability=interpretation.availability,
+    )
+    store = working_memory(
+        provenance=VISUAL_PROVENANCE,
+        visual=True,
+        recent_evidence_capacity=64,
+    )
+    for receipt, observation in enumerate((frame, interpretation, semantic), start=1):
+        result = store.ingest(
+            observation,
+            now_ns=observed_at_ns,
+            received_at_monotonic_ns=receipt,
+        )
+        assert result.status.value == "accepted"
+    return store, frame, interpretation, semantic, items
 
 
 def semantic_request(

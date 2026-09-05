@@ -32,9 +32,22 @@ class PackageBoundaryTest(unittest.TestCase):
 
     def test_dependency_direction_of_existing_layers_remains_unchanged(self) -> None:
         forbidden_by_root = {
-            "working_memory": {"ayyo_memory", "ayyo_memory_validation"},
-            "world_model": {"ayyo_memory", "ayyo_memory_validation"},
-            "perception": {"ayyo_memory", "ayyo_memory_validation"},
+            "working_memory": {
+                "ayyo_memory",
+                "ayyo_memory_consolidation",
+                "ayyo_memory_validation",
+            },
+            "world_model": {
+                "ayyo_memory",
+                "ayyo_memory_consolidation",
+                "ayyo_memory_validation",
+            },
+            "perception": {
+                "ayyo_memory",
+                "ayyo_memory_consolidation",
+                "ayyo_memory_validation",
+            },
+            "memory": {"ayyo_memory_consolidation"},
         }
         for package, forbidden in forbidden_by_root.items():
             with self.subTest(package=package):
@@ -51,6 +64,10 @@ class PackageBoundaryTest(unittest.TestCase):
                 "ayyo_world_model",
                 "ayyo_memory_consolidation",
             },
+        )
+        self.assertNotIn(
+            "ayyo_memory_consolidation",
+            self.imports_under(self.repository_root / "memory_validation" / "src"),
         )
 
     def test_bridge_has_only_reviewed_public_standalone_dependencies(self) -> None:
@@ -120,6 +137,31 @@ class PackageBoundaryTest(unittest.TestCase):
         ):
             with self.subTest(forbidden=forbidden):
                 self.assertNotIn(forbidden, selection_source)
+
+    def test_discovery_is_explicit_and_has_no_downstream_or_runtime_edge(self) -> None:
+        discovery_source = "\n".join(
+            (
+                self.source_root / "ayyo_memory_consolidation" / name
+            ).read_text(encoding="utf-8")
+            for name in ("discovery_models.py", "discovery_policy.py")
+        )
+        for forbidden in (
+            "CandidateEvidence",
+            "MemoryValidationService",
+            "MemoryService",
+            "SQLiteMemoryStore",
+            ".stage(",
+            ".select(",
+            ".evaluate(",
+            ".apply(",
+            ".persist(",
+            "datetime.now(",
+            "threading",
+            "Timer(",
+            "rclpy",
+        ):
+            with self.subTest(forbidden=forbidden):
+                self.assertNotIn(forbidden, discovery_source)
 
     def test_public_exports_are_importable(self) -> None:
         self.assertTrue(ayyo_memory_consolidation.__all__)
