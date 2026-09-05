@@ -15,3 +15,7 @@ class CandidateSelectionError(MemoryConsolidationError, ValueError):
 
 class CandidateDiscoveryError(MemoryConsolidationError, ValueError):
     """A candidate-discovery request or record violates a safe bound."""
+
+
+class ControlledMemoryReviewError(MemoryConsolidationError, ValueError):
+    """A controlled review invocation violates a structural invariant."""
