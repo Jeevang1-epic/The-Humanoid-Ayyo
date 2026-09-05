@@ -1,0 +1,9 @@
+"""Errors raised while constructing explicit consolidation requests."""
+
+
+class MemoryConsolidationError(Exception):
+    """Base error for the standalone candidate-staging boundary."""
+
+
+class ConsolidationRequestError(MemoryConsolidationError, ValueError):
+    """An explicit request is malformed or exceeds a resource bound."""

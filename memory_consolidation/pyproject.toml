@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ayyo-memory-consolidation"
+version = "0.1.0"
+description = "Explicit Working Memory evidence staging for Ayyo Memory Validation"
+requires-python = ">=3.12"
+license = {text = "Proprietary"}
+maintainers = [
+  {name = "P. Jeevan Kumar", email = "jeevan116p@gmail.com"},
+]
+dependencies = [
+  "ayyo-memory==0.1.0",
+  "ayyo-memory-validation==0.1.0",
+  "ayyo-working-memory==0.1.0",
+  "ayyo-world-model==0.1.0",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
