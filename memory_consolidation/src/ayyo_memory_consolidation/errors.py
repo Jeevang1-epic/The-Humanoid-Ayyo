@@ -7,3 +7,7 @@ class MemoryConsolidationError(Exception):
 
 class ConsolidationRequestError(MemoryConsolidationError, ValueError):
     """An explicit request is malformed or exceeds a resource bound."""
+
+
+class CandidateSelectionError(MemoryConsolidationError, ValueError):
+    """A candidate-selection record violates a structural invariant."""
