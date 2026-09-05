@@ -29,6 +29,12 @@ Candidate evidence
 Evaluation is read-only. Persistence occurs only through
 `MemoryValidationService.apply(decision)`.
 
+The separate
+[Working Memory Candidate Bridge](WORKING_MEMORY_CONSOLIDATION.md) can produce
+one `CandidateEvidence` from an explicit proposition and exact fresh retained
+evidence. It does not change this package's dependency direction or call
+`evaluate`/`apply`; callers retain those two separate responsibilities.
+
 ## Public records and API
 
 `CandidateEvidence` contains a memory category, original subject and predicate,
@@ -147,6 +153,8 @@ writes can both be stored; they remain intact evidence records, but policy versi
 - Probabilistic truth selection, confidence-based winner selection, or trust scores
 - Provenance aggregation or destructive duplicate consolidation
 - Automatic application of review decisions
+- Automatic Working Memory scanning, candidate selection, staging evaluation,
+  or durable-memory promotion
 - Models, network services, cloud storage, or external databases
 - Personal Context Twin projection or owner-model behavior (the deterministic
   projection is implemented in the separate `personal_context/` package)

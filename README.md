@@ -7,9 +7,10 @@ can mature behind stable boundaries before physical hardware is introduced.
 
 ## Current status
 
-Ayyo has reached the Anonymous Semantic ROS Query Foundation v1 milestone with
-one bounded read-only transport for current/recent anonymous evidence and no
-production detector, tracking, identity, authority, or negative-scene claim.
+Ayyo has reached the Working Memory → Memory Validation Candidate Bridge
+Foundation v1 milestone with explicit fresh-evidence selection, deterministic
+candidate staging, truthful UTC/confidence handling, and no automatic
+evaluation, persistence, identity inference, or learning.
 
 Implemented:
 
@@ -22,6 +23,11 @@ Implemented:
 - A standalone, provenance-aware Memory OS core with SQLite persistence
 - A standalone deterministic validation and consolidation policy for candidate
   memory evidence
+- A standalone explicit Working Memory candidate-staging bridge that accepts
+  one exact retained evidence reference, reconstructs its immutable identity,
+  enforces fresh-only and reviewed UTC-clock eligibility, derives bounded
+  direct-observation provenance, and emits `CandidateEvidence` without applying
+  or persisting it
 - A standalone, read-only Personal Context Twin that projects deterministic,
   owner-isolated, evidence-backed snapshots from Memory OS
 - A standalone Executive Cognition layer that consumes PCT snapshots and emits
@@ -174,6 +180,8 @@ Planned, but not implemented:
 - Production person/object detectors, tracking, face recognition, persistent
   identity, complete-scene/negative-detection claims, and semantic projection
   into persistent environment entities
+- Automatic candidate selection, scheduled consolidation, autonomous durable
+  memory formation, confidence synthesis, and provenance aggregation
 - Natural-language/model integration and authenticated identity/approval
 - Runtime skill implementations, manipulation, and navigation
 - Production-authorized typed ROS services, runtime scheduling, and resource
@@ -197,6 +205,7 @@ independent of cognition and learned policies. See
 [docs/ROBOT_DESCRIPTION_SIMULATION.md](docs/ROBOT_DESCRIPTION_SIMULATION.md),
 [docs/SIMULATION_CONTROL.md](docs/SIMULATION_CONTROL.md),
 [docs/WORLD_MODEL_WORKING_MEMORY.md](docs/WORLD_MODEL_WORKING_MEMORY.md),
+[docs/WORKING_MEMORY_CONSOLIDATION.md](docs/WORKING_MEMORY_CONSOLIDATION.md),
 [docs/PERCEPTION_TRUST_PROPRIOCEPTION.md](docs/PERCEPTION_TRUST_PROPRIOCEPTION.md),
 [docs/BODY_LOCALIZATION_SENSOR_DIAGNOSTICS.md](docs/BODY_LOCALIZATION_SENSOR_DIAGNOSTICS.md),
 [docs/VISUAL_CAMERA_FOUNDATION.md](docs/VISUAL_CAMERA_FOUNDATION.md),
@@ -266,6 +275,13 @@ Run Memory Validation tests:
 ```bash
 PYTHONPATH=memory/src:memory_validation/src \
 python3 -m unittest discover -s memory_validation/tests -v
+```
+
+Run Working Memory candidate-staging tests:
+
+```bash
+PYTHONPATH=memory/src:memory_validation/src:world_model/src:head_audio/src:physical_camera/src:depth_camera/src:rgbd_fusion/src:visual_evaluation/src:perception/src:working_memory/src:memory_consolidation/src \
+python3 -m pytest -q memory_consolidation/tests
 ```
 
 Run Personal Context Twin tests:
@@ -451,6 +467,7 @@ Run the hardware-free Head Audio Perception smoke twice:
 docs/          Architecture, roadmap, safety, and status
 memory/        Standalone Memory OS core and its tests
 memory_validation/  Deterministic evidence policy layer and its tests
+memory_consolidation/  Explicit Working Memory candidate-staging bridge
 personal_context/  Deterministic owner-context projection and its tests
 executive/     Deterministic Executive proposal planning and its tests
 safety_kernel/  Immutable deterministic proposal safety review and its tests
@@ -495,6 +512,13 @@ Anonymous Semantic ROS Query Foundation v1 now serializes that state through
 one dedicated, lifecycle-aware, hard-bounded typed service and deterministic
 read-only client. The ROS seam consumes one public immutable snapshot and does
 not run perception, refresh evidence, create entities, or infer absence.
+Working Memory → Memory Validation Candidate Bridge Foundation v1 now adds a
+transport-neutral, caller-driven seam from one exact fresh retained observation
+to immutable `CandidateEvidence`. It preserves evidence identity, direct
+observation authority, honest confidence, and only exactly representable
+`ROS_SYSTEM_TIME` UTC. Anonymous person/object evidence remains an explicit
+episodic anonymous observation. The bridge has no evaluation, apply,
+persistence, scanning, timer, worker, ROS, Personal Context, or action API.
 Production motion remains
 closed because Safety v1 defers physical movement; only explicit development
 injection can exercise the simulated neck joint. The perception path adds

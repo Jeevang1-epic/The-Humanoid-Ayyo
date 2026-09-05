@@ -42,7 +42,7 @@ Perception Trust Boundary
 World Model immutable contracts and projection
         ↓
 bounded Working Memory current state + recent evidence
-        ↓ explicit future consolidation decision
+        ↓ explicit caller selection and candidate staging
 Memory Validation CandidateEvidence
         ↓ evaluate / explicitly apply
 Memory OS durable evidence
@@ -448,9 +448,12 @@ CAN, EtherCAT, motor driver, or hardware interface is introduced.
 
 Working Memory is not Memory OS. It never imports Memory OS or Memory
 Validation, writes a database, or automatically promotes an observation.
-`recent_evidence()` is the explicit read boundary for a future consolidation
-component. That component must make a meaningful policy decision, map selected
-evidence into existing Memory Validation `CandidateEvidence`, and call:
+`recent_evidence()` is the explicit read boundary used by the standalone
+[Working Memory Candidate Bridge](WORKING_MEMORY_CONSOLIDATION.md). A caller
+must propose a memory proposition and identify one exact retained observation;
+the bridge rechecks identity, freshness, source chain, UTC-clock eligibility,
+and confidence before mapping it to existing Memory Validation
+`CandidateEvidence`:
 
 ```text
 MemoryValidationService.evaluate(candidate)
@@ -459,10 +462,10 @@ MemoryValidationService.evaluate(candidate)
 → Memory OS
 ```
 
-This milestone does not invent that mapping because no reviewed policy decides
-which joint/environment changes are autobiographically meaningful. Direct ROS
-telemetry cannot mutate durable memory, and future consolidation cannot bypass
-Memory Validation.
+The bridge implements only that mapping. It does not decide which observations
+are autobiographically meaningful, scan Working Memory, evaluate policy, or
+call `apply`. Direct ROS telemetry still cannot mutate durable memory, and
+candidate staging cannot bypass Memory Validation.
 
 ## PCT, Executive, and learning relationships
 
@@ -536,8 +539,8 @@ Shutdown must be clean.
   compact pixel-free RGB, interpretation, depth, RGB-D fusion, and sample-free
   audio state. The separate semantic query exposes only bounded current/recent
   anonymous semantic evidence already present in `WorldSnapshot`.
-- No automatic Memory Validation candidate selection or learning consolidation
-  exists.
+- Explicit candidate staging exists, but no automatic candidate selection,
+  Memory Validation application, or learning consolidation exists.
 - No edge-hardware benchmark or Raspberry Pi/Jetson compatibility claim exists.
 - Physical sensors, drivers, authorization, and physical safety remain future.
 

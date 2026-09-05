@@ -93,6 +93,17 @@ JSON. A default-off TEST producer and owned visual smoke validate the full
 frame-to-query path. Empty retained evidence remains unknown physical-scene
 occupancy; the query creates no perception, entity, persistence, authority, or
 motion side effect.
+Working Memory → Memory Validation Candidate Bridge Foundation v1 now adds an
+explicit standalone staging layer. A caller must propose the memory
+type/subject/predicate/value and select one exact currently retained evidence
+identity. The bridge reconstructs fingerprints and semantic source chains,
+requires fresh evidence, permits only exact microsecond-representable
+`ROS_SYSTEM_TIME` conversion to UTC, preserves genuine confidence including
+`0.0`, rejects missing confidence, and derives `DIRECT_OBSERVATION` provenance.
+Anonymous person/object evidence can support only its exact anonymous episodic
+observation. Candidate evaluation and application remain separate caller
+actions; there is no automatic selection, durable write, identity or preference
+inference, correction, Personal Context update, ROS service, or learning loop.
 Recorded Visual Producer Evaluation and Perception Quality Gate v1 now adds
 explicit producer registration, verified model artifact identity, immutable
 recorded dataset/policy/report contracts, deterministic bounded evaluation,
@@ -138,8 +149,8 @@ promotion and live physical audio/depth/force/touch perception, physical
 camera/IMU/localization validation, production diagnostic producers, spatial
 RGB-D registration, physical sensor fusion, SLAM, environment entity
 production, and
-reviewed Working-Memory-to-Memory-Validation consolidation also remain future
-work. Executive proposals, Safety
-eligibility, Skill Manager runtime-handoff eligibility, Runtime Bridge
+automatic consolidation, reviewed candidate-selection policy, and learning
+promotion also remain future work. Executive proposals, Safety eligibility,
+Skill Manager runtime-handoff eligibility, Runtime Bridge
 eligibility, transport acceptance, development injection, and simulated motion
 do not count as production authorization or physical-safety certification.

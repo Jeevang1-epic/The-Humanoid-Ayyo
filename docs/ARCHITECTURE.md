@@ -9,6 +9,7 @@ Human / Environment
 → Perception Trust Boundary
 → World Model
 → Working Memory
+→ Explicit Memory Candidate Staging
 → Memory Validation / Consolidation
 → Memory OS
 → Personal Context Twin
@@ -63,6 +64,14 @@ strings are bounded, optional confidence uses explicit presence, and empty
 evidence means only that nothing is currently retained. The lifecycle-owned
 service and fixed JSON client do not admit evidence, run a producer, refresh
 TTL, create entities, persist records, command motion, or grant authority.
+The standalone
+[Working Memory Candidate Bridge](WORKING_MEMORY_CONSOLIDATION.md) now occupies
+the explicit seam between temporary evidence and `CandidateEvidence`. It reads
+only caller-selected retained evidence, reconstructs content identity and
+semantic source chains, requires fresh reviewed UTC-compatible evidence and an
+honest confidence, and derives bounded direct-observation provenance. It has no
+automatic selection, evaluator, apply, persistence, correction, ROS, Personal
+Context, or action surface.
 The
 transport-neutral
 [Recorded Visual Producer Evaluation and Perception Quality Gate](VISUAL_PRODUCER_EVALUATION.md)
@@ -219,8 +228,15 @@ replace proxy geometry without duplicating or bypassing frame semantics.
 - Working Memory owns bounded temporary current/recent evidence, TTL, duplicate
   suppression, temporal ordering, source-dependent semantic expiry, and
   deterministic eviction through public World Model contracts only. It cannot
-  import Perception or write Memory OS; future durable candidates must still
-  pass Memory Validation.
+  import Perception, the candidate bridge, or Memory Validation and cannot
+  write Memory OS.
+- Memory candidate staging owns explicit selection of one exact retained
+  evidence reference and fail-closed conversion to immutable
+  `CandidateEvidence`. It depends downward on public Working Memory/World Model
+  evidence contracts and sideways on public Memory/Memory Validation models;
+  neither lower package depends back on it. It cannot evaluate policy, apply a
+  decision, persist, request correction, infer identity/preferences, scan
+  Working Memory, or run in the background.
 - Memory validation owns deterministic admission, conservative identity
   normalization, duplicate decisions, correction authority, and contradiction
   review without selecting probabilistic truth.

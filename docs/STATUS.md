@@ -32,6 +32,21 @@
   JSON normalization
 - Typed duplicate, contradiction, correction, rejection, and review decisions
 - Explicit evaluation/application separation using only the public Memory OS API
+- Standalone `ayyo-memory-consolidation` bridge above public Working Memory,
+  World Model, Memory Validation, and Memory contracts, without changing their
+  dependency direction
+- Explicit immutable `ConsolidationRequest`, exact one-evidence reference,
+  typed staging status/reasons, and deterministic `CandidateEvidence` output
+- Fresh-only retained-evidence eligibility, full immutable reconstruction,
+  exact fingerprint/source/robot checks, fail-closed reset/expiry behavior,
+  reviewed `ROS_SYSTEM_TIME`-only UTC conversion, and no fabricated confidence
+- Bounded `DIRECT_OBSERVATION` provenance retaining source observation,
+  fingerprint, source profile, and applicable frame/sensor/producer/semantic
+  chain identities; bridge requests cannot supply timestamps, provenance,
+  confidence, correction intent, or persistence authority
+- Anonymous person/object staging limited to exact robot-subject episodic
+  propositions with anonymous region/category values and evidence IDs confined
+  to provenance, never persistent entity, owner, preference, or social identity
 - Standalone Personal Context Twin v1 using only public, read-only Memory OS
   operations
 - Exact owner isolation with deterministic resolved, conflicted, and unknown
@@ -290,8 +305,8 @@
 - Production diagnostic producers, SLAM, visual localization, sensor fusion,
   calibration/bias estimation, trust scoring, clock
   synchronization, and environment-state ROS query transport
-- Reviewed Working-Memory-to-Memory-Validation candidate selection and learning
-  consolidation
+- Automatic Working-Memory candidate selection, background/scheduled durable
+  consolidation, and learning promotion
 - Provenance aggregation and advanced consolidation policy
 - ROS 2 memory bridge
 - Natural-language/model cognition integration
