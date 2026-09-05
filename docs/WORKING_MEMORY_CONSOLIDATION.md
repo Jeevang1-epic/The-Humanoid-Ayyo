@@ -1,11 +1,12 @@
-# Working Memory Candidate Discovery, Bridge, and Selection Foundations v1
+# Working Memory Candidate Discovery, Bridge, Selection, and Review Foundations v1
 
 ## Responsibility
 
-`ayyo-memory-consolidation` owns three explicit transport-neutral steps between
-temporary Working Memory evidence and Memory Validation: bounded discovery,
-candidate staging, and reviewed selection. Each remains a separate caller
-decision.
+`ayyo-memory-consolidation` owns the explicit transport-neutral seams between
+temporary Working Memory evidence and read-only Memory Validation: bounded
+discovery, candidate staging, reviewed selection, and controlled two-phase
+review orchestration. The lower operations remain independently callable and
+the orchestrator preserves a caller checkpoint before staging.
 
 ```text
 Perception admission
@@ -24,6 +25,21 @@ Perception admission
 → Memory OS
 ```
 
+The controlled path is:
+
+```text
+Working Memory
+→ ControlledMemoryCandidateReviewPipeline.prepare
+→ immutable verified plan
+→ caller allowlists exact proposal IDs
+→ ControlledMemoryCandidateReviewPipeline.execute_review
+→ authoritative staging per requested proposal
+→ one complete-batch selection invocation
+→ selected-only sequential read-only validation
+→ immutable review batch
+→ stop
+```
+
 The stateless discovery policy exposes only `discover`; the bridge exposes only
 `stage`; and the separate stateless selector exposes only `select`. Discovery
 does not call either later operation. None has an automatic `evaluate`, `apply`,
@@ -32,6 +48,8 @@ Safety, Skill, Runtime, or action API. See the focused
 [Bounded Memory Candidate Discovery Policy](MEMORY_CANDIDATE_DISCOVERY.md) and
 [Reviewed Memory Candidate Selection Policy](REVIEWED_MEMORY_CANDIDATE_SELECTION.md)
 for their exact semantics.
+See [Controlled Memory Review Pipeline](CONTROLLED_MEMORY_REVIEW_PIPELINE.md)
+for plan integrity, caller gating, partial failures, and read-only evaluation.
 
 ## Dependency direction
 
@@ -53,8 +71,9 @@ Memory Consolidation
 ```
 
 Working Memory, World Model, Perception, Memory Validation, and Memory OS do not
-depend back on the bridge. The direct Memory OS dependency is model-only; bridge
-source imports no `MemoryService`, SQLite implementation, or persistence API.
+depend back on this package. The direct Memory OS dependency is model-only;
+bridge and pipeline source import no `MemoryService`, SQLite implementation, or
+persistence API.
 
 ## Public API
 
@@ -79,6 +98,16 @@ source imports no `MemoryService`, SQLite implementation, or persistence API.
 - `ReviewedMemoryCandidateSelectionPolicy.select(items)` returns immutable,
   versioned `SELECT_FOR_REVIEW`, `DEFER`, or `REJECT_SELECTION` item decisions
   with typed reasons and canonical candidate IDs/order.
+- `ControlledMemoryCandidateReviewPipeline.prepare(working_memory, *, now_ns)`
+  invokes discovery exactly once and returns an immutable verifiable
+  `MemoryCandidateReviewPlan` without staging, selection, or evaluation.
+- `MemoryCandidateReviewRequest` binds that exact plan to the caller's canonical
+  explicit proposal-ID allowlist.
+- `ControlledMemoryCandidateReviewPipeline.execute_review(...)` authoritatively
+  restages selected proposals, calls selection once over the successful batch,
+  and evaluates only selected candidates through `MemoryCandidateEvaluator`.
+  `MemoryCandidateReviewEntry` and `MemoryCandidateReviewBatch` retain bounded
+  deterministic lineage, outcomes, reasons, and counts without application.
 
 There are deliberately no caller fields for confidence, observation UTC time,
 provenance, provenance authority, correction target, or correction reason.
@@ -145,17 +174,20 @@ Discovery version 1 inspects at most 64 retained evidence envelopes and returns
 at most 32 proposals, 64 diagnostics, and 16 unique reasons under a 65,536
 character aggregate output bound. Bridge version 1 supports exactly one evidence
 reference per staged candidate. Selection version 1 accepts a separately bounded
-batch of at most 32 candidate occurrences. Metadata has at most 16 top-level
+batch of at most 32 candidate occurrences. Controlled review accepts at most 32
+explicit proposal IDs, entries, staged candidates, and evaluations, plus 16
+review reasons and 65,536 aggregate discovery/validation lineage characters.
+Metadata has at most 16 top-level
 fields. Identity/detail text and JSON reuse the public bounded World Model
 limits: depth 16, 2,048 nodes, 256 items per collection, 4,096 characters per
 text value, 65,536 aggregate/serialized JSON characters, and 1,024-bit integers.
 Cycles and non-finite numbers fail closed. Discovery, bridge, and selector are
-stateless and retain no history or seen-ID set.
+stateless and retain no history or seen-ID set. The pipeline retains only its
+narrow evaluator callable, never Working Memory or review history.
 
 ## Deliberate non-goals
 
-- automatic discovery invocation, staging, selection, evaluation, apply, or
-  persistence
+- background/scheduled invocation, automatic application or persistence
 - autonomous learning, memory extraction, truth scoring, or winner selection
 - confidence synthesis or provenance aggregation
 - destructive correction or authority upgrade

@@ -12,6 +12,11 @@ Discovery is not learning, truth acceptance, review selection, validation, or
 persistence. It returns proposals; a caller decides whether any proposal should
 be passed to the unchanged staging bridge.
 
+The optional controlled review pipeline may invoke this exact operation once
+during an explicit caller `prepare` call. It snapshots the result and still
+requires a second caller action with an exact proposal-ID allowlist before any
+staging or evaluation.
+
 ```text
 typed Perception evidence
 → bounded Working Memory
@@ -141,8 +146,8 @@ canonically ordered; internal exception strings are not part of policy output.
 
 ## Deliberate non-goals
 
-- automatic discovery invocation, staging, selection, validation, apply,
-  persistence, consolidation, learning, promotion, scheduling, or background work
+- background/scheduled discovery, staging, selection, validation, apply,
+  persistence, durable consolidation, learning, or promotion
 - identity/owner recognition, tracking, facial/biometric processing, person or
   object identity, ownership, relationships, familiarity, habit, routine,
   intention, emotion, preference, or social inference

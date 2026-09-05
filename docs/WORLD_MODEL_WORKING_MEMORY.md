@@ -539,7 +539,7 @@ Shutdown must be clean.
   compact pixel-free RGB, interpretation, depth, RGB-D fusion, and sample-free
   audio state. The separate semantic query exposes only bounded current/recent
   anonymous semantic evidence already present in `WorldSnapshot`.
-- Explicit candidate staging exists, but no automatic candidate selection,
+- Explicit controlled candidate review exists, but no background invocation,
   Memory Validation application, or learning consolidation exists.
 - No edge-hardware benchmark or Raspberry Pi/Jetson compatibility claim exists.
 - Physical sensors, drivers, authorization, and physical safety remain future.

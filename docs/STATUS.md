@@ -71,6 +71,17 @@
   gain owner authority; broader direct claims and all derived inferences defer
   for confirmation, anonymous person/object candidates remain exact and
   anonymous, and the selector has no evaluate/apply/persistence/runtime surface
+- Explicit controlled memory-review pipeline with immutable two-phase plan and
+  invocation contracts, deterministic pipeline/plan/request/entry/batch IDs,
+  exact proposal-ID allowlisting, and fail-closed plan reconstruction
+- Authoritative per-proposal restaging against current Working Memory, one
+  complete-batch selector invocation, typed partial ineligibility, and
+  sequential evaluation of `SELECT_FOR_REVIEW` candidates only through a narrow
+  read-only evaluator protocol
+- Bounded immutable review batches with complete discovery → proposal → request
+  → staging → candidate → selection → validation lineage and explicit counts;
+  no validation application, Memory OS write, correction, Personal Context
+  mutation, background invocation, ROS, runtime, or action surface
 - Standalone Personal Context Twin v1 using only public, read-only Memory OS
   operations
 - Exact owner isolation with deterministic resolved, conflicted, and unknown
@@ -329,8 +340,8 @@
 - Production diagnostic producers, SLAM, visual localization, sensor fusion,
   calibration/bias estimation, trust scoring, clock
   synchronization, and environment-state ROS query transport
-- Automatic candidate-discovery, staging, or selection-policy invocation;
-  background/scheduled durable consolidation; and learning promotion
+- Background/scheduled review invocation, automatic durable consolidation, and
+  learning promotion
 - Provenance aggregation and advanced consolidation policy
 - ROS 2 memory bridge
 - Natural-language/model cognition integration
@@ -354,7 +365,7 @@
 The repository contains the engineering foundation, Memory OS core,
 deterministic memory validation policy, a bounded owner-context read model, a
 stateless bounded memory candidate-discovery policy, a stateless reviewed memory
-candidate-selection policy,
+candidate-selection policy, an explicit controlled read-only review pipeline,
 a deterministic proposal-only Executive layer, an immutable fail-closed Safety
 proposal-review boundary, an inert declarative Skill Manager boundary, and a
 controlled ROS Runtime Bridge compatibility boundary. The downstream

@@ -122,6 +122,15 @@ under reviewed microsecond-compatible `ROS_SYSTEM_TIME`, with honest confidence
 including `0.0`. It does not invoke staging, selection, validation, apply,
 persistence, consolidation, learning, identity, preference, social, ownership,
 absence, permanence, correction, ROS, or action behavior.
+Controlled Memory Candidate Invocation and Review Pipeline Foundation v1 now
+coordinates those reviewed seams only after explicit caller actions. `prepare`
+invokes discovery once and returns an immutable verifiable plan;
+`execute_review` requires that exact plan plus a canonical proposal-ID allowlist,
+restages against current Working Memory, invokes selection once over the full
+successful batch, and evaluates only selected candidates through a narrow
+read-only interface. Immutable entries and batches retain deterministic full
+lineage and typed partial failures. There is no application, durable write,
+automatic learning, background invocation, ROS, or action authority.
 Recorded Visual Producer Evaluation and Perception Quality Gate v1 now adds
 explicit producer registration, verified model artifact identity, immutable
 recorded dataset/policy/report contracts, deterministic bounded evaluation,
@@ -166,8 +175,8 @@ physical-safety integration remain future work. Production visual producer
 promotion and live physical audio/depth/force/touch perception, physical
 camera/IMU/localization validation, production diagnostic producers, spatial
 RGB-D registration, physical sensor fusion, SLAM, environment entity
-production, and automatic candidate-discovery invocation, automatic staging,
-automatic consolidation, and learning promotion also remain future work. Executive
+production, background/scheduled review invocation, automatic durable
+consolidation, and learning promotion also remain future work. Executive
 proposals, Safety eligibility,
 Skill Manager runtime-handoff eligibility, Runtime Bridge
 eligibility, transport acceptance, development injection, and simulated motion

@@ -38,10 +38,13 @@ The separate
 one `CandidateEvidence` from an explicit proposition and exact fresh retained
 evidence. The separate
 [Reviewed Memory Candidate Selection Policy](REVIEWED_MEMORY_CANDIDATE_SELECTION.md)
-can decide whether unchanged candidates are suitable to present here. Neither
-changes this package's dependency direction or calls `evaluate`/`apply`;
-callers retain those two separate responsibilities. Selection for review is
-not a Memory Validation acceptance decision.
+can decide whether unchanged candidates are suitable to present here. The
+separate [Controlled Memory Review Pipeline](CONTROLLED_MEMORY_REVIEW_PIPELINE.md)
+can explicitly coordinate discovery, caller-approved restaging, one batch
+selection, and selected-only calls to `evaluate` through a narrow protocol. It
+cannot call `apply` or write Memory OS. None changes this package's dependency
+direction, and selection for review remains distinct from a Memory Validation
+acceptance decision.
 
 ## Public records and API
 

@@ -33,6 +33,11 @@ The earlier
 [Bounded Memory Candidate Discovery Policy](MEMORY_CANDIDATE_DISCOVERY.md) may
 provide the exact request, but never calls this selector or changes selection
 semantics.
+The optional
+[Controlled Memory Review Pipeline](CONTROLLED_MEMORY_REVIEW_PIPELINE.md) calls
+this selector exactly once over all successfully restaged caller-allowlisted
+candidates, then evaluates only `SELECT_FOR_REVIEW` items. That orchestration
+does not change this policy or give it validation/application authority.
 
 ## Public API
 

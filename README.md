@@ -7,10 +7,11 @@ can mature behind stable boundaries before physical hardware is introduced.
 
 ## Current status
 
-Ayyo has reached the Bounded Memory Candidate Discovery Foundation v1 milestone
-with caller-triggered deterministic discovery of exact anonymous visual
-person/object proposals from currently retained Working Memory evidence, and no
-automatic staging, evaluation, persistence, identity inference, or learning.
+Ayyo has reached the Controlled Memory Candidate Invocation and Review Pipeline
+Foundation v1 milestone. A caller explicitly prepares a deterministic discovery
+plan, allowlists exact proposal IDs, and invokes bounded restaging, one-batch
+selection, and read-only Memory Validation evaluation. There is no automatic
+persistence, identity inference, or learning.
 
 Implemented:
 
@@ -37,6 +38,11 @@ Implemented:
   observations, emits versioned selected/deferred/rejected-for-review decisions,
   defers duplicates and conflicts without choosing a winner, and never
   evaluates, applies, or persists memory
+- A standalone explicit two-phase controlled review pipeline that snapshots and
+  verifies bounded discovery plans, requires a caller proposal-ID allowlist,
+  authoritatively restages current evidence, selects one complete batch, and
+  evaluates only selected candidates through a narrow read-only interface; it
+  exposes no apply or persistence operation
 - A standalone, read-only Personal Context Twin that projects deterministic,
   owner-isolated, evidence-backed snapshots from Memory OS
 - A standalone Executive Cognition layer that consumes PCT snapshots and emits
@@ -189,9 +195,9 @@ Planned, but not implemented:
 - Production person/object detectors, tracking, face recognition, persistent
   identity, complete-scene/negative-detection claims, and semantic projection
   into persistent environment entities
-- Automatic candidate-discovery invocation, automatic staging/selection,
-  scheduled consolidation, autonomous durable memory formation, confidence
-  synthesis, and provenance aggregation
+- Background/scheduled review invocation, automatic durable consolidation,
+  autonomous durable memory formation, confidence synthesis, and provenance
+  aggregation
 - Natural-language/model integration and authenticated identity/approval
 - Runtime skill implementations, manipulation, and navigation
 - Production-authorized typed ROS services, runtime scheduling, and resource
@@ -479,7 +485,7 @@ Run the hardware-free Head Audio Perception smoke twice:
 docs/          Architecture, roadmap, safety, and status
 memory/        Standalone Memory OS core and its tests
 memory_validation/  Deterministic evidence policy layer and its tests
-memory_consolidation/  Bounded candidate discovery, staging, and review selection
+memory_consolidation/  Bounded discovery, staging, selection, and review orchestration
 personal_context/  Deterministic owner-context projection and its tests
 executive/     Deterministic Executive proposal planning and its tests
 safety_kernel/  Immutable deterministic proposal safety review and its tests
@@ -549,6 +555,14 @@ Exact proposal identities alone are deduplicated; category remains observation
 content, evidence IDs remain provenance, and no identity, preference, social,
 ownership, absence, permanence, correction, persistence, or learning claim is
 created.
+Controlled Memory Candidate Invocation and Review Pipeline Foundation v1 adds
+an explicit two-phase `prepare`/`execute_review` orchestration over those
+existing seams. The immutable plan is reconstructable, the caller must
+allowlist exact proposal IDs, current evidence is authoritatively restaged, one
+selector invocation sees the complete staged batch, and only
+`SELECT_FOR_REVIEW` candidates reach sequential read-only validation. See
+[Controlled Memory Review Pipeline](docs/CONTROLLED_MEMORY_REVIEW_PIPELINE.md).
+The pipeline has no application, persistence, background, ROS, or action API.
 Production motion remains
 closed because Safety v1 defers physical movement; only explicit development
 injection can exercise the simulated neck joint. The perception path adds

@@ -89,6 +89,14 @@ decisions with typed reasons, conflict/duplicate deferral, policy identity, and
 hard resource bounds. Selection means only suitable to present for review; it
 does not establish truth, owner approval, durable learning, identity, or action
 authority, and it cannot evaluate or apply a Memory Validation decision.
+The explicit
+[Controlled Memory Review Pipeline](CONTROLLED_MEMORY_REVIEW_PIPELINE.md)
+coordinates these existing seams without collapsing their authority boundaries.
+Preparation snapshots one bounded discovery result; execution requires the
+exact plan and a caller proposal-ID allowlist, restages current evidence, calls
+selection once over all successful candidates, and evaluates selected
+candidates sequentially through a narrow read-only protocol. It exposes no
+application or persistence operation and makes no transactional batch claim.
 The
 transport-neutral
 [Recorded Visual Producer Evaluation and Perception Quality Gate](VISUAL_PRODUCER_EVALUATION.md)
@@ -267,6 +275,13 @@ replace proxy geometry without duplicating or bypassing frame semantics.
   deterministic versioned decisions. It cannot generate propositions, read
   Working Memory, authenticate an owner, evaluate/apply validation, persist,
   correct, infer identity/preferences/relationships, or run in the background.
+- Controlled memory review orchestration owns the explicit two-phase caller
+  checkpoint, plan verification, current-evidence restaging, one-call batch
+  selection, selected-only sequential evaluation, immutable full-lineage review
+  output, and typed partial ineligibility. It depends on the existing public
+  discovery/staging/selection contracts and only a narrow validation evaluator.
+  It cannot apply a decision, write Memory OS, correct, promote learning, infer
+  identity/preferences/relationships, schedule work, call ROS, or act.
 - Memory validation owns deterministic admission, conservative identity
   normalization, duplicate decisions, correction authority, and contradiction
   review without selecting probabilistic truth.
