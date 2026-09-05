@@ -403,6 +403,18 @@ def semantic_batch_chain(
     return store, frame, interpretation, semantic, items
 
 
+def add_semantic_chain(target, chain, *, now_ns: int) -> None:
+    """Retain a second complete semantic source chain in an existing fixture."""
+
+    for receipt, observation in enumerate(chain[1:4], start=4):
+        result = target.ingest(
+            observation,
+            now_ns=now_ns,
+            received_at_monotonic_ns=receipt,
+        )
+        assert result.status.value == "accepted"
+
+
 def semantic_request(
     semantic: SemanticEvidenceObservation,
     item: SemanticEvidenceItem,

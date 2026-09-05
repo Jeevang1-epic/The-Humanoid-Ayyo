@@ -163,6 +163,37 @@ class PackageBoundaryTest(unittest.TestCase):
             with self.subTest(forbidden=forbidden):
                 self.assertNotIn(forbidden, discovery_source)
 
+    def test_controlled_review_pipeline_has_read_only_validation_authority(self) -> None:
+        pipeline_source = "\n".join(
+            (
+                self.source_root / "ayyo_memory_consolidation" / name
+            ).read_text(encoding="utf-8")
+            for name in ("pipeline_models.py", "pipeline.py")
+        )
+        for forbidden in (
+            "MemoryService",
+            "MemoryValidationService",
+            "SQLiteMemoryStore",
+            ".apply(",
+            ".create_memory(",
+            ".correct_memory(",
+            ".persist(",
+            "personal_context",
+            "executive",
+            "safety",
+            "skill",
+            "runtime",
+            "threading",
+            "Timer(",
+            "queue",
+            "rclpy",
+            "datetime.now(",
+        ):
+            with self.subTest(forbidden=forbidden):
+                self.assertNotIn(forbidden, pipeline_source)
+        self.assertIn("def evaluate(", pipeline_source)
+        self.assertNotIn("def apply(", pipeline_source)
+
     def test_public_exports_are_importable(self) -> None:
         self.assertTrue(ayyo_memory_consolidation.__all__)
         for name in ayyo_memory_consolidation.__all__:
