@@ -83,8 +83,16 @@ and immutable World Snapshots expose canonically ordered anonymous semantic
 state. Because upstream admission does not promise complete negative results,
 this is deliberately a conservative recent-evidence model: newer partial
 evidence does not claim that omitted people or objects are absent. It creates
-no tracker, stable entity, persistent identity, environment entity, ROS
-semantic transport, Memory OS write, authority, or motion path.
+no tracker, stable entity, persistent identity, environment entity, Memory OS
+write, authority, or motion path.
+Anonymous Semantic ROS Query Foundation v1 now adds exactly one read-only ROS
+transport for that already-projected state. A lifecycle-owned fixed service
+uses hard-bounded typed item/state arrays, preserves evidence provenance and
+explicit optional confidence, and a deterministic client renders canonical
+JSON. A default-off TEST producer and owned visual smoke validate the full
+frame-to-query path. Empty retained evidence remains unknown physical-scene
+occupancy; the query creates no perception, entity, persistence, authority, or
+motion side effect.
 Recorded Visual Producer Evaluation and Perception Quality Gate v1 now adds
 explicit producer registration, verified model artifact identity, immutable
 recorded dataset/policy/report contracts, deterministic bounded evaluation,

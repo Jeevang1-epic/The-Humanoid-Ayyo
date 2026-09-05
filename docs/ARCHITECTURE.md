@@ -57,6 +57,12 @@ interpretation-scoped World Model contract. Working Memory retains bounded
 recent evidence under source-time freshness/TTL; immutable snapshots expose it
 without creating persistent entities, tracking identity, or negative scene
 knowledge from omitted detections.
+One dedicated ROS query now serializes that already-projected semantic state
+from exactly one public immutable `WorldSnapshot`. Its item/state arrays and
+strings are bounded, optional confidence uses explicit presence, and empty
+evidence means only that nothing is currently retained. The lifecycle-owned
+service and fixed JSON client do not admit evidence, run a producer, refresh
+TTL, create entities, persist records, command motion, or grant authority.
 The
 transport-neutral
 [Recorded Visual Producer Evaluation and Perception Quality Gate](VISUAL_PRODUCER_EVALUATION.md)
@@ -196,6 +202,11 @@ replace proxy geometry without duplicating or bypassing frame semantics.
   state remains anonymous and separate from persistent entities. The path
   retains no pixels and grants no identity, permission, safety, skill,
   Executive, movement, or execution authority.
+- The World Model ROS adapter owns the fixed typed read-only serialization from
+  one public immutable snapshot to
+  `/ayyo/world_model/get_anonymous_semantic_state`. It preserves exact evidence
+  and source provenance, bounds responses to 64 states × 32 items, fails closed
+  outside the active lifecycle, and performs no Perception or memory write.
 - Evaluated producers additionally require one exact registered manifest,
   verified model artifact, immutable dataset and policy, successful semantic
   report identity, and a sealed one-use authorization. A bare result or

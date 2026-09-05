@@ -226,19 +226,40 @@ full architecture in tests and manual development.
 
 ## Read-only ROS projection
 
-`GetRobotBodyState` adds typed visual-interpretation fields for source and
+`GetRobotBodyState` contains typed visual-interpretation fields for source and
 result time, source-frame identity/fingerprint, producer identity, provenance,
 availability/freshness, detection IDs/categories/labels/normalized regions,
 and explicit confidence presence. The fixed JSON client renders absent
 confidence as `null`.
 
-The transport-neutral contracts do not import ROS. The v1 ROS response is
-singular because only one reference producer is configured in this milestone;
+The transport-neutral contracts do not import ROS. The body-query response is
+singular because only one reference producer is configured by default;
 the immutable core snapshot supports bounded current results for multiple
 camera/producer keys.
 
-Anonymous semantic scene state has no ROS topic, service, or query projection
-in this milestone. The fixed body-state response remains unchanged.
+Anonymous semantic scene state now has one separate fixed read-only service:
+
+```text
+/ayyo/world_model/get_anonymous_semantic_state
+ayyo_interfaces/srv/GetAnonymousSemanticState
+```
+
+The typed response is bounded to 64 semantic states and 32 items per state. It
+serializes one public immutable `WorldSnapshot` and preserves exact semantic,
+frame, interpretation, detection, producer/evaluation, provenance, normalized
+region, freshness, availability, and optional-confidence evidence. Explicit
+presence flags keep absent confidence distinct from `0.0`; person evidence has
+no object category. Evidence IDs are never entity or tracking IDs. Empty state
+means no currently retained evidence, not an empty physical scene. The service
+exists only while configured, returns not-ready unless active, and does not run
+a producer, admit evidence, refresh memory, persist, authorize, or command.
+
+The installed `semantic_state_query.py` client uses the fixed endpoint and
+bounded waits, then prints canonically keyed compact JSON. The default-off
+`enable_anonymous_semantic_test_fixture` is solely a smoke/development producer;
+it creates one anonymous person with absent confidence and one synthetic object
+with real `0.0` confidence from each admitted fixture frame. It is not a
+production detector.
 
 ## Deterministic smoke-process teardown
 
@@ -305,9 +326,10 @@ dependency eviction, bounded 2,000-update behavior, snapshot freshness, and
 the absence of entities, pixels, identity, or authority.
 
 The headless smoke exercised a real simulated RGB frame through the synthetic
-result, trust, Working Memory, World Model, and fixed query. It also proved
-that no command was issued and that the observed neck position remained
-unchanged.
+reference and anonymous person/object results, trust, Working Memory, World
+Model, and both fixed queries. It proved exact semantic provenance and optional
+confidence, lifecycle fail-closed/reactivation behavior, no persistent identity,
+no command or neck movement, clean owned shutdown, and no orphan processes.
 
 Not validated or implemented:
 
@@ -316,7 +338,8 @@ Not validated or implemented:
   understanding;
 - complete-scene or negative-presence claims, persistent semantic entities,
   cross-frame association, tracking, biometric identity, or person naming;
-- ROS transport or query exposure for anonymous semantic scene state;
+- production semantic ROS publication, streaming, or command use beyond the
+  bounded read-only query;
 - model accuracy, calibration, dataset quality, GPU/edge performance, physical
   camera behavior, or production latency;
 - graphical camera review in this milestone;

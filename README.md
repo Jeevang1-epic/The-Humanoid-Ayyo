@@ -7,9 +7,9 @@ can mature behind stable boundaries before physical hardware is introduced.
 
 ## Current status
 
-Ayyo has reached the Anonymous Person/Object Semantic Scene State Foundation
-v1 milestone with bounded temporary evidence and no production detector,
-tracking, or identity claim.
+Ayyo has reached the Anonymous Semantic ROS Query Foundation v1 milestone with
+one bounded read-only transport for current/recent anonymous evidence and no
+production detector, tracking, identity, authority, or negative-scene claim.
 
 Implemented:
 
@@ -88,6 +88,14 @@ Implemented:
 - Immutable canonically ordered semantic states in `WorldSnapshot`, included
   in snapshot identity without creating `WorldEntity` records or stable
   person/object identities
+- A dedicated lifecycle-owned
+  `/ayyo/world_model/get_anonymous_semantic_state` service with minimal bounded
+  typed messages and a fixed deterministic JSON client, preserving exact
+  evidence/source/provenance, freshness, object category, and explicit absent
+  versus `0.0` confidence semantics from one immutable `WorldSnapshot`
+- A default-off anonymous semantic TEST fixture and extended owned visual smoke
+  proving real frame admission through Perception, Working Memory, World Model,
+  and the ROS query without motion, persistent entities, or orphan processes
 - Immutable IMU, body-pose, covariance, quality, health/availability,
   freshness, and disappearance contracts integrated into Working Memory and
   World Model without fabricating missing state
@@ -483,6 +491,10 @@ already-admitted compact evidence into conservative bounded Working Memory and
 immutable World Snapshot semantic state. It preserves exact source identity
 and expiry without claiming scene completeness, tracking, persistent entities,
 face/owner identity, physical validation, authority, or motion.
+Anonymous Semantic ROS Query Foundation v1 now serializes that state through
+one dedicated, lifecycle-aware, hard-bounded typed service and deterministic
+read-only client. The ROS seam consumes one public immutable snapshot and does
+not run perception, refresh evidence, create entities, or infer absence.
 Production motion remains
 closed because Safety v1 defers physical movement; only explicit development
 injection can exercise the simulated neck joint. The perception path adds

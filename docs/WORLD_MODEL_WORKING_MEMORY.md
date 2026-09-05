@@ -369,11 +369,14 @@ The core exposes immutable typed `current_snapshot`, `get_robot_state`,
 operations. There is no expression engine, arbitrary filter, raw database
 query, ROS topic selection, `eval`, `exec`, or mutable world-state result.
 
-The ROS package adds one fixed read-only service:
+The ROS package adds two fixed read-only services:
 
 ```text
 /ayyo/world_model/get_robot_body_state
 ayyo_interfaces/srv/GetRobotBodyState
+
+/ayyo/world_model/get_anonymous_semantic_state
+ayyo_interfaces/srv/GetAnonymousSemanticState
 ```
 
 It reports ready/not-ready, canonical robot/snapshot identities, source profile,
@@ -385,13 +388,25 @@ freshness, evidence IDs/fingerprints, and bounded retention counts. No image
 bytes are serialized by this service. A query for
 another robot identity fails closed.
 
+The dedicated semantic service serializes `WorldSnapshot.semantic_states` from
+one snapshot operation into at most 64 `AnonymousSemanticState` messages with
+at most 32 `AnonymousSemanticItem` values each. It preserves semantic evidence,
+source frame/interpretation/detection, producer/evaluation, provenance, region,
+object category, freshness, and availability. `has_confidence=false` carries
+`None`; `has_confidence=true` with `confidence=0.0` remains a real zero. Person
+items have no object category, and all transported IDs remain evidence
+provenance rather than entity identities. Its fixed client has bounded waits
+and prints canonical JSON. An empty result means no currently retained evidence,
+not that the physical scene is empty. Querying never invokes Perception,
+refreshes TTL, mutates Working Memory, creates entities, or writes durable state.
+
 ## ROS lifecycle and restart behavior
 
 `AyyoWorldModelNode` is a managed `LifecycleNode` and self-drives deterministic
 configure/activate transitions through the reviewed executable.
 
 - Configure selects one reviewed profile, verifies ROS clock compatibility,
-  parses `robot_description`, creates Working Memory, and creates the query.
+  parses `robot_description`, creates Working Memory, and creates both queries.
 - Activate creates fixed `/joint_states`, `/ayyo/imu/data`,
   `/ayyo/localization/odometry`, `/diagnostics`,
   `/ayyo/camera/head/image_raw`, and `/ayyo/camera/head/camera_info`
@@ -509,17 +524,18 @@ Shutdown must be clean.
   geometry and speech/audio interpretation have typed or architectural space
   but no live production adapter. Anonymous semantic visual evidence now has a
   transport-neutral bounded state path, but no production detector, tracking,
-  complete-scene claim, persistent identity/entity projection, or live ROS
-  semantic transport.
+  complete-scene claim, or persistent identity/entity projection. Its live ROS
+  transport is read-only and TEST-smoke-validated, not a production detector.
 - Covariance and optional quality are preserved when supplied; v1 has no sensor
   fusion, calibration/bias estimation, trust scoring, probabilistic estimation,
   or cross-sensor conflict resolution.
 - Expected proprioceptive sensors have explicit query-time disappearance;
   environment entities still expire by TTL without a tombstone observation.
 - Working Memory is in-process/non-durable; node restart loses temporary state.
-- The ROS query exposes joint, IMU, pose, sensor-summary, explicit health, and
+- The body query exposes joint, IMU, pose, sensor-summary, explicit health, and
   compact pixel-free RGB, interpretation, depth, RGB-D fusion, and sample-free
-  audio state only; anonymous semantic state is not yet exposed through ROS.
+  audio state. The separate semantic query exposes only bounded current/recent
+  anonymous semantic evidence already present in `WorldSnapshot`.
 - No automatic Memory Validation candidate selection or learning consolidation
   exists.
 - No edge-hardware benchmark or Raspberry Pi/Jetson compatibility claim exists.
