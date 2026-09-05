@@ -7,10 +7,10 @@ can mature behind stable boundaries before physical hardware is introduced.
 
 ## Current status
 
-Ayyo has reached the Working Memory → Memory Validation Candidate Bridge
-Foundation v1 milestone with explicit fresh-evidence selection, deterministic
-candidate staging, truthful UTC/confidence handling, and no automatic
-evaluation, persistence, identity inference, or learning.
+Ayyo has reached the Reviewed Memory Candidate Selection Policy Foundation v1
+milestone with explicit bounded review triage over immutable candidate snapshots,
+deterministic duplicate/conflict deferral, truthful confidence handling, and no
+automatic evaluation, persistence, identity inference, or learning.
 
 Implemented:
 
@@ -28,6 +28,11 @@ Implemented:
   enforces fresh-only and reviewed UTC-clock eligibility, derives bounded
   direct-observation provenance, and emits `CandidateEvidence` without applying
   or persisting it
+- A standalone stateless reviewed candidate-selection policy that consumes
+  unchanged `CandidateEvidence`, requires exact staging eligibility for direct
+  observations, emits versioned selected/deferred/rejected-for-review decisions,
+  defers duplicates and conflicts without choosing a winner, and never
+  evaluates, applies, or persists memory
 - A standalone, read-only Personal Context Twin that projects deterministic,
   owner-isolated, evidence-backed snapshots from Memory OS
 - A standalone Executive Cognition layer that consumes PCT snapshots and emits
@@ -180,8 +185,9 @@ Planned, but not implemented:
 - Production person/object detectors, tracking, face recognition, persistent
   identity, complete-scene/negative-detection claims, and semantic projection
   into persistent environment entities
-- Automatic candidate selection, scheduled consolidation, autonomous durable
-  memory formation, confidence synthesis, and provenance aggregation
+- Automatic candidate discovery or policy invocation, scheduled consolidation,
+  autonomous durable memory formation, confidence synthesis, and provenance
+  aggregation
 - Natural-language/model integration and authenticated identity/approval
 - Runtime skill implementations, manipulation, and navigation
 - Production-authorized typed ROS services, runtime scheduling, and resource
@@ -206,6 +212,7 @@ independent of cognition and learned policies. See
 [docs/SIMULATION_CONTROL.md](docs/SIMULATION_CONTROL.md),
 [docs/WORLD_MODEL_WORKING_MEMORY.md](docs/WORLD_MODEL_WORKING_MEMORY.md),
 [docs/WORKING_MEMORY_CONSOLIDATION.md](docs/WORKING_MEMORY_CONSOLIDATION.md),
+[docs/REVIEWED_MEMORY_CANDIDATE_SELECTION.md](docs/REVIEWED_MEMORY_CANDIDATE_SELECTION.md),
 [docs/PERCEPTION_TRUST_PROPRIOCEPTION.md](docs/PERCEPTION_TRUST_PROPRIOCEPTION.md),
 [docs/BODY_LOCALIZATION_SENSOR_DIAGNOSTICS.md](docs/BODY_LOCALIZATION_SENSOR_DIAGNOSTICS.md),
 [docs/VISUAL_CAMERA_FOUNDATION.md](docs/VISUAL_CAMERA_FOUNDATION.md),
@@ -277,7 +284,7 @@ PYTHONPATH=memory/src:memory_validation/src \
 python3 -m unittest discover -s memory_validation/tests -v
 ```
 
-Run Working Memory candidate-staging tests:
+Run candidate-staging and reviewed-selection tests:
 
 ```bash
 PYTHONPATH=memory/src:memory_validation/src:world_model/src:head_audio/src:physical_camera/src:depth_camera/src:rgbd_fusion/src:visual_evaluation/src:perception/src:working_memory/src:memory_consolidation/src \
@@ -467,7 +474,7 @@ Run the hardware-free Head Audio Perception smoke twice:
 docs/          Architecture, roadmap, safety, and status
 memory/        Standalone Memory OS core and its tests
 memory_validation/  Deterministic evidence policy layer and its tests
-memory_consolidation/  Explicit Working Memory candidate-staging bridge
+memory_consolidation/  Explicit candidate staging and reviewed selection policy
 personal_context/  Deterministic owner-context projection and its tests
 executive/     Deterministic Executive proposal planning and its tests
 safety_kernel/  Immutable deterministic proposal safety review and its tests
@@ -519,6 +526,14 @@ observation authority, honest confidence, and only exactly representable
 `ROS_SYSTEM_TIME` UTC. Anonymous person/object evidence remains an explicit
 episodic anonymous observation. The bridge has no evaluation, apply,
 persistence, scanning, timer, worker, ROS, Personal Context, or action API.
+Reviewed Memory Candidate Selection Policy Foundation v1 now adds an explicit
+stateless review-triage step over unchanged candidate snapshots. Direct
+observations retain exact bridge eligibility; policy version/fingerprint,
+candidate/selection identities, confidence threshold, typed reasons, canonical
+ordering, and resource bounds are deterministic. Exact duplicates, equivalent
+propositions, and conflicts are deferred without a winner. Anonymous evidence
+remains anonymous, and selection grants no truth, owner approval, validation,
+apply, persistence, correction, learning, or physical-action authority.
 Production motion remains
 closed because Safety v1 defers physical movement; only explicit development
 injection can exercise the simulated neck joint. The perception path adds

@@ -104,6 +104,15 @@ Anonymous person/object evidence can support only its exact anonymous episodic
 observation. Candidate evaluation and application remain separate caller
 actions; there is no automatic selection, durable write, identity or preference
 inference, correction, Personal Context update, ROS service, or learning loop.
+Reviewed Memory Candidate Selection Policy Foundation v1 now adds the next
+explicit transport-neutral step over immutable candidate snapshots. A bounded
+caller-supplied batch receives versioned selected/deferred/rejected-for-review
+decisions with canonical candidate identities and typed reasons. Direct
+observations require exact staging eligibility; confidence is never synthesized;
+anonymous semantics remain anonymous; and all supplied duplicate propositions
+or conflicts are deferred without choosing a winner. The policy is stateless
+and cannot generate candidates, evaluate/apply Memory Validation, persist,
+correct, learn, infer identity/preferences/relationships, or run automatically.
 Recorded Visual Producer Evaluation and Perception Quality Gate v1 now adds
 explicit producer registration, verified model artifact identity, immutable
 recorded dataset/policy/report contracts, deterministic bounded evaluation,
@@ -148,9 +157,9 @@ physical-safety integration remain future work. Production visual producer
 promotion and live physical audio/depth/force/touch perception, physical
 camera/IMU/localization validation, production diagnostic producers, spatial
 RGB-D registration, physical sensor fusion, SLAM, environment entity
-production, and
-automatic consolidation, reviewed candidate-selection policy, and learning
-promotion also remain future work. Executive proposals, Safety eligibility,
+production, and automatic candidate discovery/invocation, automatic
+consolidation, and learning promotion also remain future work. Executive
+proposals, Safety eligibility,
 Skill Manager runtime-handoff eligibility, Runtime Bridge
 eligibility, transport acceptance, development injection, and simulated motion
 do not count as production authorization or physical-safety certification.

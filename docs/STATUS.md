@@ -47,6 +47,18 @@
 - Anonymous person/object staging limited to exact robot-subject episodic
   propositions with anonymous region/category values and evidence IDs confined
   to provenance, never persistent entity, owner, preference, or social identity
+- Stateless reviewed candidate-selection policy over immutable
+  `CandidateEvidence` plus optional exact staging eligibility, with a 32-item
+  batch cap, versioned policy fingerprint, canonical candidate/selection IDs,
+  and typed selected/deferred/rejected-for-review outcomes and reasons
+- Exact duplicate collapse plus equivalent-proposition and conflict deferral
+  without winner selection; deterministic input-order independence, explicit
+  0.5 review threshold, genuine `0.0`, missing-confidence rejection, and bounded
+  metadata/JSON/aggregate content
+- Direct observations require their exact eligible staging result and cannot
+  gain owner authority; broader direct claims and all derived inferences defer
+  for confirmation, anonymous person/object candidates remain exact and
+  anonymous, and the selector has no evaluate/apply/persistence/runtime surface
 - Standalone Personal Context Twin v1 using only public, read-only Memory OS
   operations
 - Exact owner isolation with deterministic resolved, conflicted, and unknown
@@ -305,8 +317,8 @@
 - Production diagnostic producers, SLAM, visual localization, sensor fusion,
   calibration/bias estimation, trust scoring, clock
   synchronization, and environment-state ROS query transport
-- Automatic Working-Memory candidate selection, background/scheduled durable
-  consolidation, and learning promotion
+- Automatic Working-Memory candidate discovery or selection-policy invocation,
+  background/scheduled durable consolidation, and learning promotion
 - Provenance aggregation and advanced consolidation policy
 - ROS 2 memory bridge
 - Natural-language/model cognition integration
@@ -329,7 +341,8 @@
 
 The repository contains the engineering foundation, Memory OS core,
 deterministic memory validation policy, a bounded owner-context read model, a
-deterministic proposal-only Executive layer, an immutable fail-closed Safety
+stateless reviewed memory candidate-selection policy,
+a deterministic proposal-only Executive layer, an immutable fail-closed Safety
 proposal-review boundary, an inert declarative Skill Manager boundary, and a
 controlled ROS Runtime Bridge compatibility boundary. The downstream
 Simulation Control Foundation can actuate one bounded simulated neck joint only

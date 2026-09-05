@@ -10,6 +10,7 @@ Human / Environment
 → World Model
 → Working Memory
 → Explicit Memory Candidate Staging
+→ Reviewed Memory Candidate Selection
 → Memory Validation / Consolidation
 → Memory OS
 → Personal Context Twin
@@ -72,6 +73,14 @@ semantic source chains, requires fresh reviewed UTC-compatible evidence and an
 honest confidence, and derives bounded direct-observation provenance. It has no
 automatic selection, evaluator, apply, persistence, correction, ROS, Personal
 Context, or action surface.
+The explicit
+[Reviewed Memory Candidate Selection Policy](REVIEWED_MEMORY_CANDIDATE_SELECTION.md)
+then receives immutable candidate snapshots rather than reaching back into
+Working Memory. It emits deterministic selected/deferred/rejected-for-review
+decisions with typed reasons, conflict/duplicate deferral, policy identity, and
+hard resource bounds. Selection means only suitable to present for review; it
+does not establish truth, owner approval, durable learning, identity, or action
+authority, and it cannot evaluate or apply a Memory Validation decision.
 The
 transport-neutral
 [Recorded Visual Producer Evaluation and Perception Quality Gate](VISUAL_PRODUCER_EVALUATION.md)
@@ -237,6 +246,13 @@ replace proxy geometry without duplicating or bypassing frame semantics.
   neither lower package depends back on it. It cannot evaluate policy, apply a
   decision, persist, request correction, infer identity/preferences, scan
   Working Memory, or run in the background.
+- Reviewed candidate selection owns explicit bounded review triage over
+  unchanged `CandidateEvidence` snapshots. It requires exact staging
+  eligibility for direct observations, preserves anonymous evidence and exact
+  confidence, defers duplicates/conflicts without choosing a winner, and emits
+  deterministic versioned decisions. It cannot generate propositions, read
+  Working Memory, authenticate an owner, evaluate/apply validation, persist,
+  correct, infer identity/preferences/relationships, or run in the background.
 - Memory validation owns deterministic admission, conservative identity
   normalization, duplicate decisions, correction authority, and contradiction
   review without selecting probabilistic truth.

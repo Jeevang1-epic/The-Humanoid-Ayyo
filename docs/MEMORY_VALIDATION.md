@@ -15,7 +15,7 @@ and revision persistence.
 ## Data flow
 
 ```text
-Candidate evidence
+Candidate evidence selected for review by an explicit upstream caller/policy
 → immutable candidate snapshot
 → conservative normalization
 → active Memory OS state read through MemoryService
@@ -32,8 +32,12 @@ Evaluation is read-only. Persistence occurs only through
 The separate
 [Working Memory Candidate Bridge](WORKING_MEMORY_CONSOLIDATION.md) can produce
 one `CandidateEvidence` from an explicit proposition and exact fresh retained
-evidence. It does not change this package's dependency direction or call
-`evaluate`/`apply`; callers retain those two separate responsibilities.
+evidence. The separate
+[Reviewed Memory Candidate Selection Policy](REVIEWED_MEMORY_CANDIDATE_SELECTION.md)
+can decide whether unchanged candidates are suitable to present here. Neither
+changes this package's dependency direction or calls `evaluate`/`apply`;
+callers retain those two separate responsibilities. Selection for review is
+not a Memory Validation acceptance decision.
 
 ## Public records and API
 
@@ -153,8 +157,8 @@ writes can both be stored; they remain intact evidence records, but policy versi
 - Probabilistic truth selection, confidence-based winner selection, or trust scores
 - Provenance aggregation or destructive duplicate consolidation
 - Automatic application of review decisions
-- Automatic Working Memory scanning, candidate selection, staging evaluation,
-  or durable-memory promotion
+- Automatic Working Memory scanning, candidate discovery, selection-policy
+  invocation, staging evaluation, or durable-memory promotion
 - Models, network services, cloud storage, or external databases
 - Personal Context Twin projection or owner-model behavior (the deterministic
   projection is implemented in the separate `personal_context/` package)

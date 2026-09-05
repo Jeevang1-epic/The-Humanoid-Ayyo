@@ -1,4 +1,4 @@
-# Working Memory Candidate Bridge Foundation v1
+# Working Memory Candidate Bridge and Reviewed Selection Foundations v1
 
 ## Responsibility
 
@@ -13,15 +13,20 @@ Perception admission
 → explicit ConsolidationRequest + exact EvidenceReference
 → WorkingMemoryCandidateBridge.stage(request, now_ns=...)
 → CandidateStagingResult
-→ caller passes eligible CandidateEvidence to MemoryValidationService.evaluate
+→ CandidateReviewItem.from_staging(...)
+→ ReviewedMemoryCandidateSelectionPolicy.select(...)
+→ caller passes selected CandidateEvidence to MemoryValidationService.evaluate
 → separate caller review
 → optional separate MemoryValidationService.apply
 → Memory OS
 ```
 
-The bridge exposes only `stage`. It has no `evaluate`, `apply`, persistence,
-scan, timer, worker, thread, scheduler, ROS, Personal Context, Executive,
-Safety, Skill, Runtime, or action API.
+The bridge exposes only `stage`; the separate stateless selector exposes only
+`select`. Neither has `evaluate`, `apply`, persistence, scan, timer, worker,
+thread, scheduler, ROS, Personal Context, Executive, Safety, Skill, Runtime, or
+action APIs. See the focused
+[Reviewed Memory Candidate Selection Policy](REVIEWED_MEMORY_CANDIDATE_SELECTION.md)
+for selection semantics.
 
 ## Dependency direction
 
@@ -57,6 +62,11 @@ source imports no `MemoryService`, SQLite implementation, or persistence API.
 - `WorkingMemoryCandidateBridge.stage(request, *, now_ns)` returns a typed
   `CandidateStagingResult` with either an immutable `CandidateEvidence` or an
   ineligibility reason and no candidate.
+- `CandidateReviewItem.from_staging(result)` binds that exact eligible staging
+  result to its unchanged candidate for direct-observation review selection.
+- `ReviewedMemoryCandidateSelectionPolicy.select(items)` returns immutable,
+  versioned `SELECT_FOR_REVIEW`, `DEFER`, or `REJECT_SELECTION` item decisions
+  with typed reasons and canonical candidate IDs/order.
 
 There are deliberately no caller fields for confidence, observation UTC time,
 provenance, provenance authority, correction target, or correction reason.
@@ -119,16 +129,18 @@ permanence, or persistent World Model entity.
 
 ## Immutability and bounds
 
-Version 1 supports exactly one evidence reference and no candidate batches.
-Metadata has at most 16 top-level fields. Identity/detail text and JSON reuse
-the public bounded World Model limits: depth 16, 2,048 nodes, 256 items per
-collection, 4,096 characters per text value, 65,536 aggregate/serialized JSON
-characters, and 1,024-bit integers. Cycles and non-finite numbers fail request
-construction. The bridge is stateless and retains no history or seen-ID set.
+Bridge version 1 supports exactly one evidence reference per staged candidate.
+Selection version 1 accepts a separately bounded batch of at most 32 candidate
+occurrences. Metadata has at most 16 top-level fields. Identity/detail text and
+JSON reuse the public bounded World Model limits: depth 16, 2,048 nodes, 256
+items per collection, 4,096 characters per text value, 65,536 aggregate/
+serialized JSON characters, and 1,024-bit integers. Cycles and non-finite
+numbers fail closed. The bridge and selector are stateless and retain no
+history or seen-ID set.
 
 ## Deliberate non-goals
 
-- automatic or scheduled candidate selection, evaluation, apply, or persistence
+- automatic discovery or scheduled invocation, evaluation, apply, or persistence
 - autonomous learning, memory extraction, truth scoring, or winner selection
 - confidence synthesis or provenance aggregation
 - destructive correction or authority upgrade
@@ -147,5 +159,6 @@ python3 -m pytest -q memory_consolidation/tests
 The suite covers immutable staging, source identity/tampering, freshness,
 expiry/reset, UTC clock conversion, honest confidence including `0.0`/`None`,
 anonymous person/object boundaries, correction impossibility, existing Memory
-Validation duplicate/conflict/apply behavior, dependency direction, and one
-transport-neutral Perception → Working Memory → staging → evaluation proof.
+Validation duplicate/conflict/apply behavior, selection duplicate/conflict/
+confidence/resource behavior, dependency direction, and one transport-neutral
+Perception → Working Memory → staging → selection → evaluation proof.

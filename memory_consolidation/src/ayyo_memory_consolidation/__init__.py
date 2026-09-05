@@ -1,4 +1,4 @@
-"""Public API for explicit Working Memory candidate staging."""
+"""Public API for explicit candidate staging and reviewed selection."""
 
 from .errors import (
     CandidateSelectionError,
