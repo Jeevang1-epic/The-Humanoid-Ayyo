@@ -11,3 +11,7 @@ class ConsolidationRequestError(MemoryConsolidationError, ValueError):
 
 class CandidateSelectionError(MemoryConsolidationError, ValueError):
     """A candidate-selection record violates a structural invariant."""
+
+
+class CandidateDiscoveryError(MemoryConsolidationError, ValueError):
+    """A candidate-discovery request or record violates a safe bound."""

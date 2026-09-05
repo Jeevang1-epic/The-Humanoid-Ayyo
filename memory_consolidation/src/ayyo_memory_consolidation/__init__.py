@@ -1,6 +1,26 @@
-"""Public API for explicit candidate staging and reviewed selection."""
+"""Public API for discovery, explicit staging, and reviewed selection."""
 
+from .discovery_models import (
+    CANDIDATE_DISCOVERY_POLICY_ID,
+    CANDIDATE_DISCOVERY_POLICY_VERSION,
+    MAX_CANDIDATE_DISCOVERY_AGGREGATE_CHARACTERS,
+    MAX_CANDIDATE_DISCOVERY_DIAGNOSTICS,
+    MAX_CANDIDATE_DISCOVERY_EVIDENCE,
+    MAX_CANDIDATE_DISCOVERY_PROPOSALS,
+    MAX_CANDIDATE_DISCOVERY_REASONS,
+    CandidateDiscoveryDiagnostic,
+    CandidateDiscoveryOutcome,
+    CandidateDiscoveryProposal,
+    CandidateDiscoveryReason,
+    CandidateDiscoveryResult,
+    candidate_discovery_proposal_identity,
+)
+from .discovery_policy import (
+    CANDIDATE_DISCOVERY_POLICY_FINGERPRINT,
+    BoundedMemoryCandidateDiscoveryPolicy,
+)
 from .errors import (
+    CandidateDiscoveryError,
     CandidateSelectionError,
     ConsolidationRequestError,
     MemoryConsolidationError,
@@ -38,6 +58,16 @@ from .selection_policy import (
 )
 
 __all__ = [
+    "BoundedMemoryCandidateDiscoveryPolicy",
+    "CANDIDATE_DISCOVERY_POLICY_FINGERPRINT",
+    "CANDIDATE_DISCOVERY_POLICY_ID",
+    "CANDIDATE_DISCOVERY_POLICY_VERSION",
+    "CandidateDiscoveryDiagnostic",
+    "CandidateDiscoveryError",
+    "CandidateDiscoveryOutcome",
+    "CandidateDiscoveryProposal",
+    "CandidateDiscoveryReason",
+    "CandidateDiscoveryResult",
     "CandidateStagingReason",
     "CandidateStagingResult",
     "CandidateStagingStatus",
@@ -55,6 +85,11 @@ __all__ = [
     "EvidenceReference",
     "MAX_CONSOLIDATION_IDENTITY_TEXT",
     "MAX_CONSOLIDATION_METADATA_FIELDS",
+    "MAX_CANDIDATE_DISCOVERY_AGGREGATE_CHARACTERS",
+    "MAX_CANDIDATE_DISCOVERY_DIAGNOSTICS",
+    "MAX_CANDIDATE_DISCOVERY_EVIDENCE",
+    "MAX_CANDIDATE_DISCOVERY_PROPOSALS",
+    "MAX_CANDIDATE_DISCOVERY_REASONS",
     "MAX_CANDIDATE_SELECTION_AGGREGATE_CHARACTERS",
     "MAX_CANDIDATE_SELECTION_COUNT",
     "MAX_CANDIDATE_SELECTION_REASONS",
@@ -65,5 +100,6 @@ __all__ = [
     "MIN_REVIEW_CONFIDENCE",
     "ReviewedMemoryCandidateSelectionPolicy",
     "WorkingMemoryCandidateBridge",
+    "candidate_discovery_proposal_identity",
     "candidate_identity",
 ]
