@@ -1,0 +1,13 @@
+# Read-only query for bounded anonymous semantic evidence already in World Model state.
+string<=256 robot_id
+---
+uint8 NOT_READY=0
+uint8 READY=1
+uint8 status
+string<=256 detail
+string<=256 robot_id
+string<=96 snapshot_id
+string<=96 snapshot_fingerprint
+builtin_interfaces/Time queried_at
+uint32 semantic_state_count
+ayyo_interfaces/AnonymousSemanticState[<=64] semantic_states

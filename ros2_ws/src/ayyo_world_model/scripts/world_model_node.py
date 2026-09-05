@@ -36,7 +36,7 @@ from ayyo_head_audio import (
     TEST_AUDIO_PROVENANCE,
 )
 from ayyo_interfaces.msg import AudioFrame
-from ayyo_interfaces.srv import GetRobotBodyState
+from ayyo_interfaces.srv import GetAnonymousSemanticState, GetRobotBodyState
 from ayyo_perception import (
     AdmissionReason,
     AdmissionStatus,
@@ -44,10 +44,12 @@ from ayyo_perception import (
     EvidenceFailureKind,
     PerceptionClockRegressionError,
     PerceptionConfigurationError,
+    PerceptionObservationValidationError,
     PerceptionSourceContract,
     PerceptionTrustBoundary,
     PerceptionTrustConfig,
     REFERENCE_VISUAL_PRODUCER,
+    semantic_observation_from_detection,
 )
 from ayyo_physical_camera import (
     FIXTURE_PROVENANCE as PHYSICAL_CAMERA_FIXTURE_PROVENANCE,
@@ -92,6 +94,7 @@ from ayyo_world_model import (
     AYYO_ROBOT_ID,
     CovarianceMatrix,
     FreshnessState,
+    ImageRegion2D,
     ImuObservation,
     JointObservation,
     ObservationClock,
@@ -104,6 +107,12 @@ from ayyo_world_model import (
     SensorAvailability,
     SensorIdentity,
     SensorKind,
+    VisualDetection,
+    VisualFrameObservation,
+    VisualInterpretationObservation,
+    VisualInterpretationProducer,
+    VisualProducerKind,
+    VisualSemanticCategory,
     WorldModelFailureCode,
     WorldModelValidationError,
 )
@@ -136,6 +145,7 @@ from rclpy.executors import ExternalShutdownException, SingleThreadedExecutor
 from rclpy.lifecycle import LifecycleNode, State, TransitionCallbackReturn
 from rclpy.qos import qos_profile_sensor_data
 from rclpy.signals import SignalHandlerOptions
+from semantic_state_transport import populate_semantic_response
 from sensor_msgs.msg import CameraInfo, Image, Imu, JointState
 from tf2_ros import Buffer
 from visual_camera import (
@@ -153,6 +163,14 @@ IMU_TOPIC = '/ayyo/imu/data'
 LOCALIZATION_TOPIC = '/ayyo/localization/odometry'
 DIAGNOSTICS_TOPIC = '/diagnostics'
 QUERY_SERVICE = '/ayyo/world_model/get_robot_body_state'
+SEMANTIC_QUERY_SERVICE = '/ayyo/world_model/get_anonymous_semantic_state'
+SEMANTIC_QUERY_FIXTURE_PRODUCER = VisualInterpretationProducer(
+    producer_id='ayyo.visual.semantic-query.fixture.v1',
+    kind=VisualProducerKind.TEST_FIXTURE,
+    model_id='none',
+    adapter_id='ayyo.visual.semantic-query.fixture-adapter.v1',
+    interface='ayyo.visual-interpretation.v1',
+)
 SIMULATION_SOURCE_PROFILE = 'simulation_ros2_control_v1'
 PHYSICAL_SOURCE_PROFILE = 'physical_ros2_control_v1'
 PHYSICAL_CAMERA_FIXTURE_SOURCE_PROFILE = 'physical_camera_test_fixture_v1'
@@ -406,6 +424,53 @@ def _assign_time(message, value_ns: int) -> None:
     message.nanosec = value_ns % 1_000_000_000
 
 
+def semantic_query_fixture_interpretation(
+    frame: VisualFrameObservation,
+    *,
+    result_at_ns: int,
+) -> VisualInterpretationObservation:
+    """Create bounded TEST-only person/object evidence from admitted metadata."""
+    detections = (
+        VisualDetection(
+            source_visual_observation_id=frame.observation_id,
+            category=VisualSemanticCategory.PERSON,
+            label='person',
+            region=ImageRegion2D(
+                x_min=0.1,
+                y_min=0.1,
+                x_max=0.4,
+                y_max=0.8,
+            ),
+            confidence=None,
+        ),
+        VisualDetection(
+            source_visual_observation_id=frame.observation_id,
+            category=VisualSemanticCategory.OBJECT,
+            label='synthetic.demo-object.v1',
+            region=ImageRegion2D(
+                x_min=0.55,
+                y_min=0.25,
+                x_max=0.9,
+                y_max=0.75,
+            ),
+            confidence=0.0,
+        ),
+    )
+    return VisualInterpretationObservation(
+        robot_id=frame.robot_id,
+        sensor=frame.sensor,
+        reference_frame_id=frame.sensor.frame_id,
+        source_visual_observation_id=frame.observation_id,
+        source_visual_fingerprint=frame.fingerprint,
+        observed_at_ns=frame.observed_at_ns,
+        result_at_ns=result_at_ns,
+        producer=SEMANTIC_QUERY_FIXTURE_PRODUCER,
+        detections=detections,
+        provenance=frame.provenance,
+        availability=frame.availability,
+    )
+
+
 def normalize_joint_state(
     message: JointState,
     provenance: ObservationProvenance,
@@ -537,6 +602,7 @@ class AyyoWorldModelNode(LifecycleNode):
         self.declare_parameter('environment_entity_capacity', 128)
         self.declare_parameter('pose_lookup_timeout_ms', 20)
         self.declare_parameter('enable_visual_reference_interpreter', False)
+        self.declare_parameter('enable_anonymous_semantic_test_fixture', False)
         self.declare_parameter(
             'enable_visual_producer_evaluation_fixture',
             False,
@@ -559,6 +625,7 @@ class AyyoWorldModelNode(LifecycleNode):
         self._depth_provenance: ObservationProvenance | None = None
         self._audio_provenance: ObservationProvenance | None = None
         self._camera_enabled = False
+        self._semantic_fixture_enabled = False
         self._depth_enabled = False
         self._rgbd_enabled = False
         self._audio_enabled = False
@@ -587,6 +654,7 @@ class AyyoWorldModelNode(LifecycleNode):
         self._pose_buffer: Buffer | None = None
         self._pose_lookup_timeout_ns = 0
         self._query_service = None
+        self._semantic_query_service = None
         self._active = False
         self._invalid_message_count = 0
         self._rejected_message_count = 0
@@ -625,6 +693,9 @@ class AyyoWorldModelNode(LifecycleNode):
         if self._query_service is not None:
             self.destroy_service(self._query_service)
             self._query_service = None
+        if self._semantic_query_service is not None:
+            self.destroy_service(self._semantic_query_service)
+            self._semantic_query_service = None
 
     def on_configure(self, state: State) -> TransitionCallbackReturn:
         del state
@@ -674,6 +745,11 @@ class AyyoWorldModelNode(LifecycleNode):
             enable_visual_reference = bool(
                 self.get_parameter('enable_visual_reference_interpreter').value
             )
+            enable_semantic_fixture = bool(
+                self.get_parameter(
+                    'enable_anonymous_semantic_test_fixture'
+                ).value
+            )
             enable_visual_evaluation = bool(
                 self.get_parameter(
                     'enable_visual_producer_evaluation_fixture'
@@ -685,9 +761,11 @@ class AyyoWorldModelNode(LifecycleNode):
             physical_camera_profile = self.get_parameter(
                 'physical_camera_profile'
             ).value
-            if enable_visual_reference and enable_visual_evaluation:
+            if enable_visual_evaluation and (
+                enable_visual_reference or enable_semantic_fixture
+            ):
                 raise WorkingMemoryConfigurationError(
-                    'visual reference and evaluated fixture modes are mutually exclusive'
+                    'visual reference/semantic and evaluated fixture modes are mutually exclusive'
                 )
             physical_camera_bundle = None
             physical_camera_adapter = None
@@ -700,9 +778,13 @@ class AyyoWorldModelNode(LifecycleNode):
                     raise PhysicalCameraConfigurationError(
                         'v1 physical camera adapter requires the explicit TEST fixture profile'
                     )
-                if enable_visual_reference or enable_visual_evaluation:
+                if (
+                    enable_visual_reference
+                    or enable_semantic_fixture
+                    or enable_visual_evaluation
+                ):
                     raise PhysicalCameraConfigurationError(
-                        'physical camera, visual reference, and evaluation '
+                        'physical camera, visual reference/semantic, and evaluation '
                         'fixtures remain distinct'
                     )
                 physical_camera_bundle = physical_camera_fixture_bundle()
@@ -805,9 +887,13 @@ class AyyoWorldModelNode(LifecycleNode):
                     raise RgbdFusionConfigurationError(
                         'RGB-D v1 requires the exact TEST fixture composition'
                     )
-                if enable_visual_reference or enable_visual_evaluation:
+                if (
+                    enable_visual_reference
+                    or enable_semantic_fixture
+                    or enable_visual_evaluation
+                ):
                     raise RgbdFusionConfigurationError(
-                        'RGB-D and visual interpretation fixtures remain distinct'
+                        'RGB-D and visual interpretation/semantic fixtures remain distinct'
                     )
                 rgb_bundle = physical_camera_fixture_bundle()
                 requirement = rgbd_test_requirement(
@@ -931,9 +1017,16 @@ class AyyoWorldModelNode(LifecycleNode):
                 (visual_bundle.manifest.producer,)
                 if visual_bundle is not None
                 else (
-                    (REFERENCE_VISUAL_PRODUCER,)
-                    if enable_visual_reference
-                    else ()
+                    (
+                        (REFERENCE_VISUAL_PRODUCER,)
+                        if enable_visual_reference
+                        else ()
+                    )
+                    + (
+                        (SEMANTIC_QUERY_FIXTURE_PRODUCER,)
+                        if enable_semantic_fixture
+                        else ()
+                    )
                 )
             )
             perception_sources = (
@@ -1085,6 +1178,7 @@ class AyyoWorldModelNode(LifecycleNode):
                 TEST_AUDIO_PROVENANCE if audio_adapter is not None else None
             )
             self._camera_enabled = camera_enabled
+            self._semantic_fixture_enabled = enable_semantic_fixture
             self._depth_enabled = depth_camera_adapter is not None
             self._rgbd_enabled = rgbd_fusion_adapter is not None
             self._audio_enabled = audio_adapter is not None
@@ -1105,6 +1199,11 @@ class AyyoWorldModelNode(LifecycleNode):
                 GetRobotBodyState,
                 QUERY_SERVICE,
                 self._handle_query,
+            )
+            self._semantic_query_service = self.create_service(
+                GetAnonymousSemanticState,
+                SEMANTIC_QUERY_SERVICE,
+                self._handle_semantic_query,
             )
             self._invalid_message_count = 0
             self._rejected_message_count = 0
@@ -1138,6 +1237,7 @@ class AyyoWorldModelNode(LifecycleNode):
             self._depth_provenance = None
             self._audio_provenance = None
             self._camera_enabled = False
+            self._semantic_fixture_enabled = False
             self._depth_enabled = False
             self._rgbd_enabled = False
             self._audio_enabled = False
@@ -1389,6 +1489,7 @@ class AyyoWorldModelNode(LifecycleNode):
         self._depth_provenance = None
         self._audio_provenance = None
         self._camera_enabled = False
+        self._semantic_fixture_enabled = False
         self._depth_enabled = False
         self._rgbd_enabled = False
         self._audio_enabled = False
@@ -1429,6 +1530,7 @@ class AyyoWorldModelNode(LifecycleNode):
         self._depth_provenance = None
         self._audio_provenance = None
         self._camera_enabled = False
+        self._semantic_fixture_enabled = False
         self._depth_enabled = False
         self._rgbd_enabled = False
         self._audio_enabled = False
@@ -1518,6 +1620,67 @@ class AyyoWorldModelNode(LifecycleNode):
                 f'{retained.reason.value}: {retained.detail}',
             )
         return admission
+
+    def _admit_semantic_fixture(
+        self,
+        interpretation: VisualInterpretationObservation,
+    ) -> None:
+        """Drive the reviewed semantic chain for the explicit TEST fixture."""
+        if self._trust_boundary is None or self._memory is None:
+            return
+        interpretation_admission = self._admit_and_retain(interpretation)
+        if (
+            interpretation_admission is None
+            or interpretation_admission.status is not AdmissionStatus.ACCEPTED
+        ):
+            return
+        semantic_ids = []
+        try:
+            for detection in interpretation.detections:
+                semantic = semantic_observation_from_detection(
+                    interpretation,
+                    detection_id=detection.detection_id,
+                )
+                now_ns = self.get_clock().now().nanoseconds
+                receipt_ns = time.monotonic_ns()
+                admission = self._trust_boundary.admit(
+                    semantic,
+                    now_ns=now_ns,
+                    received_at_monotonic_ns=receipt_ns,
+                )
+                if admission.status is AdmissionStatus.REJECTED:
+                    self._warn_bounded(
+                        'rejected',
+                        f'{admission.reason.value}: {admission.detail}',
+                    )
+                    return
+                semantic_ids.append(admission.observation_id)
+            projected = self._trust_boundary.project_semantic_evidence(
+                tuple(semantic_ids)
+            )
+            now_ns = self.get_clock().now().nanoseconds
+            retained = self._memory.ingest(
+                projected,
+                now_ns=now_ns,
+                received_at_monotonic_ns=time.monotonic_ns(),
+            )
+            if retained.status is IngestionStatus.REJECTED:
+                self._warn_bounded(
+                    'rejected',
+                    f'{retained.reason.value}: {retained.detail}',
+                )
+        except (PerceptionClockRegressionError, WorkingMemoryClockRegressionError):
+            self.get_logger().warning(
+                'ROS source clock regressed; discarded the temporary semantic epoch'
+            )
+            self._reset_evidence_epoch()
+        except (
+            PerceptionConfigurationError,
+            PerceptionObservationValidationError,
+            WorldModelValidationError,
+            WorkingMemoryConfigurationError,
+        ) as error:
+            self._warn_bounded('invalid', str(error))
 
     def _on_joint_state(self, message: JointState) -> None:
         if not self._active or self._provenance is None:
@@ -1976,6 +2139,19 @@ class AyyoWorldModelNode(LifecycleNode):
                 )
                 self._admit_and_retain(interpretation)
             if (
+                self._semantic_fixture_enabled
+                and admission is not None
+                and admission.status is AdmissionStatus.ACCEPTED
+            ):
+                semantic_interpretation = semantic_query_fixture_interpretation(
+                    admission.observation,
+                    result_at_ns=max(
+                        observation.observed_at_ns,
+                        self.get_clock().now().nanoseconds,
+                    ),
+                )
+                self._admit_semantic_fixture(semantic_interpretation)
+            if (
                 self._visual_evaluator is not None
                 and admission is not None
                 and admission.status is AdmissionStatus.ACCEPTED
@@ -2100,6 +2276,45 @@ class AyyoWorldModelNode(LifecycleNode):
         response.robot_id = AYYO_ROBOT_ID
         response.availability = GetRobotBodyState.Response.UNAVAILABLE
         return response
+
+    @staticmethod
+    def _semantic_not_ready(response, detail: str):
+        response.status = GetAnonymousSemanticState.Response.NOT_READY
+        response.detail = detail
+        response.robot_id = AYYO_ROBOT_ID
+        return response
+
+    def _handle_semantic_query(self, request, response):
+        """Project exactly one current snapshot into the read-only ROS seam."""
+        if request.robot_id != AYYO_ROBOT_ID:
+            return self._semantic_not_ready(
+                response,
+                'query robot identity is not canonical Ayyo',
+            )
+        if not self._active or self._memory is None:
+            return self._semantic_not_ready(
+                response,
+                'World Model observation adapter is not active',
+            )
+        now_ns = self.get_clock().now().nanoseconds
+        try:
+            snapshot = self._memory.current_snapshot(now_ns=now_ns)
+        except WorkingMemoryClockRegressionError:
+            self._reset_evidence_epoch()
+            return self._semantic_not_ready(
+                response,
+                'source clock regressed; temporary state reset',
+            )
+        if snapshot.robot.robot_id != AYYO_ROBOT_ID:
+            return self._semantic_not_ready(
+                response,
+                'World Model snapshot robot identity is not canonical Ayyo',
+            )
+        return populate_semantic_response(
+            response,
+            snapshot,
+            queried_at_ns=now_ns,
+        )
 
     @staticmethod
     def _availability_code(availability: SensorAvailability) -> int:

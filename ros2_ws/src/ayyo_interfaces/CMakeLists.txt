@@ -7,7 +7,10 @@ find_package(rosidl_default_generators REQUIRED)
 find_package(std_msgs REQUIRED)
 
 rosidl_generate_interfaces(${PROJECT_NAME}
+  "msg/AnonymousSemanticItem.msg"
+  "msg/AnonymousSemanticState.msg"
   "msg/AudioFrame.msg"
+  "srv/GetAnonymousSemanticState.srv"
   "srv/GetRobotBodyState.srv"
   "srv/SetDevelopmentJointPosition.srv"
   DEPENDENCIES builtin_interfaces std_msgs

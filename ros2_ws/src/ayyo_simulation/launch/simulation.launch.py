@@ -39,6 +39,9 @@ def generate_launch_description() -> LaunchDescription:
     enable_visual_reference_interpreter = LaunchConfiguration(
         'enable_visual_reference_interpreter'
     )
+    enable_anonymous_semantic_test_fixture = LaunchConfiguration(
+        'enable_anonymous_semantic_test_fixture'
+    )
     enable_visual_producer_evaluation_fixture = LaunchConfiguration(
         'enable_visual_producer_evaluation_fixture'
     )
@@ -228,6 +231,9 @@ def generate_launch_description() -> LaunchDescription:
                 'enable_visual_reference_interpreter': (
                     enable_visual_reference_interpreter
                 ),
+                'enable_anonymous_semantic_test_fixture': (
+                    enable_anonymous_semantic_test_fixture
+                ),
                 'enable_visual_producer_evaluation_fixture': (
                     enable_visual_producer_evaluation_fixture
                 ),
@@ -305,6 +311,13 @@ def generate_launch_description() -> LaunchDescription:
                 default_value='false',
                 description=(
                     'Enable the deterministic synthetic visual-result test adapter.'
+                ),
+            ),
+            DeclareLaunchArgument(
+                'enable_anonymous_semantic_test_fixture',
+                default_value='false',
+                description=(
+                    'Enable deterministic anonymous semantic TEST evidence.'
                 ),
             ),
             DeclareLaunchArgument(

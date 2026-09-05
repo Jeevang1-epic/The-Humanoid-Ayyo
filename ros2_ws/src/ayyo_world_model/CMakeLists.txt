@@ -48,6 +48,8 @@ install(
     scripts/physical_camera_adapter.py
     scripts/physical_camera_fixture_node.py
     scripts/rgbd_fusion_fixture_node.py
+    scripts/semantic_state_query.py
+    scripts/semantic_state_transport.py
     scripts/visual_camera.py
     scripts/world_model_node.py
   DESTINATION lib/${PROJECT_NAME}
@@ -70,6 +72,8 @@ if(BUILD_TESTING)
       scripts/physical_camera_adapter.py
       scripts/physical_camera_fixture_node.py
       scripts/rgbd_fusion_fixture_node.py
+      scripts/semantic_state_query.py
+      scripts/semantic_state_transport.py
       scripts/visual_camera.py
       scripts/world_model_node.py
       test/test_ros_adapter.py
