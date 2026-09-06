@@ -219,6 +219,32 @@ Run the automated Stage-6 proof after building:
 The smoke emits six bounded deterministic JSON reports and removes runtime
 artifacts after success.
 
+## Read-only catalog inspection
+
+The `ayyo-developmental-scenarios` package installs the `ayyo-scenarios`
+console command. It exposes four fixed local inspection operations:
+
+```bash
+ayyo-scenarios list
+ayyo-scenarios describe embodied-observation-baseline
+ayyo-scenarios manifest
+ayyo-scenarios verify
+```
+
+`list` renders the six reviewed definitions in their canonical declared order.
+`describe` resolves one exact ID through the existing catalog lookup and shows
+its typed steps, assertions, and timeouts. `manifest` emits byte-deterministic
+canonical JSON under schema `ayyo.developmental-scenario-manifest.v1`, version
+`1.0.0`. `verify` recomputes scenario and manifest fingerprints and checks
+identity uniqueness, order, enum membership, authority declarations, semantic
+versions, and resource bounds.
+
+These commands only read immutable in-process catalog definitions. They do not
+start ROS, Gazebo, launch files, controllers, simulation, development motion,
+Executive cognition, Safety evaluation, Runtime Bridge dispatch, or memory
+persistence. They accept no shell command, executable, ROS name, Python module,
+or filesystem path.
+
 ## Optional manual graphical inspection
 
 This route reuses the authoritative description, Gazebo world, controller,
