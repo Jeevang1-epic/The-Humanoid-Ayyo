@@ -7,12 +7,11 @@ can mature behind stable boundaries before physical hardware is introduced.
 
 ## Current status
 
-Ayyo has reached the Developmental Simulation Scenario Harness Foundation v1
-milestone. Six deterministic headless Stage-6 scenarios now exercise the
-development proxy embodiment, anonymous visual TEST evidence, the unchanged
-production-motion Safety deferral, the separate bounded development neck path,
-invalid-command rejection, source absence, and owned-process cleanup. This
-adds no production movement, physical validation, persistence, or learning.
+Ayyo has reached the Teach Mode Demonstration Capture Foundation v1 milestone.
+The first Stage-7 package now records bounded, immutable, deterministic evidence
+from explicit caller events and verified Stage-6 reports. It preserves positive,
+deferred, and rejected outcomes without adding learning, executable replay,
+persistence, production movement, teacher authentication, or physical capture.
 
 Implemented:
 
@@ -31,6 +30,14 @@ Implemented:
   request deferral with zero dispatch/movement, DEVELOPMENT-only neck motion
   and reset, invalid-command rejection, optional visual absence, and exact
   owned-process teardown
+- A standalone `ayyo.teach-mode.demonstration-episode.v1` core with an explicit
+  caller-controlled capture session, immutable typed ordered events and
+  references, truthful source-clock/outcome semantics, canonical JSON, pure
+  integrity verification, and hard resource bounds
+- A one-way Stage-6 report adapter that preserves scenario/report identity,
+  source provenance, DEVELOPMENT-only neck evidence, production Safety
+  deferral with zero movement, and invalid-command rejection without launching
+  ROS/Gazebo or creating action, learning, or persistence authority
 - A verified local ROS 2, Gazebo, and RViz development setup
 - A standalone, provenance-aware Memory OS core with SQLite persistence
 - A standalone deterministic validation and consolidation policy for candidate
@@ -213,7 +220,8 @@ Planned, but not implemented:
 - Runtime skill implementations, manipulation, and navigation
 - Production-authorized typed ROS services, runtime scheduling, and resource
   enforcement; Safety v1 still defers all physical movement
-- Teach Mode and learning pipeline
+- Additional Teach Mode sources, authenticated teacher identity, physical
+  demonstration capture, and the learning/policy evaluation pipeline
 - Physical hardware
 
 ## Architecture
@@ -244,6 +252,7 @@ independent of cognition and learned policies. See
 [docs/HEAD_DEPTH_RGBD_FOUNDATION.md](docs/HEAD_DEPTH_RGBD_FOUNDATION.md),
 [docs/HEAD_RGBD_FUSION_FOUNDATION.md](docs/HEAD_RGBD_FUSION_FOUNDATION.md),
 [docs/HEAD_AUDIO_PERCEPTION_FOUNDATION.md](docs/HEAD_AUDIO_PERCEPTION_FOUNDATION.md),
+[docs/TEACH_MODE_DEMONSTRATION_CAPTURE.md](docs/TEACH_MODE_DEMONSTRATION_CAPTURE.md),
 [docs/AYYO_MESH_IMPORT.md](docs/AYYO_MESH_IMPORT.md), and
 [docs/SAFETY.md](docs/SAFETY.md).
 
@@ -297,6 +306,13 @@ Run the integrated Stage-6 developmental scenario harness:
 
 ```bash
 ./scripts/smoke_developmental_scenarios.sh
+```
+
+Run the transport-neutral Teach Mode demonstration-capture tests:
+
+```bash
+PYTHONPATH=memory/src:personal_context/src:executive/src:safety_kernel/src:skill_manager/src:runtime_bridge/src:developmental_scenarios/src:teach_mode/src \
+python3 -m pytest -q teach_mode/tests
 ```
 
 Run Memory OS tests:
@@ -510,6 +526,7 @@ skill_manager/  Immutable declarative skill contracts and Safety binding
 runtime_bridge/  Deterministic Skill-to-ROS compatibility and transport boundary
 simulation_control/  Bounded deterministic simulation-control policy and feedback
 developmental_scenarios/  Bounded Stage-6 definitions, runner, reports, and tests
+teach_mode/     Bounded immutable Stage-7 demonstration evidence and Stage-6 adapter
 world_model/  Transport-neutral embodied/environment observations and snapshots
 perception/  Deterministic sensor/provenance/time admission trust boundary
 physical_camera/  Driver-neutral physical source, calibration, lifecycle, and diagnostics
@@ -595,3 +612,9 @@ truths as six fixed, headless, deterministic stories. See
 It uses the development proxy model and cannot establish production motion,
 physical safety, final mechanics, real-sensor performance, navigation,
 manipulation, balance, or walking.
+Teach Mode Demonstration Capture Foundation v1 consumes only those public
+immutable Stage-6 reports and converts them into bounded, canonical historical
+evidence. See
+[Teach Mode Demonstration Capture](docs/TEACH_MODE_DEMONSTRATION_CAPTURE.md).
+It has no ROS/Gazebo dependency, learning, policy mutation, executable replay,
+memory persistence, authenticated teacher identity, or production authority.

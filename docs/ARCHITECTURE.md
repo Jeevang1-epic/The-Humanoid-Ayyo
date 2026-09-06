@@ -29,6 +29,24 @@ Human / Environment
 
 These are architectural boundaries, not claims of implemented functionality.
 
+Stage-7 demonstration evidence is a separate side path, not an execution or
+memory-update shortcut:
+
+```text
+explicit caller events or immutable Stage-6 report
+→ Teach Mode demonstration capture
+→ immutable bounded demonstration episode
+→ stop
+```
+
+The standalone
+[Teach Mode Demonstration Capture Foundation](TEACH_MODE_DEMONSTRATION_CAPTURE.md)
+depends only on public immutable developmental-scenario contracts. It records
+typed historical references, ordering, source-clock semantics, provenance, and
+outcomes. No developmental or production layer depends back on Teach Mode. A
+captured episode grants no truth, teacher identity, learning, persistence,
+Safety, Skill, Runtime, replay-execution, or motion authority.
+
 The standalone [Memory OS core](MEMORY_OS.md) implements the persistence and
 domain boundary for provenance-aware owner memory. The deterministic
 [Perception Trust Boundary and Proprioception Foundation](PERCEPTION_TRUST_PROPRIOCEPTION.md)
@@ -168,6 +186,8 @@ replace proxy geometry without duplicating or bypassing frame semantics.
 - Owner-specific autobiographical memory starts empty.
 - Perception is evidence, not authority.
 - Memory stores provenance and uncertainty.
+- A demonstration is bounded historical evidence, not a learned policy,
+  executable command, authenticated teacher statement, or persistence grant.
 - The Personal Context Twin models owner context but is not the owner and is not
   an authority.
 - Foundation models never directly command raw motors.
@@ -332,5 +352,11 @@ replace proxy geometry without duplicating or bypassing frame semantics.
   production-motion story requires the unchanged Safety `DEFERRED` outcome and
   zero dispatch; only explicitly declared development authority may use the
   existing neck service.
+- Teach Mode owns explicit bounded capture sessions, immutable ordered event and
+  reference contracts, truthful outcome/clock/provenance semantics, canonical
+  serialization, pure verification, and the one-way adapter from an already
+  completed Stage-6 report. It cannot launch a scenario, invoke Executive,
+  mutate Safety or Skills, dispatch Runtime, command simulation, write Memory
+  OS or Working Memory, train or promote a policy, or replay an action.
 - Learning updates remain candidates until evaluation and controlled promotion;
   consolidation does not bypass safety or permissions.

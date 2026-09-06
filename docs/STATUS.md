@@ -36,6 +36,15 @@
   anonymous visual TEST evidence, real Executive-to-Runtime physical-movement
   deferral with zero dispatch/movement, DEVELOPMENT-only neck motion/reset,
   typed invalid-command rejection, source absence, and zero owned-process leaks
+- Standalone `ayyo-teach-mode` Stage-7 capture core with schema
+  `ayyo.teach-mode.demonstration-episode.v1`, explicit caller-controlled
+  sessions, immutable typed events/references/outcomes, exact source clocks,
+  canonical serialization, deterministic identity, pure integrity verification,
+  and hard event/reference/annotation/serialized-size bounds
+- Read-only Stage-6 adapter preserving exact report/scenario identity and
+  positive, production-`DEFERRED`, and invalid-command-`REJECTED` evidence;
+  captured actions remain historical and DEVELOPMENT authority remains
+  DEVELOPMENT-only
 - Standalone Memory OS core with typed records and mandatory provenance
 - SQLite persistence with schema versioning, foreign keys, WAL journaling,
   transactional corrections, retractions, and conflict records
@@ -370,8 +379,10 @@
   tuning, and validated dynamics
 - Manipulation integration
 - Navigation integration
-- Teach Mode
-- Learning pipeline
+- Additional Teach Mode sources, recorded/physical adapters, owner/teacher
+  authentication, and raw-recording lifecycle management
+- Candidate-policy generation, learning/training, evaluation, promotion,
+  rollback, executable replay, and automatic memory/model updates
 - Physical hardware
 
 The repository contains the engineering foundation, Memory OS core,
@@ -380,7 +391,8 @@ stateless bounded memory candidate-discovery policy, a stateless reviewed memory
 candidate-selection policy, an explicit controlled read-only review pipeline,
 a deterministic proposal-only Executive layer, an immutable fail-closed Safety
 proposal-review boundary, an inert declarative Skill Manager boundary, and a
-controlled ROS Runtime Bridge compatibility boundary. The downstream
+controlled ROS Runtime Bridge compatibility boundary, plus an evidence-only
+Teach Mode capture foundation. The downstream
 Simulation Control Foundation can actuate one bounded simulated neck joint only
 through explicit development injection and can prove the result from
 controller-derived feedback. The independent perception boundary admits

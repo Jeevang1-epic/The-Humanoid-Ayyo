@@ -17,8 +17,9 @@ foundation.
    justified robot description.
 6. **Developmental simulation scenarios** — Repeatable environments for testing
    perception, planning, interaction, and safe outcomes.
-7. **Teach Mode / Learning Pipeline** — Demonstration capture, candidate policy
-   versioning, evaluation, promotion, and rollback.
+7. **Teach Mode / Learning Pipeline** — Demonstration capture (foundation now
+   implemented), then separately reviewed candidate policy versioning,
+   evaluation, promotion, and rollback.
 8. **Software Showcase** — An integrated, truthful demonstration of implemented
    software capabilities.
 9. **Physical Manipulator** — Safety-bounded manipulation on limited hardware.
@@ -177,6 +178,16 @@ absence, deterministic reports, and owned-process teardown. This is scenario
 orchestration against proxy geometry, not production motion or physical
 validation.
 
+Stage 7 now has Teach Mode Demonstration Capture Foundation v1. The standalone
+transport-neutral package records only explicit caller-supplied typed events or
+adapts an already-completed immutable Stage-6 report. Episodes are bounded,
+immutable, canonically serialized, content-addressed, clock-explicit, and
+outcome-explicit. The three first integration examples retain DEVELOPMENT-only
+motion/reset evidence, production Safety `DEFERRED` with zero movement, and
+invalid-command `REJECTED` evidence. This is historical evidence capture, not
+learning, policy generation/evaluation, promotion, rollback, executable replay,
+memory persistence, teacher authentication, or physical demonstration capture.
+
 Final Ayyo assets, graphical controlled-design validation, additional joints,
 trajectory/whole-body controllers, validated dynamics/contact behavior,
 authenticated identity, permissions, approval verification, live backend
@@ -187,7 +198,10 @@ promotion and live physical audio/depth/force/touch perception, physical
 camera/IMU/localization validation, production diagnostic producers, spatial
 RGB-D registration, physical sensor fusion, SLAM, environment entity
 production, background/scheduled review invocation, automatic durable
-consolidation, and learning promotion also remain future work. Executive
+consolidation, additional Teach Mode sources, authenticated teacher/owner
+identity, physical or recorded-source adapters, raw-recording management,
+candidate-policy generation, learning evaluation, executable replay, rollback,
+and learning promotion also remain future work. Executive
 proposals, Safety eligibility,
 Skill Manager runtime-handoff eligibility, Runtime Bridge
 eligibility, transport acceptance, development injection, and simulated motion
