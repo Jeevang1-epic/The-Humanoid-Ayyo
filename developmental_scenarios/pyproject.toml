@@ -20,5 +20,8 @@ dependencies = [
   "ayyo-skill-manager==0.1.0",
 ]
 
+[project.scripts]
+ayyo-scenarios = "ayyo_developmental_scenarios.cli:main"
+
 [tool.setuptools.packages.find]
 where = ["src"]

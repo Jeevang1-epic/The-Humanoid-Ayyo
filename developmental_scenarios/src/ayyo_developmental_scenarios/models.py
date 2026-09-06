@@ -29,6 +29,11 @@ _IDENTIFIER = re.compile(r'^[a-z0-9]+(?:[._-][a-z0-9]+)*$')
 _SEMVER = re.compile(r'^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$')
 
 
+def is_semantic_version(value: object) -> bool:
+    """Return whether a value is one exact supported semantic version string."""
+    return type(value) is str and _SEMVER.fullmatch(value) is not None
+
+
 class ScenarioCategory(StrEnum):
     EMBODIED_OBSERVATION = 'embodied_observation'
     VISUAL_SEMANTIC_OBSERVATION = 'visual_semantic_observation'
@@ -229,7 +234,7 @@ class DevelopmentScenarioDefinition:
             'scenario_id',
             InvalidScenarioDefinitionError,
         )
-        if type(version) is not str or _SEMVER.fullmatch(version) is None:
+        if not is_semantic_version(version):
             raise InvalidScenarioDefinitionError('scenario version must be semantic')
         if not isinstance(category, ScenarioCategory):
             raise InvalidScenarioDefinitionError('scenario category is invalid')
@@ -275,33 +280,6 @@ class DevelopmentScenarioDefinition:
             raise InvalidScenarioDefinitionError(
                 'every scenario assertion must be assigned to exactly one step'
             )
-        document = {
-            'assertions': [
-                {
-                    'description': item.description,
-                    'id': item.assertion_id,
-                    'required': item.required,
-                }
-                for item in assertions
-            ],
-            'authority': authority.value,
-            'category': category.value,
-            'description': description,
-            'expected_safe_outcome': expected_safe_outcome,
-            'framework': FRAMEWORK_ID,
-            'launch_profile': launch_profile.value,
-            'scenario_id': scenario_id,
-            'steps': [
-                {
-                    'assertions': list(item.assertion_ids),
-                    'id': item.step_id,
-                    'operation': item.operation.value,
-                    'timeout_ms': item.timeout_ms,
-                }
-                for item in steps
-            ],
-            'version': version,
-        }
         object.__setattr__(self, 'scenario_id', scenario_id)
         object.__setattr__(self, 'version', version)
         object.__setattr__(self, 'category', category)
@@ -311,11 +289,41 @@ class DevelopmentScenarioDefinition:
         object.__setattr__(self, 'authority', authority)
         object.__setattr__(self, 'steps', steps)
         object.__setattr__(self, 'assertions', assertions)
-        object.__setattr__(
-            self,
-            'fingerprint',
-            semantic_sha256('development-scenario', document),
-        )
+        object.__setattr__(self, 'fingerprint', self.recompute_fingerprint())
+
+    def semantic_document(self) -> dict[str, object]:
+        """Return new JSON-ready semantic content used by the scenario identity."""
+        return {
+            'assertions': [
+                {
+                    'description': item.description,
+                    'id': item.assertion_id,
+                    'required': item.required,
+                }
+                for item in self.assertions
+            ],
+            'authority': self.authority.value,
+            'category': self.category.value,
+            'description': self.description,
+            'expected_safe_outcome': self.expected_safe_outcome,
+            'framework': FRAMEWORK_ID,
+            'launch_profile': self.launch_profile.value,
+            'scenario_id': self.scenario_id,
+            'steps': [
+                {
+                    'assertions': list(item.assertion_ids),
+                    'id': item.step_id,
+                    'operation': item.operation.value,
+                    'timeout_ms': item.timeout_ms,
+                }
+                for item in self.steps
+            ],
+            'version': self.version,
+        }
+
+    def recompute_fingerprint(self) -> str:
+        """Recompute this definition's identity using the shared canonical rules."""
+        return semantic_sha256('development-scenario', self.semantic_document())
 
 
 @dataclass(frozen=True, slots=True)
