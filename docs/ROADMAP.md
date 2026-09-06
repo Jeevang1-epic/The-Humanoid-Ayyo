@@ -166,6 +166,17 @@ authority. Real microphones, drivers, hardware, calibration, acoustics,
 beamforming, echo cancellation, speech/wake-word models, production timing,
 and real-world noise remain unvalidated.
 
+Stage 6 now has Developmental Simulation Scenario Harness Foundation v1. A
+dedicated development/test package defines six immutable bounded scenarios and
+three fixed launch profiles over the existing Gazebo, ROS, World Model,
+Executive, Safety, Skill Manager, Runtime Bridge, and simulation-control
+contracts. Headless validation proves embodied and anonymous TEST observation,
+production physical-request deferral with zero dispatch or motion, separate
+development-only neck actuation/reset, out-of-range rejection, optional-source
+absence, deterministic reports, and owned-process teardown. This is scenario
+orchestration against proxy geometry, not production motion or physical
+validation.
+
 Final Ayyo assets, graphical controlled-design validation, additional joints,
 trajectory/whole-body controllers, validated dynamics/contact behavior,
 authenticated identity, permissions, approval verification, live backend

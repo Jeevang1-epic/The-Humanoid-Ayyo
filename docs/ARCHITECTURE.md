@@ -324,5 +324,13 @@ replace proxy geometry without duplicating or bypassing frame semantics.
   and controlled simulation. Opt-in Harmonic localization and head RGB camera
   are replaceable simulation observation sources with distinct provenance, not
   motion authority or physical localization/calibration claims.
+- The dedicated development/test
+  [Developmental Simulation Scenario Harness](DEVELOPMENTAL_SIMULATION_SCENARIOS.md)
+  owns only fixed scenario definitions, orchestration profiles, bounded
+  evidence/result reporting, and owned-process validation. It may consume
+  public production contracts, but no production layer depends back on it. Its
+  production-motion story requires the unchanged Safety `DEFERRED` outcome and
+  zero dispatch; only explicitly declared development authority may use the
+  existing neck service.
 - Learning updates remain candidates until evaluation and controlled promotion;
   consolidation does not bypass safety or permissions.

@@ -341,6 +341,7 @@ After building, run the complete headless lifecycle smoke:
 ./scripts/smoke_simulation_control.sh
 ./scripts/smoke_localization_diagnostics.sh
 ./scripts/smoke_visual_camera.sh
+./scripts/smoke_developmental_scenarios.sh
 ```
 
 The first smoke verifies installed package lookup, description validation,
@@ -354,6 +355,9 @@ World Model query. The visual smoke proves actual non-empty image and matching
 calibration transport, optical frame/timestamp/provenance, bounded pixel-free
 admission, malformed/wrong-frame rejection and recovery, lifecycle behavior,
 motion independence, and shutdown. None starts a graphical desktop.
+The Stage-6 scenario smoke reuses this exact description and launch rather than
+maintaining a scenario copy. Its automated evidence applies only to the
+development proxy model; it does not validate physical geometry or dynamics.
 
 ## Manual graphical validation
 

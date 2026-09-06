@@ -335,11 +335,17 @@ Run the non-control and controlled headless smokes:
 ```bash
 ./scripts/smoke_simulation.sh
 ./scripts/smoke_simulation_control.sh
+./scripts/smoke_developmental_scenarios.sh
 ```
 
 The controlled smoke uses a process-isolated Gazebo partition and a fresh ROS
 domain unless `AYYO_CONTROL_SMOKE_DOMAIN_ID` is explicitly set. It never
 publishes directly to the raw controller topic.
+The Stage-6 harness additionally proves the policy contrast in one repeatable
+suite: a real Executive physical request remains Safety `DEFERRED` with no
+Runtime request and no joint movement, while the separately flagged
+DEVELOPMENT service moves only `neck_yaw_joint`, restores neutral, and rejects
+`1.3` rad without clamping.
 
 ## Exact manual graphical and control validation
 

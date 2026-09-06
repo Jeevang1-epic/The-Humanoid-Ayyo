@@ -14,6 +14,8 @@
 - ROS publisher/subscriber smoke test passed
 - Generic Gazebo GUI environment smoke test passed
 - Generic RViz GUI environment smoke test passed
+- Six-result Stage-6 headless Gazebo/ROS scenario smoke passed with
+  three sequential launch profiles and zero owned-process leaks
 - Ayyo-specific controlled Gazebo graphical review not executed in this milestone
 
 ## Implemented
@@ -24,6 +26,16 @@
   `ayyo_simulation_control`, authoritative `ayyo_description`, and dedicated
   `ayyo_simulation` packages
 - Local environment verification, build, and test scripts
+- Dedicated `ayyo_scenarios` development/test ROS package plus the
+  `ayyo.developmental-scenarios.v1` transport-neutral framework with immutable
+  definitions, typed operations, bounded runner/results/reports, deterministic
+  fingerprints, and no arbitrary command execution
+- Fixed `observation`, `development_control`, and `sensor_absence` launch
+  profiles over the existing authoritative simulation launch
+- Six automated headless Stage-6 scenarios covering embodied observation,
+  anonymous visual TEST evidence, real Executive-to-Runtime physical-movement
+  deferral with zero dispatch/movement, DEVELOPMENT-only neck motion/reset,
+  typed invalid-command rejection, source absence, and zero owned-process leaks
 - Standalone Memory OS core with typed records and mandatory provenance
 - SQLite persistence with schema versioning, foreign keys, WAL journaling,
   transactional corrections, retractions, and conflict records

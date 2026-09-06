@@ -7,11 +7,12 @@ can mature behind stable boundaries before physical hardware is introduced.
 
 ## Current status
 
-Ayyo has reached the Controlled Memory Candidate Invocation and Review Pipeline
-Foundation v1 milestone. A caller explicitly prepares a deterministic discovery
-plan, allowlists exact proposal IDs, and invokes bounded restaging, one-batch
-selection, and read-only Memory Validation evaluation. There is no automatic
-persistence, identity inference, or learning.
+Ayyo has reached the Developmental Simulation Scenario Harness Foundation v1
+milestone. Six deterministic headless Stage-6 scenarios now exercise the
+development proxy embodiment, anonymous visual TEST evidence, the unchanged
+production-motion Safety deferral, the separate bounded development neck path,
+invalid-command rejection, source absence, and owned-process cleanup. This
+adds no production movement, physical validation, persistence, or learning.
 
 Implemented:
 
@@ -20,6 +21,16 @@ Implemented:
   Bridge and simulation-control packages, an authoritative robot-description
   package, and a dedicated Gazebo Harmonic simulation package
 - Local environment verification, build, and test scripts
+- A dedicated development/test `ayyo_scenarios` ROS package and
+  `ayyo.developmental-scenarios.v1` transport-neutral core with immutable
+  scenario/step/assertion/result/report contracts, fixed typed operations,
+  deterministic fingerprints, hard resource bounds, and no arbitrary command
+  runner
+- Three fixed headless launch profiles and six mandatory scenario proofs for
+  embodied observation, anonymous visual TEST semantics, production physical
+  request deferral with zero dispatch/movement, DEVELOPMENT-only neck motion
+  and reset, invalid-command rejection, optional visual absence, and exact
+  owned-process teardown
 - A verified local ROS 2, Gazebo, and RViz development setup
 - A standalone, provenance-aware Memory OS core with SQLite persistence
 - A standalone deterministic validation and consolidation policy for candidate
@@ -282,6 +293,12 @@ Run the explicitly controlled one-joint headless lifecycle:
 ./scripts/smoke_simulation_control.sh
 ```
 
+Run the integrated Stage-6 developmental scenario harness:
+
+```bash
+./scripts/smoke_developmental_scenarios.sh
+```
+
 Run Memory OS tests:
 
 ```bash
@@ -492,6 +509,7 @@ safety_kernel/  Immutable deterministic proposal safety review and its tests
 skill_manager/  Immutable declarative skill contracts and Safety binding
 runtime_bridge/  Deterministic Skill-to-ROS compatibility and transport boundary
 simulation_control/  Bounded deterministic simulation-control policy and feedback
+developmental_scenarios/  Bounded Stage-6 definitions, runner, reports, and tests
 world_model/  Transport-neutral embodied/environment observations and snapshots
 perception/  Deterministic sensor/provenance/time admission trust boundary
 physical_camera/  Driver-neutral physical source, calibration, lifecycle, and diagnostics
@@ -499,7 +517,7 @@ head_audio/  Driver-neutral microphone source, lifecycle, compacting, and diagno
 rgbd_fusion/  Exact-time bounded compact RGB-D synchronization and admission
 visual_evaluation/  Deterministic producer/model/dataset evaluation quality gate
 working_memory/  Bounded temporary current-state and recent-evidence retention
-ros2_ws/src/   ROS 2 interfaces, description, simulation, Runtime Bridge, and bringup
+ros2_ws/src/   ROS 2 interfaces, description, simulation, scenarios, Runtime Bridge, and bringup
 scripts/       Local environment, build, and test commands
 tests/         Repository-level tests when justified
 ```
@@ -570,3 +588,10 @@ evidence only and grants no execution authority. Final Ayyo assets,
 authenticated identity/approval, production runtime services, additional
 controllers, physical-safety subsystems, and physical robot execution remain
 planned.
+
+Developmental Simulation Scenario Harness Foundation v1 now integrates those
+truths as six fixed, headless, deterministic stories. See
+[Developmental Simulation Scenarios](docs/DEVELOPMENTAL_SIMULATION_SCENARIOS.md).
+It uses the development proxy model and cannot establish production motion,
+physical safety, final mechanics, real-sensor performance, navigation,
+manipulation, balance, or walking.
