@@ -7,11 +7,12 @@ can mature behind stable boundaries before physical hardware is introduced.
 
 ## Current status
 
-Ayyo has reached the Teach Mode Demonstration Capture Foundation v1 milestone.
-The first Stage-7 package now records bounded, immutable, deterministic evidence
-from explicit caller events and verified Stage-6 reports. It preserves positive,
-deferred, and rejected outcomes without adding learning, executable replay,
-persistence, production movement, teacher authentication, or physical capture.
+Ayyo has reached the Demonstration Candidate Policy and Offline Evaluation
+Foundation v1 milestone. Stage 7 now turns explicit verified Teach Mode episodes
+into a bounded caller-partitioned corpus, an inert candidate identity, explicit
+offline trial results, and an immutable deterministic report. It adds no
+training, inference, policy execution, promotion, rollback, persistence, or
+motion authority.
 
 Implemented:
 
@@ -38,6 +39,10 @@ Implemented:
   source provenance, DEVELOPMENT-only neck evidence, production Safety
   deferral with zero movement, and invalid-command rejection without launching
   ROS/Gazebo or creating action, learning, or persistence authority
+- A standalone `ayyo-learning-evaluation` Stage-7 layer with explicitly assigned
+  candidate-evidence and holdout partitions, separate content identities, an
+  inert versioned candidate manifest, caller-supplied trial contracts, and pure
+  deterministic offline reports with no execution or promotion authority
 - A verified local ROS 2, Gazebo, and RViz development setup
 - A standalone, provenance-aware Memory OS core with SQLite persistence
 - A standalone deterministic validation and consolidation policy for candidate
@@ -221,7 +226,7 @@ Planned, but not implemented:
 - Production-authorized typed ROS services, runtime scheduling, and resource
   enforcement; Safety v1 still defers all physical movement
 - Additional Teach Mode sources, authenticated teacher identity, physical
-  demonstration capture, and the learning/policy evaluation pipeline
+  demonstration capture, and executable learning/training integration
 - Physical hardware
 
 ## Architecture
@@ -253,6 +258,7 @@ independent of cognition and learned policies. See
 [docs/HEAD_RGBD_FUSION_FOUNDATION.md](docs/HEAD_RGBD_FUSION_FOUNDATION.md),
 [docs/HEAD_AUDIO_PERCEPTION_FOUNDATION.md](docs/HEAD_AUDIO_PERCEPTION_FOUNDATION.md),
 [docs/TEACH_MODE_DEMONSTRATION_CAPTURE.md](docs/TEACH_MODE_DEMONSTRATION_CAPTURE.md),
+[docs/DEMONSTRATION_POLICY_OFFLINE_EVALUATION.md](docs/DEMONSTRATION_POLICY_OFFLINE_EVALUATION.md),
 [docs/AYYO_MESH_IMPORT.md](docs/AYYO_MESH_IMPORT.md), and
 [docs/SAFETY.md](docs/SAFETY.md).
 
@@ -313,6 +319,13 @@ Run the transport-neutral Teach Mode demonstration-capture tests:
 ```bash
 PYTHONPATH=memory/src:personal_context/src:executive/src:safety_kernel/src:skill_manager/src:runtime_bridge/src:developmental_scenarios/src:teach_mode/src \
 python3 -m pytest -q teach_mode/tests
+```
+
+Run the transport-neutral demonstration policy evaluation tests:
+
+```bash
+PYTHONPATH=memory/src:personal_context/src:executive/src:safety_kernel/src:skill_manager/src:runtime_bridge/src:developmental_scenarios/src:teach_mode/src:learning_evaluation/src \
+python3 -m pytest -q learning_evaluation/tests
 ```
 
 Run Memory OS tests:
@@ -527,6 +540,7 @@ runtime_bridge/  Deterministic Skill-to-ROS compatibility and transport boundary
 simulation_control/  Bounded deterministic simulation-control policy and feedback
 developmental_scenarios/  Bounded Stage-6 definitions, runner, reports, and tests
 teach_mode/     Bounded immutable Stage-7 demonstration evidence and Stage-6 adapter
+learning_evaluation/  Inert candidate identity and pure offline evaluation evidence
 world_model/  Transport-neutral embodied/environment observations and snapshots
 perception/  Deterministic sensor/provenance/time admission trust boundary
 physical_camera/  Driver-neutral physical source, calibration, lifecycle, and diagnostics
@@ -618,3 +632,8 @@ evidence. See
 [Teach Mode Demonstration Capture](docs/TEACH_MODE_DEMONSTRATION_CAPTURE.md).
 It has no ROS/Gazebo dependency, learning, policy mutation, executable replay,
 memory persistence, authenticated teacher identity, or production authority.
+Demonstration Candidate Policy and Offline Evaluation Foundation v1 consumes
+only verified Teach Mode evidence through an explicit bounded corpus. See
+[Demonstration Candidate Policy and Offline Evaluation](docs/DEMONSTRATION_POLICY_OFFLINE_EVALUATION.md).
+Its candidate manifests are inert, holdout evidence cannot affect candidate
+identity, and offline criteria grant no execution, promotion, or Safety rights.

@@ -36,6 +36,10 @@ memory-update shortcut:
 explicit caller events or immutable Stage-6 report
 → Teach Mode demonstration capture
 → immutable bounded demonstration episode
+→ explicit candidate-evidence / holdout corpus
+→ inert candidate-policy identity
+→ explicit offline trial results
+→ immutable offline evaluation report
 → stop
 ```
 
@@ -46,6 +50,14 @@ typed historical references, ordering, source-clock semantics, provenance, and
 outcomes. No developmental or production layer depends back on Teach Mode. A
 captured episode grants no truth, teacher identity, learning, persistence,
 Safety, Skill, Runtime, replay-execution, or motion authority.
+
+The standalone
+[Demonstration Candidate Policy and Offline Evaluation Foundation](DEMONSTRATION_POLICY_OFFLINE_EVALUATION.md)
+depends only on Teach Mode. Separate content-addressed candidate and holdout
+sets enforce the leakage boundary: candidate artifacts store only the candidate
+set identity. Pure evaluation aggregates explicit caller-supplied results and
+grants no training, execution, promotion, Safety, Skill, Runtime, simulation,
+or hardware authority. Teach Mode and every lower layer remain unaware of it.
 
 The standalone [Memory OS core](MEMORY_OS.md) implements the persistence and
 domain boundary for provenance-aware owner memory. The deterministic
@@ -358,5 +370,9 @@ replace proxy geometry without duplicating or bypassing frame semantics.
   completed Stage-6 report. It cannot launch a scenario, invoke Executive,
   mutate Safety or Skills, dispatch Runtime, command simulation, write Memory
   OS or Working Memory, train or promote a policy, or replay an action.
+- Learning Evaluation owns explicit bounded corpus partitioning, inert
+  candidate-policy identity, caller-supplied offline trial contracts, and pure
+  immutable reports. It cannot capture or execute a demonstration, run a
+  candidate, train, promote, roll back, persist, call ROS, or create authority.
 - Learning updates remain candidates until evaluation and controlled promotion;
   consolidation does not bypass safety or permissions.

@@ -45,6 +45,13 @@
   positive, production-`DEFERRED`, and invalid-command-`REJECTED` evidence;
   captured actions remain historical and DEVELOPMENT authority remains
   DEVELOPMENT-only
+- Standalone `ayyo-learning-evaluation` Stage-7 package with a 32-episode
+  bounded corpus, explicit disjoint candidate/holdout partitions, separate
+  content identities, and strict canonical corpus verification
+- Immutable non-executable candidate-policy manifests that bind only candidate
+  evidence, explicit caller-supplied holdout trial results, and a pure
+  deterministic content-addressed evaluation report with honest missing,
+  incomplete, mismatch, deferred, and rejected evidence
 - Standalone Memory OS core with typed records and mandatory provenance
 - SQLite persistence with schema versioning, foreign keys, WAL journaling,
   transactional corrections, retractions, and conflict records
@@ -381,8 +388,8 @@
 - Navigation integration
 - Additional Teach Mode sources, recorded/physical adapters, owner/teacher
   authentication, and raw-recording lifecycle management
-- Candidate-policy generation, learning/training, evaluation, promotion,
-  rollback, executable replay, and automatic memory/model updates
+- Candidate generation, learning/training, model runners, promotion, rollback,
+  executable replay, and automatic memory/model updates
 - Physical hardware
 
 The repository contains the engineering foundation, Memory OS core,
@@ -391,8 +398,8 @@ stateless bounded memory candidate-discovery policy, a stateless reviewed memory
 candidate-selection policy, an explicit controlled read-only review pipeline,
 a deterministic proposal-only Executive layer, an immutable fail-closed Safety
 proposal-review boundary, an inert declarative Skill Manager boundary, and a
-controlled ROS Runtime Bridge compatibility boundary, plus an evidence-only
-Teach Mode capture foundation. The downstream
+controlled ROS Runtime Bridge compatibility boundary, an evidence-only Teach
+Mode capture foundation, and an inert offline policy-evaluation foundation. The downstream
 Simulation Control Foundation can actuate one bounded simulated neck joint only
 through explicit development injection and can prove the result from
 controller-derived feedback. The independent perception boundary admits

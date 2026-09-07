@@ -220,6 +220,12 @@ Canonical JSON may be handed to a caller, but saving it is outside the core and
 must be an explicit separately reviewed action. Deserialization means inspect
 and verify only; it never means repeat robot actions.
 
+The separately owned next Stage-7 layer consumes only completed verified
+episodes through an explicit bounded corpus. See
+[Demonstration Candidate Policy and Offline Evaluation](DEMONSTRATION_POLICY_OFFLINE_EVALUATION.md).
+Teach Mode has no reverse dependency on that package, no batch API, and no
+candidate or evaluation behavior.
+
 ## Focused validation
 
 ```bash

@@ -17,9 +17,9 @@ foundation.
    justified robot description.
 6. **Developmental simulation scenarios** — Repeatable environments for testing
    perception, planning, interaction, and safe outcomes.
-7. **Teach Mode / Learning Pipeline** — Demonstration capture (foundation now
-   implemented), then separately reviewed candidate policy versioning,
-   evaluation, promotion, and rollback.
+7. **Teach Mode / Learning Pipeline** — Demonstration capture plus bounded
+   candidate-policy identity and offline evaluation foundations are implemented;
+   training, execution, promotion, and rollback remain separately reviewed.
 8. **Software Showcase** — An integrated, truthful demonstration of implemented
    software capabilities.
 9. **Physical Manipulator** — Safety-bounded manipulation on limited hardware.
@@ -188,6 +188,14 @@ invalid-command `REJECTED` evidence. This is historical evidence capture, not
 learning, policy generation/evaluation, promotion, rollback, executable replay,
 memory persistence, teacher authentication, or physical demonstration capture.
 
+Stage 7 now also has Demonstration Candidate Policy and Offline Evaluation
+Foundation v1. An explicit bounded corpus separates candidate evidence from
+holdout evaluation with distinct content identities. Inert versioned candidate
+manifests bind only candidate evidence; a pure evaluator verifies explicit
+caller-supplied holdout trials and emits immutable complete, incomplete, or
+does-not-meet reports. This adds no candidate execution, model runner, training,
+promotion, rollback, persistence, Safety authority, runtime path, or motion.
+
 Final Ayyo assets, graphical controlled-design validation, additional joints,
 trajectory/whole-body controllers, validated dynamics/contact behavior,
 authenticated identity, permissions, approval verification, live backend
@@ -200,7 +208,7 @@ RGB-D registration, physical sensor fusion, SLAM, environment entity
 production, background/scheduled review invocation, automatic durable
 consolidation, additional Teach Mode sources, authenticated teacher/owner
 identity, physical or recorded-source adapters, raw-recording management,
-candidate-policy generation, learning evaluation, executable replay, rollback,
+candidate generation, model runners, training, executable replay, rollback,
 and learning promotion also remain future work. Executive
 proposals, Safety eligibility,
 Skill Manager runtime-handoff eligibility, Runtime Bridge
