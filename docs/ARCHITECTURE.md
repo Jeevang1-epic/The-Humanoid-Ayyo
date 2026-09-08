@@ -40,6 +40,10 @@ explicit caller events or immutable Stage-6 report
 → inert candidate-policy identity
 → explicit offline trial results
 → immutable offline evaluation report
+→ explicit caller-owned promotion criteria and request
+→ immutable promotion eligibility decision
+→ explicit known-good reference and rollback evidence
+→ immutable rollback eligibility decision
 → stop
 ```
 
@@ -58,6 +62,15 @@ sets enforce the leakage boundary: candidate artifacts store only the candidate
 set identity. Pure evaluation aggregates explicit caller-supplied results and
 grants no training, execution, promotion, Safety, Skill, Runtime, simulation,
 or hardware authority. Teach Mode and every lower layer remain unaware of it.
+
+The standalone
+[Candidate Policy Promotion and Rollback Control Plane](CANDIDATE_POLICY_PROMOTION_ROLLBACK_CONTROL.md)
+depends only on the learning/evaluation layer. Pure evaluators bind exact
+candidate, report, criteria, holdout, known-good, reason-evidence, and lineage
+identities into immutable eligibility decisions. Eligibility is evidence for a
+later review boundary, not an installation, activation, execution, automatic
+promotion/rollback, Runtime, ROS/Gazebo, or hardware action. The package owns no
+policy registry or active-policy state, and lower layers remain unaware of it.
 
 The standalone [Memory OS core](MEMORY_OS.md) implements the persistence and
 domain boundary for provenance-aware owner memory. The deterministic

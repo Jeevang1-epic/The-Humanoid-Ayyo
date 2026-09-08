@@ -52,6 +52,17 @@
   evidence, explicit caller-supplied holdout trial results, and a pure
   deterministic content-addressed evaluation report with honest missing,
   incomplete, mismatch, deferred, and rejected evidence
+- Standalone `ayyo-promotion-control` Stage-7 package with immutable
+  caller-owned promotion and rollback criteria, exact requests, closed
+  target/status/reason enums, deterministic SHA-256 identities, and strict
+  canonical serialization for all public artifacts
+- Pure promotion eligibility over exact candidate, report, schema/version,
+  disposition, trial-bound, target-stage, and holdout identities, with no
+  installation, policy execution, automatic promotion, or runtime authority
+- Immutable known-good references chained to exact eligible promotion evidence,
+  typed rollback reason evidence, and pure rollback eligibility that rejects
+  unknown targets, self-rollback, substitution, incompatible lineage, tampering,
+  and insufficient evidence without mutating state
 - Standalone Memory OS core with typed records and mandatory provenance
 - SQLite persistence with schema versioning, foreign keys, WAL journaling,
   transactional corrections, retractions, and conflict records
@@ -388,8 +399,10 @@
 - Navigation integration
 - Additional Teach Mode sources, recorded/physical adapters, owner/teacher
   authentication, and raw-recording lifecycle management
-- Candidate generation, learning/training, model runners, promotion, rollback,
-  executable replay, and automatic memory/model updates
+- Candidate generation, learning/training, model runners, policy execution,
+  executable replay, automatic promotion/rollback, and automatic memory/model
+  updates; the implemented promotion-control layer emits eligibility evidence
+  only
 - Physical hardware
 
 The repository contains the engineering foundation, Memory OS core,
@@ -399,7 +412,8 @@ candidate-selection policy, an explicit controlled read-only review pipeline,
 a deterministic proposal-only Executive layer, an immutable fail-closed Safety
 proposal-review boundary, an inert declarative Skill Manager boundary, and a
 controlled ROS Runtime Bridge compatibility boundary, an evidence-only Teach
-Mode capture foundation, and an inert offline policy-evaluation foundation. The downstream
+Mode capture foundation, an inert offline policy-evaluation foundation, and an
+inert candidate promotion/rollback eligibility foundation. The downstream
 Simulation Control Foundation can actuate one bounded simulated neck joint only
 through explicit development injection and can prove the result from
 controller-derived feedback. The independent perception boundary admits
