@@ -52,6 +52,19 @@ allowlisting, report schema/version, disposition, complete coverage, evaluated
 trial minimum, failed-trial maximum, and holdout identity. All rejections carry
 closed typed reasons. The evaluator performs no I/O or state mutation.
 
+Artifact identity and semantic evidence consistency are separate checks. A
+matching content fingerprint proves which exact report fields were supplied; it
+does not allow contradictory fields to become true. Report verification also
+requires coverage to equal the concrete evaluated-episode count, trial/status
+counts to agree with evaluated and incomplete identities, the evaluated,
+missing, and incomplete partitions to be unique and disjoint, and disposition
+and reasons to agree with those partitions and counts. Promotion additionally
+requires the report's candidate-evidence-set identity to match the candidate
+manifest. Aggregate counters therefore cannot override absent or contradictory
+evidence. Setting `require_complete_evaluation=False` permits a valid incomplete
+report only when the remaining explicit criteria accept it; it never waives
+report consistency.
+
 ## Known-good and rollback contracts
 
 `KnownGoodPolicyReference` is an immutable, content-addressed reference to one
