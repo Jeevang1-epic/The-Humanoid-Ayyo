@@ -5,6 +5,7 @@ from hashlib import sha256
 from ayyo_learning_evaluation import (
     CandidatePolicyManifest,
     DemonstrationEvaluationCorpus,
+    OfflineEvaluationReport,
     EVALUATION_REPORT_SCHEMA_ID,
     EVALUATION_REPORT_SCHEMA_VERSION,
     ExactMetric,
@@ -149,6 +150,33 @@ def fixture_report(
             )
         )
     return evaluate_offline(corpus=corpus, candidate=candidate, trials=tuple(trials))
+
+
+def rebuild_report(report: OfflineEvaluationReport, **overrides) -> OfflineEvaluationReport:
+    """Create content-addressed adversarial report variants for verifier tests."""
+    fields = {
+        'candidate_id': report.candidate_id,
+        'candidate_fingerprint': report.candidate_fingerprint,
+        'candidate_evidence_set_id': report.candidate_evidence_set_id,
+        'candidate_evidence_set_fingerprint': report.candidate_evidence_set_fingerprint,
+        'holdout_evidence_set_id': report.holdout_evidence_set_id,
+        'holdout_evidence_set_fingerprint': report.holdout_evidence_set_fingerprint,
+        'evaluation_contract_id': report.evaluation_contract_id,
+        'evaluation_contract_version': report.evaluation_contract_version,
+        'trial_ids': report.trial_ids,
+        'evaluated_holdout_episode_ids': report.evaluated_holdout_episode_ids,
+        'missing_holdout_episode_ids': report.missing_holdout_episode_ids,
+        'incomplete_holdout_episode_ids': report.incomplete_holdout_episode_ids,
+        'status_counts': report.status_counts,
+        'historical_outcome_counts': report.historical_outcome_counts,
+        'aggregate_metrics': report.aggregate_metrics,
+        'coverage_numerator': report.coverage_numerator,
+        'coverage_denominator': report.coverage_denominator,
+        'reasons': report.reasons,
+        'disposition': report.disposition,
+    }
+    fields.update(overrides)
+    return OfflineEvaluationReport._create(**fields)
 
 
 def fixture_promotion_bundle(label: str = 'one') -> dict[str, object]:

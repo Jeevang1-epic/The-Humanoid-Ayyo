@@ -7,6 +7,7 @@ import pytest
 from ayyo_learning_evaluation import (
     EVALUATION_REPORT_SCHEMA_ID,
     EVALUATION_REPORT_SCHEMA_VERSION,
+    EvaluationCount,
     OfflineEvaluationDisposition,
     OfflineTrialStatus,
 )
@@ -31,6 +32,7 @@ from helpers import (
     fixture_corpus,
     fixture_promotion_bundle,
     fixture_report,
+    rebuild_report,
 )
 
 
@@ -76,6 +78,171 @@ def test_matching_evidence_is_eligible_but_does_not_claim_promotion():
     assert verify_promotion_decision(decision)
     with pytest.raises(FrozenInstanceError):
         decision.status = PromotionDecisionStatus.NOT_ELIGIBLE
+
+
+def test_content_addressed_report_cannot_claim_coverage_without_trials():
+    bundle = fixture_promotion_bundle('coverage-bypass')
+    report = bundle['report']
+    forged = rebuild_report(
+        report,
+        trial_ids=(),
+        evaluated_holdout_episode_ids=(),
+        missing_holdout_episode_ids=(),
+        incomplete_holdout_episode_ids=(),
+        status_counts=tuple(
+            EvaluationCount(status.value, 0) for status in OfflineTrialStatus
+        ),
+        aggregate_metrics=(),
+        coverage_numerator=report.coverage_denominator,
+    )
+
+    with pytest.raises(PromotionRequestError, match='verified evaluation report'):
+        _request(bundle['candidate'], forged, bundle['criteria'])
+
+
+def test_report_cross_field_contradictions_are_rejected_at_request_boundary():
+    bundle = fixture_promotion_bundle('report-contradictions')
+    report = bundle['report']
+    one_missing = fixture_report(
+        bundle['corpus'],
+        bundle['candidate'],
+        statuses=(OfflineTrialStatus.OUTCOME_MATCH,),
+    )
+    one_incomplete = fixture_report(
+        bundle['corpus'],
+        bundle['candidate'],
+        statuses=(OfflineTrialStatus.INCOMPLETE, OfflineTrialStatus.OUTCOME_MATCH),
+    )
+    contradictory_reports = {
+        'claimed_complete_with_missing': rebuild_report(
+            one_missing, coverage_numerator=one_missing.coverage_denominator
+        ),
+        'claimed_complete_with_incomplete': rebuild_report(
+            one_incomplete, coverage_numerator=one_incomplete.coverage_denominator
+        ),
+        'evaluated_and_missing_overlap': rebuild_report(
+            report,
+            missing_holdout_episode_ids=(report.evaluated_holdout_episode_ids[0],),
+        ),
+        'evaluated_and_incomplete_overlap': rebuild_report(
+            report,
+            incomplete_holdout_episode_ids=(report.evaluated_holdout_episode_ids[0],),
+        ),
+        'missing_and_incomplete_overlap': rebuild_report(
+            one_missing,
+            incomplete_holdout_episode_ids=one_missing.missing_holdout_episode_ids,
+        ),
+        'duplicate_evaluated_identity': rebuild_report(
+            report,
+            evaluated_holdout_episode_ids=(
+                report.evaluated_holdout_episode_ids[0],
+                report.evaluated_holdout_episode_ids[0],
+            ),
+        ),
+        'status_total_disagrees_with_trials': rebuild_report(
+            report,
+            status_counts=(
+                EvaluationCount(OfflineTrialStatus.OUTCOME_MATCH.value, 1),
+                EvaluationCount(OfflineTrialStatus.OUTCOME_MISMATCH.value, 0),
+                EvaluationCount(OfflineTrialStatus.INCOMPLETE.value, 0),
+            ),
+        ),
+    }
+    for name, contradictory in contradictory_reports.items():
+        with pytest.raises(PromotionRequestError, match='verified evaluation report'):
+            _request(bundle['candidate'], contradictory, bundle['criteria'])
+
+
+def test_zero_failure_summary_cannot_hide_mismatch_evidence():
+    corpus = fixture_corpus('hidden-failure')
+    candidate = fixture_candidate(corpus)
+    report = fixture_report(
+        corpus,
+        candidate,
+        statuses=(OfflineTrialStatus.OUTCOME_MISMATCH, OfflineTrialStatus.OUTCOME_MATCH),
+    )
+    forged = rebuild_report(
+        report,
+        status_counts=(
+            EvaluationCount(OfflineTrialStatus.OUTCOME_MATCH.value, 2),
+            EvaluationCount(OfflineTrialStatus.OUTCOME_MISMATCH.value, 0),
+            EvaluationCount(OfflineTrialStatus.INCOMPLETE.value, 0),
+        ),
+    )
+    criteria = _criteria(
+        candidate,
+        report,
+        accepted_dispositions=(OfflineEvaluationDisposition.DOES_NOT_MEET_OFFLINE_CRITERIA,),
+    )
+
+    with pytest.raises(PromotionRequestError, match='verified evaluation report'):
+        _request(candidate, forged, criteria)
+
+
+def test_incomplete_policy_never_waives_report_consistency():
+    bundle = fixture_promotion_bundle('incomplete-policy')
+    report = bundle['report']
+    forged = rebuild_report(report, coverage_numerator=1)
+    criteria = _criteria(
+        bundle['candidate'],
+        report,
+        require_complete_evaluation=False,
+        minimum_evaluated_trials=1,
+    )
+
+    with pytest.raises(PromotionRequestError, match='verified evaluation report'):
+        _request(bundle['candidate'], forged, criteria)
+
+
+def test_valid_incomplete_report_can_be_eligible_only_under_explicit_criteria():
+    corpus = fixture_corpus('valid-incomplete')
+    candidate = fixture_candidate(corpus)
+    report = fixture_report(
+        corpus,
+        candidate,
+        statuses=(OfflineTrialStatus.OUTCOME_MATCH,),
+    )
+    criteria = _criteria(
+        candidate,
+        report,
+        accepted_dispositions=(OfflineEvaluationDisposition.INCOMPLETE,),
+        require_complete_evaluation=False,
+        minimum_evaluated_trials=1,
+    )
+    request = _request(candidate, report, criteria)
+
+    decision = evaluate_promotion(
+        criteria=criteria,
+        request=request,
+        candidate=candidate,
+        report=report,
+    )
+
+    assert decision.status is PromotionDecisionStatus.ELIGIBLE
+
+
+def test_report_candidate_evidence_set_must_match_candidate_manifest():
+    bundle = fixture_promotion_bundle('candidate-evidence-lineage')
+    other_corpus = fixture_corpus('other-candidate-evidence')
+    other_candidate = fixture_candidate(other_corpus)
+    report = rebuild_report(
+        bundle['report'],
+        candidate_evidence_set_id=other_candidate.candidate_evidence_set_id,
+        candidate_evidence_set_fingerprint=(
+            other_candidate.candidate_evidence_set_fingerprint
+        ),
+    )
+    request = _request(bundle['candidate'], report, bundle['criteria'])
+
+    decision = evaluate_promotion(
+        criteria=bundle['criteria'],
+        request=request,
+        candidate=bundle['candidate'],
+        report=report,
+    )
+
+    assert decision.status is PromotionDecisionStatus.NOT_ELIGIBLE
+    assert PromotionDecisionReason.REPORT_CANDIDATE_MISMATCH in decision.reasons
 
 
 def test_eligible_and_rejected_decisions_are_deterministic():

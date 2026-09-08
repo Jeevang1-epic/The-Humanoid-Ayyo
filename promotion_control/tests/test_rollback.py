@@ -14,6 +14,7 @@ from ayyo_promotion_control import (
     RollbackEvidenceReference,
     RollbackReason,
     RollbackRequest,
+    PromotionDecisionError,
     evaluate_promotion,
     evaluate_rollback,
     verify_known_good_policy,
@@ -26,6 +27,7 @@ from helpers import (
     fixture_candidate,
     fixture_promotion_bundle,
     fixture_rollback_bundle,
+    rebuild_report,
 )
 
 
@@ -297,6 +299,31 @@ def test_known_good_cannot_be_created_from_rejected_promotion():
             provenance_ref='known-good-review.fixture.v1',
             provenance_fingerprint=fingerprint('known-good-review', 'rejected'),
         )
+
+
+def test_inconsistent_report_cannot_establish_known_good_through_evaluator():
+    bundle = fixture_rollback_bundle('inconsistent-known-good')
+    report = bundle['report']
+    forged = rebuild_report(report, coverage_numerator=1)
+
+    def construct_known_good():
+        decision = evaluate_promotion(
+            criteria=bundle['criteria'],
+            request=bundle['request'],
+            candidate=bundle['candidate'],
+            report=forged,
+        )
+        return KnownGoodPolicyReference(
+            target_candidate=bundle['candidate'],
+            promotion_decision=decision,
+            provenance_ref='known-good-review.fixture.v1',
+            provenance_fingerprint=fingerprint(
+                'known-good-review', 'inconsistent-report'
+            ),
+        )
+
+    with pytest.raises(PromotionDecisionError, match='integrity'):
+        construct_known_good()
 
 
 def test_tampered_known_good_or_request_fails_closed():
