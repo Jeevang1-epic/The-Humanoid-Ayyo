@@ -546,9 +546,17 @@ def evaluate_promotion(
         report.report_fingerprint,
     ):
         reasons.append(PromotionDecisionReason.REQUEST_REPORT_MISMATCH)
-    if (report.candidate_id, report.candidate_fingerprint) != (
-        candidate.candidate_id,
-        candidate.candidate_fingerprint,
+    if (
+        (report.candidate_id, report.candidate_fingerprint)
+        != (candidate.candidate_id, candidate.candidate_fingerprint)
+        or (
+            report.candidate_evidence_set_id,
+            report.candidate_evidence_set_fingerprint,
+        )
+        != (
+            candidate.candidate_evidence_set_id,
+            candidate.candidate_evidence_set_fingerprint,
+        )
     ):
         reasons.append(PromotionDecisionReason.REPORT_CANDIDATE_MISMATCH)
     if (criteria.candidate_id, criteria.candidate_fingerprint) != (

@@ -483,8 +483,68 @@ def verify_evaluation_report(report: object) -> bool:
         return False
     try:
         if (
+            type(report.trial_ids) is not tuple
+            or type(report.evaluated_holdout_episode_ids) is not tuple
+            or type(report.missing_holdout_episode_ids) is not tuple
+            or type(report.incomplete_holdout_episode_ids) is not tuple
+            or type(report.status_counts) is not tuple
+            or type(report.historical_outcome_counts) is not tuple
+            or type(report.aggregate_metrics) is not tuple
+            or type(report.reasons) is not tuple
+            or type(report.coverage_numerator) is not int
+            or type(report.coverage_denominator) is not int
+        ):
+            return False
+        evaluated_ids = set(report.evaluated_holdout_episode_ids)
+        missing_ids = set(report.missing_holdout_episode_ids)
+        incomplete_ids = set(report.incomplete_holdout_episode_ids)
+        if (
+            len(evaluated_ids) != len(report.evaluated_holdout_episode_ids)
+            or len(missing_ids) != len(report.missing_holdout_episode_ids)
+            or len(incomplete_ids) != len(report.incomplete_holdout_episode_ids)
+            or not evaluated_ids.isdisjoint(missing_ids)
+            or not evaluated_ids.isdisjoint(incomplete_ids)
+            or not missing_ids.isdisjoint(incomplete_ids)
+            or not all(type(item) is EvaluationCount for item in report.status_counts)
+            or not all(
+                type(item) is EvaluationCount for item in report.historical_outcome_counts
+            )
+            or not all(
+                type(item) is AggregateExactMetric for item in report.aggregate_metrics
+            )
+            or not all(
+                EvaluationCount(item.value, item.count) == item
+                for item in (*report.status_counts, *report.historical_outcome_counts)
+            )
+            or not all(
+                AggregateExactMetric(item.metric_id, item.numerator, item.denominator)
+                == item
+                for item in report.aggregate_metrics
+            )
+        ):
+            return False
+        status_counts = {item.value: item.count for item in report.status_counts}
+        match_count = status_counts.get(OfflineTrialStatus.OUTCOME_MATCH.value, 0)
+        mismatch_count = status_counts.get(OfflineTrialStatus.OUTCOME_MISMATCH.value, 0)
+        incomplete_count = status_counts.get(OfflineTrialStatus.INCOMPLETE.value, 0)
+        expected_reasons = []
+        if missing_ids:
+            expected_reasons.append(EvaluationReportReason.MISSING_HOLDOUT_TRIAL)
+        if incomplete_ids:
+            expected_reasons.append(EvaluationReportReason.INCOMPLETE_HOLDOUT_TRIAL)
+        if missing_ids or incomplete_ids:
+            expected_disposition = OfflineEvaluationDisposition.INCOMPLETE
+        elif mismatch_count:
+            expected_reasons.append(EvaluationReportReason.HOLDOUT_OUTCOME_MISMATCH)
+            expected_disposition = OfflineEvaluationDisposition.DOES_NOT_MEET_OFFLINE_CRITERIA
+        else:
+            expected_reasons.append(EvaluationReportReason.ALL_HOLDOUT_OUTCOMES_MATCH)
+            expected_disposition = OfflineEvaluationDisposition.MEETS_OFFLINE_CRITERIA
+        if (
             report.schema_id != EVALUATION_REPORT_SCHEMA_ID
             or report.schema_version != EVALUATION_REPORT_SCHEMA_VERSION
+            or report.evaluation_contract_id != OFFLINE_EVALUATION_CONTRACT_ID
+            or report.evaluation_contract_version != OFFLINE_EVALUATION_CONTRACT_VERSION
             or report.report_fingerprint != report.recompute_fingerprint()
             or report.report_id != report.recompute_report_id()
             or not 0 <= report.coverage_numerator <= report.coverage_denominator
@@ -498,28 +558,53 @@ def verify_evaluation_report(report: object) -> bool:
             != report.missing_holdout_episode_ids
             or tuple(sorted(report.incomplete_holdout_episode_ids))
             != report.incomplete_holdout_episode_ids
+            or len(report.trial_ids)
+            != len(report.evaluated_holdout_episode_ids)
+            + len(report.incomplete_holdout_episode_ids)
+            or report.coverage_numerator != len(report.evaluated_holdout_episode_ids)
+            or report.coverage_denominator
+            != len(report.evaluated_holdout_episode_ids)
+            + len(report.missing_holdout_episode_ids)
+            + len(report.incomplete_holdout_episode_ids)
             or tuple(item.value for item in report.status_counts)
             != tuple(item.value for item in OfflineTrialStatus)
             or tuple(item.value for item in report.historical_outcome_counts)
             != tuple(item.value for item in DemonstrationOutcomeStatus)
             or sum(item.count for item in report.status_counts) != len(report.trial_ids)
+            or match_count + mismatch_count != len(report.evaluated_holdout_episode_ids)
+            or incomplete_count != len(report.incomplete_holdout_episode_ids)
             or sum(item.count for item in report.historical_outcome_counts)
             != report.coverage_denominator
+            or tuple(item.metric_id for item in report.aggregate_metrics)
+            != tuple(sorted(item.metric_id for item in report.aggregate_metrics))
+            or len({item.metric_id for item in report.aggregate_metrics})
+            != len(report.aggregate_metrics)
             or not isinstance(report.disposition, OfflineEvaluationDisposition)
             or not all(isinstance(item, EvaluationReportReason) for item in report.reasons)
+            or len(report.reasons) != len(set(report.reasons))
+            or report.reasons != tuple(expected_reasons)
+            or report.disposition is not expected_disposition
         ):
             return False
-        _identifier(report.candidate_id, 'candidate_id')
+        _fingerprint(report.candidate_id, 'candidate_id')
         _fingerprint(report.candidate_fingerprint, 'candidate_fingerprint')
-        _identifier(report.candidate_evidence_set_id, 'candidate_evidence_set_id')
+        _fingerprint(report.candidate_evidence_set_id, 'candidate_evidence_set_id')
         _fingerprint(
             report.candidate_evidence_set_fingerprint,
             'candidate_evidence_set_fingerprint',
         )
-        _identifier(report.holdout_evidence_set_id, 'holdout_evidence_set_id')
+        _fingerprint(report.holdout_evidence_set_id, 'holdout_evidence_set_id')
         _fingerprint(
             report.holdout_evidence_set_fingerprint, 'holdout_evidence_set_fingerprint'
         )
+        for trial_id in report.trial_ids:
+            _fingerprint(trial_id, 'trial_id')
+        for episode_id in (
+            *report.evaluated_holdout_episode_ids,
+            *report.missing_holdout_episode_ids,
+            *report.incomplete_holdout_episode_ids,
+        ):
+            _fingerprint(episode_id, 'holdout episode_id')
     except (AttributeError, TypeError, ValueError):
         return False
     return len(canonical_json(report.as_dict()).encode('utf-8')) <= MAX_SERIALIZED_REPORT_BYTES
