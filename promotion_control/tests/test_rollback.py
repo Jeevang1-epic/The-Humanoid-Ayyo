@@ -95,6 +95,25 @@ def test_matching_known_good_chain_is_rollback_eligible_without_mutation():
         decision.status = RollbackDecisionStatus.ROLLBACK_REJECTED
 
 
+def test_admissible_and_rejected_rollback_decisions_are_deterministic():
+    first = fixture_rollback_bundle('deterministic')
+    second = fixture_rollback_bundle('deterministic')
+    assert _evaluate(first) == _evaluate(second)
+
+    criteria = _criteria(first['current_candidate'], first['known_good'])
+    request = _request(
+        first['current_candidate'],
+        first['known_good'],
+        criteria,
+        RollbackReason.SAFETY_REGRESSION,
+        (_evidence(RollbackEvidenceKind.RUNTIME_OBSERVATION),),
+    )
+    rejected_once = _evaluate(first, criteria=criteria, request=request)
+    rejected_twice = _evaluate(first, criteria=criteria, request=request)
+    assert rejected_once == rejected_twice
+    assert rejected_once.status is RollbackDecisionStatus.ROLLBACK_REJECTED
+
+
 @pytest.mark.parametrize(
     ('reason', 'kind'),
     [
@@ -199,6 +218,21 @@ def test_unknown_known_good_substitution_is_rejected_at_every_binding():
     assert RollbackDecisionReason.CRITERIA_KNOWN_GOOD_MISMATCH in decision.reasons
 
 
+def test_request_to_rollback_criteria_identity_mismatch_is_rejected():
+    bundle = fixture_rollback_bundle()
+    changed = _criteria(
+        bundle['current_candidate'],
+        bundle['known_good'],
+        allowed_reasons=(RollbackReason.EVALUATION_REGRESSION,),
+    )
+
+    decision = _evaluate(bundle, criteria=changed)
+
+    assert decision.status is RollbackDecisionStatus.ROLLBACK_REJECTED
+    assert RollbackDecisionReason.REQUEST_CRITERIA_MISMATCH in decision.reasons
+    assert changed.criteria_id != bundle['rollback_criteria'].criteria_id
+
+
 def test_target_candidate_substitution_is_rejected():
     first = fixture_rollback_bundle('first')
     second = fixture_promotion_bundle('second')
@@ -270,6 +304,23 @@ def test_tampered_known_good_or_request_fails_closed():
     object.__setattr__(bundle['known_good'], 'target_candidate_id', 'substituted-candidate')
 
     assert not verify_known_good_policy(bundle['known_good'])
+    with pytest.raises(RollbackControlError, match='integrity'):
+        _evaluate(bundle)
+
+
+def test_malformed_rollback_request_fails_closed():
+    bundle = fixture_rollback_bundle()
+    object.__setattr__(bundle['rollback_request'], 'criteria_id', 'substituted-criteria')
+
+    assert not verify_rollback_request(bundle['rollback_request'])
+    with pytest.raises(RollbackControlError, match='integrity'):
+        _evaluate(bundle)
+
+
+def test_tampered_target_candidate_fails_closed():
+    bundle = fixture_rollback_bundle()
+    object.__setattr__(bundle['candidate'], 'candidate_id', 'substituted-target')
+
     with pytest.raises(RollbackControlError, match='integrity'):
         _evaluate(bundle)
 

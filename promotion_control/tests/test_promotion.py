@@ -78,6 +78,47 @@ def test_matching_evidence_is_eligible_but_does_not_claim_promotion():
         decision.status = PromotionDecisionStatus.NOT_ELIGIBLE
 
 
+def test_eligible_and_rejected_decisions_are_deterministic():
+    first = fixture_promotion_bundle('deterministic')
+    second = fixture_promotion_bundle('deterministic')
+    assert first['decision'] == second['decision']
+
+    criteria = _criteria(
+        first['candidate'],
+        first['report'],
+        accepted_dispositions=(OfflineEvaluationDisposition.INCOMPLETE,),
+    )
+    request = _request(first['candidate'], first['report'], criteria)
+    arguments = {
+        'criteria': criteria,
+        'request': request,
+        'candidate': first['candidate'],
+        'report': first['report'],
+    }
+    assert evaluate_promotion(**arguments) == evaluate_promotion(**arguments)
+    assert evaluate_promotion(**arguments).status is PromotionDecisionStatus.NOT_ELIGIBLE
+
+
+def test_semantically_relevant_criteria_change_changes_downstream_identity():
+    bundle = fixture_promotion_bundle()
+    changed = _criteria(
+        bundle['candidate'],
+        bundle['report'],
+        minimum_evaluated_trials=1,
+    )
+    request = _request(bundle['candidate'], bundle['report'], changed)
+    decision = evaluate_promotion(
+        criteria=changed,
+        request=request,
+        candidate=bundle['candidate'],
+        report=bundle['report'],
+    )
+
+    assert changed.criteria_id != bundle['criteria'].criteria_id
+    assert request.request_id != bundle['request'].request_id
+    assert decision.decision_id != bundle['decision'].decision_id
+
+
 def test_criteria_and_request_are_deterministic_and_order_independent():
     bundle = fixture_promotion_bundle()
     candidate, report = bundle['candidate'], bundle['report']
@@ -212,6 +253,24 @@ def test_exact_candidate_report_and_request_lineage_is_enforced():
     assert PromotionDecisionReason.HOLDOUT_IDENTITY_MISMATCH in decision.reasons
 
 
+def test_request_to_criteria_identity_mismatch_is_rejected():
+    bundle = fixture_promotion_bundle()
+    changed = _criteria(
+        bundle['candidate'],
+        bundle['report'],
+        minimum_evaluated_trials=1,
+    )
+
+    decision = evaluate_promotion(
+        criteria=changed,
+        request=bundle['request'],
+        candidate=bundle['candidate'],
+        report=bundle['report'],
+    )
+
+    assert PromotionDecisionReason.REQUEST_CRITERIA_MISMATCH in decision.reasons
+
+
 def test_report_candidate_mismatch_is_rejected_even_when_request_binds_both():
     first = fixture_promotion_bundle('first')
     second = fixture_promotion_bundle('second')
@@ -232,6 +291,23 @@ def test_tampered_evidence_fails_closed_with_typed_error():
     object.__setattr__(bundle['request'], 'report_id', 'substituted-report')
 
     assert not verify_promotion_request(bundle['request'])
+    with pytest.raises(PromotionDecisionError, match='integrity'):
+        evaluate_promotion(
+            criteria=bundle['criteria'],
+            request=bundle['request'],
+            candidate=bundle['candidate'],
+            report=bundle['report'],
+        )
+
+
+@pytest.mark.parametrize('artifact_name', ['candidate', 'report'])
+def test_malformed_upstream_candidate_and_evaluation_identities_fail_closed(
+    artifact_name,
+):
+    bundle = fixture_promotion_bundle()
+    attribute = 'candidate_id' if artifact_name == 'candidate' else 'report_id'
+    object.__setattr__(bundle[artifact_name], attribute, f'malformed-{artifact_name}')
+
     with pytest.raises(PromotionDecisionError, match='integrity'):
         evaluate_promotion(
             criteria=bundle['criteria'],
