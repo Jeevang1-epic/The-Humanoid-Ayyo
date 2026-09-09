@@ -42,7 +42,13 @@ Implemented:
 - A standalone `ayyo-learning-evaluation` Stage-7 layer with explicitly assigned
   candidate-evidence and holdout partitions, separate content identities, an
   inert versioned candidate manifest, caller-supplied trial contracts, and pure
-  deterministic offline reports with no execution or promotion authority
+  deterministic offline reports that retain bounded canonical corpus/trial
+  evidence and derive every summary from it, with no execution or promotion
+  authority
+- A standalone `ayyo-promotion-control` Stage-7 layer with caller-owned
+  promotion/rollback criteria, exact candidate/report/known-good lineage,
+  canonical immutable eligibility decisions, typed reason evidence, and no
+  policy execution, installation, automatic state change, or runtime authority
 - A verified local ROS 2, Gazebo, and RViz development setup
 - A standalone, provenance-aware Memory OS core with SQLite persistence
 - A standalone deterministic validation and consolidation policy for candidate
@@ -326,6 +332,13 @@ Run the transport-neutral demonstration policy evaluation tests:
 ```bash
 PYTHONPATH=memory/src:personal_context/src:executive/src:safety_kernel/src:skill_manager/src:runtime_bridge/src:developmental_scenarios/src:teach_mode/src:learning_evaluation/src \
 python3 -m pytest -q learning_evaluation/tests
+```
+
+Run the inert candidate promotion and rollback control-plane tests:
+
+```bash
+PYTHONPATH=memory/src:personal_context/src:executive/src:safety_kernel/src:skill_manager/src:runtime_bridge/src:developmental_scenarios/src:teach_mode/src:learning_evaluation/src:promotion_control/src \
+python3 -m pytest -q promotion_control/tests
 ```
 
 Run Memory OS tests:

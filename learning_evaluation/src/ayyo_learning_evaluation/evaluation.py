@@ -36,7 +36,7 @@ MAX_TRIALS_PER_EVALUATION = MAX_EPISODES_PER_PARTITION
 MAX_TRIAL_REASONS = 8
 MAX_METRICS_PER_TRIAL = 8
 MAX_METRIC_COMPONENT = 1_000_000_000
-MAX_SERIALIZED_REPORT_BYTES = 65_536
+MAX_SERIALIZED_REPORT_BYTES = 131_072
 
 _IDENTIFIER = re.compile(r'^[a-z0-9]+(?:[._-][a-z0-9]+)*$')
 _FINGERPRINT = re.compile(
@@ -211,6 +211,7 @@ class OfflineTrialResult:
             or len(reason_snapshot) != len(set(reason_snapshot))
         ):
             raise EvaluationTrialError('trial reasons are invalid, duplicate, or out of bounds')
+        reason_snapshot = tuple(sorted(reason_snapshot, key=str))
         if isinstance(metrics, (str, bytes)):
             raise EvaluationTrialError('trial metrics must be a bounded sequence')
         try:
@@ -232,6 +233,21 @@ class OfflineTrialResult:
             raise EvaluationTrialError('OUTCOME_MISMATCH requires a different observed outcome')
         if status is OfflineTrialStatus.INCOMPLETE and observed_outcome is not None:
             raise EvaluationTrialError('INCOMPLETE cannot fabricate an observed outcome')
+        expected_reasons = {
+            OfflineTrialStatus.OUTCOME_MATCH: {
+                OfflineTrialReason.EXPECTED_OUTCOME_OBSERVED,
+            },
+            OfflineTrialStatus.OUTCOME_MISMATCH: {
+                OfflineTrialReason.DIFFERENT_OUTCOME_OBSERVED,
+            },
+            OfflineTrialStatus.INCOMPLETE: {
+                OfflineTrialReason.RESULT_UNAVAILABLE,
+                OfflineTrialReason.RESULT_REJECTED,
+                OfflineTrialReason.UNSUPPORTED_RESULT,
+            },
+        }
+        if not set(reason_snapshot) <= expected_reasons[status]:
+            raise EvaluationTrialError('trial reasons do not correspond to its status')
         result_source_ref = _identifier(result_source_ref, 'result_source_ref')
         result_source_fingerprint = _fingerprint(
             result_source_fingerprint, 'result_source_fingerprint'
@@ -387,6 +403,8 @@ class OfflineEvaluationReport:
     holdout_evidence_set_fingerprint: str
     evaluation_contract_id: str
     evaluation_contract_version: str
+    corpus: DemonstrationEvaluationCorpus
+    trial_evidence: tuple[OfflineTrialResult, ...]
     trial_ids: tuple[str, ...]
     evaluated_holdout_episode_ids: tuple[str, ...]
     missing_holdout_episode_ids: tuple[str, ...]
@@ -432,6 +450,7 @@ class OfflineEvaluationReport:
                 'fingerprint': self.candidate_evidence_set_fingerprint,
                 'id': self.candidate_evidence_set_id,
             },
+            'corpus': self.corpus.as_dict(),
             'coverage': {
                 'denominator': self.coverage_denominator,
                 'numerator': self.coverage_numerator,
@@ -454,6 +473,7 @@ class OfflineEvaluationReport:
             'reasons': [item.value for item in self.reasons],
             'schema': {'id': self.schema_id, 'version': self.schema_version},
             'status_counts': [item.as_dict() for item in self.status_counts],
+            'trial_evidence': [item.as_dict() for item in self.trial_evidence],
             'trial_ids': list(self.trial_ids),
         }
 
@@ -478,71 +498,15 @@ class OfflineEvaluationReport:
         }
 
 
-def verify_evaluation_report(report: object) -> bool:
-    if type(report) is not OfflineEvaluationReport:
-        return False
-    try:
-        if (
-            report.schema_id != EVALUATION_REPORT_SCHEMA_ID
-            or report.schema_version != EVALUATION_REPORT_SCHEMA_VERSION
-            or report.report_fingerprint != report.recompute_fingerprint()
-            or report.report_id != report.recompute_report_id()
-            or not 0 <= report.coverage_numerator <= report.coverage_denominator
-            or not 1 <= report.coverage_denominator <= MAX_TRIALS_PER_EVALUATION
-            or len(report.trial_ids) > MAX_TRIALS_PER_EVALUATION
-            or len(report.trial_ids) != len(set(report.trial_ids))
-            or tuple(sorted(report.trial_ids)) != report.trial_ids
-            or tuple(sorted(report.evaluated_holdout_episode_ids))
-            != report.evaluated_holdout_episode_ids
-            or tuple(sorted(report.missing_holdout_episode_ids))
-            != report.missing_holdout_episode_ids
-            or tuple(sorted(report.incomplete_holdout_episode_ids))
-            != report.incomplete_holdout_episode_ids
-            or tuple(item.value for item in report.status_counts)
-            != tuple(item.value for item in OfflineTrialStatus)
-            or tuple(item.value for item in report.historical_outcome_counts)
-            != tuple(item.value for item in DemonstrationOutcomeStatus)
-            or sum(item.count for item in report.status_counts) != len(report.trial_ids)
-            or sum(item.count for item in report.historical_outcome_counts)
-            != report.coverage_denominator
-            or not isinstance(report.disposition, OfflineEvaluationDisposition)
-            or not all(isinstance(item, EvaluationReportReason) for item in report.reasons)
-        ):
-            return False
-        _identifier(report.candidate_id, 'candidate_id')
-        _fingerprint(report.candidate_fingerprint, 'candidate_fingerprint')
-        _identifier(report.candidate_evidence_set_id, 'candidate_evidence_set_id')
-        _fingerprint(
-            report.candidate_evidence_set_fingerprint,
-            'candidate_evidence_set_fingerprint',
-        )
-        _identifier(report.holdout_evidence_set_id, 'holdout_evidence_set_id')
-        _fingerprint(
-            report.holdout_evidence_set_fingerprint, 'holdout_evidence_set_fingerprint'
-        )
-    except (AttributeError, TypeError, ValueError):
-        return False
-    return len(canonical_json(report.as_dict()).encode('utf-8')) <= MAX_SERIALIZED_REPORT_BYTES
-
-
-def evaluate_offline(
+def _verified_ordered_trials(
     *,
     corpus: DemonstrationEvaluationCorpus,
-    candidate: CandidatePolicyManifest,
-    trials: tuple[OfflineTrialResult, ...] | list[OfflineTrialResult],
-) -> OfflineEvaluationReport:
-    """Purely verify and aggregate explicit results; this never executes a policy."""
-    if not verify_corpus(corpus):
-        raise CandidateLineageError('evaluation requires a verified corpus')
-    if not verify_candidate_policy(candidate):
-        raise CandidateLineageError('evaluation requires a verified candidate')
-    if (
-        candidate.candidate_evidence_set_id
-        != corpus.candidate_evidence.evidence_set_id
-        or candidate.candidate_evidence_set_fingerprint
-        != corpus.candidate_evidence.evidence_set_fingerprint
-    ):
-        raise CandidateLineageError('candidate does not belong to this corpus evidence set')
+    candidate_id: str,
+    candidate_fingerprint: str,
+    trials: object,
+) -> tuple[OfflineTrialResult, ...]:
+    _fingerprint(candidate_id, 'candidate_id')
+    _fingerprint(candidate_fingerprint, 'candidate_fingerprint')
     if isinstance(trials, (str, bytes)):
         raise EvaluationTrialError('trials must be an explicit bounded sequence')
     try:
@@ -568,8 +532,8 @@ def evaluate_offline(
     }
     for trial in trial_snapshot:
         if (
-            trial.candidate_id != candidate.candidate_id
-            or trial.candidate_fingerprint != candidate.candidate_fingerprint
+            trial.candidate_id != candidate_id
+            or trial.candidate_fingerprint != candidate_fingerprint
         ):
             raise CandidateLineageError('trial belongs to a different candidate')
         if (
@@ -587,8 +551,27 @@ def evaluate_offline(
         if trial.expected_outcome is not reference.outcome_status:
             raise EvaluationTrialError('trial reinterprets the historical episode outcome')
 
-    ordered_trials = tuple(sorted(trial_snapshot, key=lambda item: item.holdout_episode_id))
+    return tuple(sorted(trial_snapshot, key=lambda item: item.holdout_episode_id))
+
+
+def _report_from_evidence(
+    *,
+    corpus: DemonstrationEvaluationCorpus,
+    candidate_id: str,
+    candidate_fingerprint: str,
+    trials: object,
+) -> OfflineEvaluationReport:
+    ordered_trials = _verified_ordered_trials(
+        corpus=corpus,
+        candidate_id=candidate_id,
+        candidate_fingerprint=candidate_fingerprint,
+        trials=trials,
+    )
+
     supplied_by_id = {item.holdout_episode_id: item for item in ordered_trials}
+    holdout_by_id = {
+        item.episode_id: item for item in corpus.holdout_evaluation.episodes
+    }
     evaluated_ids = tuple(
         item.holdout_episode_id
         for item in ordered_trials
@@ -635,14 +618,16 @@ def evaluate_offline(
         reasons.append(EvaluationReportReason.ALL_HOLDOUT_OUTCOMES_MATCH)
         disposition = OfflineEvaluationDisposition.MEETS_OFFLINE_CRITERIA
     report = OfflineEvaluationReport._create(
-        candidate_id=candidate.candidate_id,
-        candidate_fingerprint=candidate.candidate_fingerprint,
+        candidate_id=candidate_id,
+        candidate_fingerprint=candidate_fingerprint,
         candidate_evidence_set_id=corpus.candidate_evidence.evidence_set_id,
         candidate_evidence_set_fingerprint=corpus.candidate_evidence.evidence_set_fingerprint,
         holdout_evidence_set_id=corpus.holdout_evaluation.evidence_set_id,
         holdout_evidence_set_fingerprint=corpus.holdout_evaluation.evidence_set_fingerprint,
         evaluation_contract_id=OFFLINE_EVALUATION_CONTRACT_ID,
         evaluation_contract_version=OFFLINE_EVALUATION_CONTRACT_VERSION,
+        corpus=corpus,
+        trial_evidence=ordered_trials,
         trial_ids=tuple(sorted(item.trial_id for item in ordered_trials)),
         evaluated_holdout_episode_ids=evaluated_ids,
         missing_holdout_episode_ids=missing_ids,
@@ -654,6 +639,55 @@ def evaluate_offline(
         coverage_denominator=len(holdout_by_id),
         reasons=tuple(reasons),
         disposition=disposition,
+    )
+    return report
+
+
+def verify_evaluation_report(report: object) -> bool:
+    """Verify a report by rebuilding every summary from its concrete evidence."""
+    if type(report) is not OfflineEvaluationReport:
+        return False
+    try:
+        if (
+            type(report.corpus) is not DemonstrationEvaluationCorpus
+            or type(report.trial_evidence) is not tuple
+            or not verify_corpus(report.corpus)
+        ):
+            return False
+        rebuilt = _report_from_evidence(
+            corpus=report.corpus,
+            candidate_id=report.candidate_id,
+            candidate_fingerprint=report.candidate_fingerprint,
+            trials=report.trial_evidence,
+        )
+    except (AttributeError, TypeError, ValueError):
+        return False
+    return rebuilt == report
+
+
+def evaluate_offline(
+    *,
+    corpus: DemonstrationEvaluationCorpus,
+    candidate: CandidatePolicyManifest,
+    trials: tuple[OfflineTrialResult, ...] | list[OfflineTrialResult],
+) -> OfflineEvaluationReport:
+    """Purely verify and aggregate explicit results; this never executes a policy."""
+    if not verify_corpus(corpus):
+        raise CandidateLineageError('evaluation requires a verified corpus')
+    if not verify_candidate_policy(candidate):
+        raise CandidateLineageError('evaluation requires a verified candidate')
+    if (
+        candidate.candidate_evidence_set_id
+        != corpus.candidate_evidence.evidence_set_id
+        or candidate.candidate_evidence_set_fingerprint
+        != corpus.candidate_evidence.evidence_set_fingerprint
+    ):
+        raise CandidateLineageError('candidate does not belong to this corpus evidence set')
+    report = _report_from_evidence(
+        corpus=corpus,
+        candidate_id=candidate.candidate_id,
+        candidate_fingerprint=candidate.candidate_fingerprint,
+        trials=trials,
     )
     if not verify_evaluation_report(report):
         raise EvaluationReportIntegrityError('constructed report failed integrity verification')

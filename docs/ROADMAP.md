@@ -196,6 +196,14 @@ caller-supplied holdout trials and emits immutable complete, incomplete, or
 does-not-meet reports. This adds no candidate execution, model runner, training,
 promotion, rollback, persistence, Safety authority, runtime path, or motion.
 
+Stage 7 now also has Candidate Policy Promotion & Rollback Control Plane
+Foundation v1. Explicit caller-owned criteria and requests bind exact candidate,
+offline-report, holdout, target-stage, known-good, provenance, reason-evidence,
+and policy-contract lineage identities. Pure evaluators emit only immutable
+promotion or rollback eligibility evidence. They do not install, load, execute,
+activate, dispatch, promote, or roll back a policy and own no registry,
+persistence, ROS/Gazebo, simulation, or hardware authority.
+
 Final Ayyo assets, graphical controlled-design validation, additional joints,
 trajectory/whole-body controllers, validated dynamics/contact behavior,
 authenticated identity, permissions, approval verification, live backend
@@ -208,8 +216,8 @@ RGB-D registration, physical sensor fusion, SLAM, environment entity
 production, background/scheduled review invocation, automatic durable
 consolidation, additional Teach Mode sources, authenticated teacher/owner
 identity, physical or recorded-source adapters, raw-recording management,
-candidate generation, model runners, training, executable replay, rollback,
-and learning promotion also remain future work. Executive
+candidate generation, model runners, training, executable replay, automatic
+rollback, and automatic learning promotion also remain future work. Executive
 proposals, Safety eligibility,
 Skill Manager runtime-handoff eligibility, Runtime Bridge
 eligibility, transport acceptance, development injection, and simulated motion

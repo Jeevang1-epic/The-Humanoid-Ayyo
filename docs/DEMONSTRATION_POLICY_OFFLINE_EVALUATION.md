@@ -126,10 +126,21 @@ tampered trials. It performs no I/O and never invokes candidate code.
 
 The immutable report schema is
 `ayyo.learning-evaluation.offline-report.v1`, version `1.0.0`. Its deterministic
-content identity covers candidate and evidence-set lineage, exact trial and
-evaluated/missing/incomplete episode IDs, typed status and historical-outcome
-counts, exact coverage numerator/denominator, optional summed integer-rational
-metrics, typed reasons, and disposition.
+content identity covers the complete canonical corpus snapshot, each supplied
+bounded `OfflineTrialResult`, candidate and evidence-set lineage, exact trial
+and evaluated/missing/incomplete episode IDs, typed status and
+historical-outcome counts, exact coverage numerator/denominator, optional
+summed integer-rational metrics, typed reasons, and disposition.
+
+`verify_evaluation_report()` does not treat those aggregate fields as evidence.
+It verifies the embedded corpus and every trial content identity, binds each
+trial to the exact holdout episode reference and candidate/evaluation identity,
+and reconstructs a canonical report from that concrete evidence. Verification
+succeeds only when the reconstructed partitions, trial IDs, counts, metrics,
+coverage, reasons, disposition, lineage, and report identity exactly equal the
+supplied report. Genuine trial IDs therefore cannot be reassigned to another
+episode or paired with rewritten outcome summaries. Duplicate, missing,
+out-of-corpus, malformed, or conflicting relationships fail closed.
 
 Disposition semantics are deliberately neutral:
 
@@ -167,22 +178,23 @@ Version 1 limits are:
 | typed reasons per trial | 8 |
 | exact metrics per trial | 8 |
 | one metric numerator or denominator | 1,000,000,000 |
-| canonical report representation | 65,536 UTF-8 bytes |
+| canonical report representation | 131,072 UTF-8 bytes |
 
 The 32/16 limits permit two equally bounded review partitions without creating
-a giant batch API. Text and corpus/report limits follow Teach Mode's existing
-256/512/65,536 style. Candidate JSON is smaller because it contains only inert
-identity/lineage metadata. Metrics are integers; floats, booleans, NaN, and
-infinity are not accepted.
+a giant batch API. The report cap allows one bounded corpus snapshot plus its
+bounded trial evidence while remaining a fixed-size artifact. Candidate JSON
+is smaller because it contains only inert identity/lineage metadata. Metrics
+are integers; floats, booleans, NaN, and infinity are not accepted.
 
 ## Implemented and not implemented
 
 Implemented: immutable bounded corpus/reference/evidence-set contracts; strict
 canonical corpus and candidate serialization; separate candidate and holdout
-identities; inert versioned candidate lineage; explicit immutable trials; pure
-offline aggregation; deterministic immutable reports; Stage-6 success,
-production-deferred/zero-dispatch, and invalid-command-rejected integration
-proofs; package/dependency and abuse tests.
+identities; inert versioned candidate lineage; explicit immutable trials;
+reports containing bounded canonical corpus/trial evidence; pure evidence-
+derived offline aggregation and verification; deterministic immutable reports;
+Stage-6 success, production-deferred/zero-dispatch, and invalid-command-rejected
+integration proofs; package/dependency and abuse tests.
 
 Not implemented: candidate generation, training, learning, fine-tuning,
 gradients, model inference/loading/execution, behavior cloning, reinforcement
