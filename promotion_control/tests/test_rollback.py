@@ -4,6 +4,12 @@ from dataclasses import FrozenInstanceError
 
 import pytest
 
+from ayyo_learning_evaluation import (
+    EvaluationCount,
+    EvaluationReportReason,
+    OfflineEvaluationDisposition,
+    OfflineTrialStatus,
+)
 from ayyo_promotion_control import (
     KnownGoodPolicyReference,
     RollbackControlError,
@@ -26,6 +32,7 @@ from helpers import (
     fingerprint,
     fixture_candidate,
     fixture_promotion_bundle,
+    fixture_report,
     fixture_rollback_bundle,
     rebuild_report,
 )
@@ -77,6 +84,24 @@ def _request(current, known_good, criteria, reason, evidence, **overrides):
     }
     fields.update(overrides)
     return RollbackRequest(**fields)
+
+
+def _poisoned_all_success_report(bundle):
+    genuine = fixture_report(
+        bundle['corpus'],
+        bundle['candidate'],
+        statuses=(OfflineTrialStatus.OUTCOME_MISMATCH, OfflineTrialStatus.OUTCOME_MATCH),
+    )
+    return rebuild_report(
+        genuine,
+        status_counts=(
+            EvaluationCount(OfflineTrialStatus.OUTCOME_MATCH.value, 2),
+            EvaluationCount(OfflineTrialStatus.OUTCOME_MISMATCH.value, 0),
+            EvaluationCount(OfflineTrialStatus.INCOMPLETE.value, 0),
+        ),
+        reasons=(EvaluationReportReason.ALL_HOLDOUT_OUTCOMES_MATCH,),
+        disposition=OfflineEvaluationDisposition.MEETS_OFFLINE_CRITERIA,
+    )
 
 
 def test_matching_known_good_chain_is_rollback_eligible_without_mutation():
@@ -303,8 +328,7 @@ def test_known_good_cannot_be_created_from_rejected_promotion():
 
 def test_inconsistent_report_cannot_establish_known_good_through_evaluator():
     bundle = fixture_rollback_bundle('inconsistent-known-good')
-    report = bundle['report']
-    forged = rebuild_report(report, coverage_numerator=1)
+    forged = _poisoned_all_success_report(bundle)
 
     def construct_known_good():
         decision = evaluate_promotion(
@@ -324,6 +348,36 @@ def test_inconsistent_report_cannot_establish_known_good_through_evaluator():
 
     with pytest.raises(PromotionDecisionError, match='integrity'):
         construct_known_good()
+
+
+def test_poisoned_promotion_evidence_cannot_reach_rollback_eligibility():
+    bundle = fixture_rollback_bundle('poisoned-rollback')
+    forged = _poisoned_all_success_report(bundle)
+
+    def evaluate_poisoned_chain():
+        decision = evaluate_promotion(
+            criteria=bundle['criteria'],
+            request=bundle['request'],
+            candidate=bundle['candidate'],
+            report=forged,
+        )
+        known_good = KnownGoodPolicyReference(
+            target_candidate=bundle['candidate'],
+            promotion_decision=decision,
+            provenance_ref='known-good-review.fixture.v1',
+            provenance_fingerprint=fingerprint('known-good-review', 'poisoned'),
+        )
+        return evaluate_rollback(
+            criteria=bundle['rollback_criteria'],
+            request=bundle['rollback_request'],
+            current_candidate=bundle['current_candidate'],
+            target_candidate=bundle['candidate'],
+            known_good=known_good,
+            promotion_decision=decision,
+        )
+
+    with pytest.raises(PromotionDecisionError, match='integrity'):
+        evaluate_poisoned_chain()
 
 
 def test_tampered_known_good_or_request_fails_closed():

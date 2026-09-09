@@ -163,6 +163,8 @@ def rebuild_report(report: OfflineEvaluationReport, **overrides) -> OfflineEvalu
         'holdout_evidence_set_fingerprint': report.holdout_evidence_set_fingerprint,
         'evaluation_contract_id': report.evaluation_contract_id,
         'evaluation_contract_version': report.evaluation_contract_version,
+        'corpus': report.corpus,
+        'trial_evidence': report.trial_evidence,
         'trial_ids': report.trial_ids,
         'evaluated_holdout_episode_ids': report.evaluated_holdout_episode_ids,
         'missing_holdout_episode_ids': report.missing_holdout_episode_ids,

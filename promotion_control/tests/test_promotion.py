@@ -8,6 +8,7 @@ from ayyo_learning_evaluation import (
     EVALUATION_REPORT_SCHEMA_ID,
     EVALUATION_REPORT_SCHEMA_VERSION,
     EvaluationCount,
+    EvaluationReportReason,
     OfflineEvaluationDisposition,
     OfflineTrialStatus,
 )
@@ -168,12 +169,10 @@ def test_zero_failure_summary_cannot_hide_mismatch_evidence():
             EvaluationCount(OfflineTrialStatus.OUTCOME_MISMATCH.value, 0),
             EvaluationCount(OfflineTrialStatus.INCOMPLETE.value, 0),
         ),
+        reasons=(EvaluationReportReason.ALL_HOLDOUT_OUTCOMES_MATCH,),
+        disposition=OfflineEvaluationDisposition.MEETS_OFFLINE_CRITERIA,
     )
-    criteria = _criteria(
-        candidate,
-        report,
-        accepted_dispositions=(OfflineEvaluationDisposition.DOES_NOT_MEET_OFFLINE_CRITERIA,),
-    )
+    criteria = _criteria(candidate, report)
 
     with pytest.raises(PromotionRequestError, match='verified evaluation report'):
         _request(candidate, forged, criteria)
@@ -232,17 +231,8 @@ def test_report_candidate_evidence_set_must_match_candidate_manifest():
             other_candidate.candidate_evidence_set_fingerprint
         ),
     )
-    request = _request(bundle['candidate'], report, bundle['criteria'])
-
-    decision = evaluate_promotion(
-        criteria=bundle['criteria'],
-        request=request,
-        candidate=bundle['candidate'],
-        report=report,
-    )
-
-    assert decision.status is PromotionDecisionStatus.NOT_ELIGIBLE
-    assert PromotionDecisionReason.REPORT_CANDIDATE_MISMATCH in decision.reasons
+    with pytest.raises(PromotionRequestError, match='verified evaluation report'):
+        _request(bundle['candidate'], report, bundle['criteria'])
 
 
 def test_eligible_and_rejected_decisions_are_deterministic():

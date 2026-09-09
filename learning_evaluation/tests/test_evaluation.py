@@ -8,6 +8,7 @@ from ayyo_learning_evaluation import (
     EVALUATION_REPORT_SCHEMA_VERSION,
     OFFLINE_EVALUATION_CONTRACT_ID,
     OFFLINE_EVALUATION_CONTRACT_VERSION,
+    AggregateExactMetric,
     CandidateLineageError,
     CorpusPartition,
     DemonstrationEpisodeReference,
@@ -26,7 +27,13 @@ from ayyo_learning_evaluation import (
     verify_trial_result,
 )
 
-from helpers import fingerprint, fixture_candidate, fixture_corpus, matching_trial
+from helpers import (
+    fingerprint,
+    fixture_candidate,
+    fixture_corpus,
+    fixture_episode,
+    matching_trial,
+)
 
 
 def copied_reference(reference, **overrides):
@@ -55,6 +62,8 @@ def rebuilt_report(report, **overrides):
         'holdout_evidence_set_fingerprint': report.holdout_evidence_set_fingerprint,
         'evaluation_contract_id': report.evaluation_contract_id,
         'evaluation_contract_version': report.evaluation_contract_version,
+        'corpus': report.corpus,
+        'trial_evidence': report.trial_evidence,
         'trial_ids': report.trial_ids,
         'evaluated_holdout_episode_ids': report.evaluated_holdout_episode_ids,
         'missing_holdout_episode_ids': report.missing_holdout_episode_ids,
@@ -309,6 +318,171 @@ class OfflineEvaluationTest(unittest.TestCase):
         )
 
         self.assertFalse(verify_evaluation_report(forged))
+
+    def test_trial_identity_cannot_be_assigned_to_a_different_episode(self):
+        one_trial = evaluate_offline(
+            corpus=self.corpus,
+            candidate=self.candidate,
+            trials=[matching_trial(self.candidate, self.references[0])],
+        )
+        forged = rebuilt_report(
+            one_trial,
+            evaluated_holdout_episode_ids=(self.references[1].episode_id,),
+            missing_holdout_episode_ids=(self.references[0].episode_id,),
+        )
+
+        self.assertFalse(verify_evaluation_report(forged))
+
+    def test_trial_identity_cannot_hide_changed_status_or_outcome(self):
+        genuine = evaluate_offline(
+            corpus=self.corpus,
+            candidate=self.candidate,
+            trials=self.all_matching(),
+        )
+        changed = genuine.trial_evidence[0]
+        object.__setattr__(changed, 'status', OfflineTrialStatus.OUTCOME_MISMATCH)
+        object.__setattr__(changed, 'observed_outcome', DemonstrationOutcomeStatus.SUCCESS)
+        forged = rebuilt_report(
+            genuine,
+            trial_evidence=(changed, genuine.trial_evidence[1]),
+        )
+
+        self.assertFalse(verify_evaluation_report(forged))
+
+    def test_omitted_failing_trial_cannot_retain_complete_coverage(self):
+        mismatch = matching_trial(
+            self.candidate,
+            self.references[0],
+            observed_outcome=DemonstrationOutcomeStatus.FAILURE,
+            status=OfflineTrialStatus.OUTCOME_MISMATCH,
+            reasons=(OfflineTrialReason.DIFFERENT_OUTCOME_OBSERVED,),
+        )
+        genuine = evaluate_offline(
+            corpus=self.corpus,
+            candidate=self.candidate,
+            trials=[mismatch, matching_trial(self.candidate, self.references[1])],
+        )
+        forged = rebuilt_report(genuine, trial_evidence=(genuine.trial_evidence[1],))
+
+        self.assertFalse(verify_evaluation_report(forged))
+
+    def test_duplicate_success_evidence_cannot_satisfy_a_trial_count(self):
+        genuine = evaluate_offline(
+            corpus=self.corpus,
+            candidate=self.candidate,
+            trials=self.all_matching(),
+        )
+        success = genuine.trial_evidence[0]
+        forged = rebuilt_report(genuine, trial_evidence=(success, success))
+
+        self.assertFalse(verify_evaluation_report(forged))
+
+    def test_correct_evidence_cannot_support_incorrect_trial_partitions(self):
+        genuine = evaluate_offline(
+            corpus=self.corpus,
+            candidate=self.candidate,
+            trials=self.all_matching(),
+        )
+        forged = rebuilt_report(
+            genuine,
+            evaluated_holdout_episode_ids=(genuine.evaluated_holdout_episode_ids[0],),
+            missing_holdout_episode_ids=(genuine.evaluated_holdout_episode_ids[1],),
+        )
+
+        self.assertFalse(verify_evaluation_report(forged))
+
+    def test_concrete_evidence_controls_failure_success_metrics_and_disposition(self):
+        mismatch = matching_trial(
+            self.candidate,
+            self.references[0],
+            observed_outcome=DemonstrationOutcomeStatus.FAILURE,
+            status=OfflineTrialStatus.OUTCOME_MISMATCH,
+            reasons=(OfflineTrialReason.DIFFERENT_OUTCOME_OBSERVED,),
+            metrics=(ExactMetric('outcome-agreement', 0, 1),),
+        )
+        failed = evaluate_offline(
+            corpus=self.corpus,
+            candidate=self.candidate,
+            trials=[mismatch, matching_trial(self.candidate, self.references[1])],
+        )
+        successful = evaluate_offline(
+            corpus=self.corpus,
+            candidate=self.candidate,
+            trials=self.all_matching(),
+        )
+        for name, forged in {
+            'failure_count': rebuilt_report(
+                failed,
+                status_counts=(
+                    EvaluationCount(OfflineTrialStatus.OUTCOME_MATCH.value, 2),
+                    EvaluationCount(OfflineTrialStatus.OUTCOME_MISMATCH.value, 0),
+                    EvaluationCount(OfflineTrialStatus.INCOMPLETE.value, 0),
+                ),
+            ),
+            'success_count': rebuilt_report(
+                successful,
+                status_counts=(
+                    EvaluationCount(OfflineTrialStatus.OUTCOME_MATCH.value, 1),
+                    EvaluationCount(OfflineTrialStatus.OUTCOME_MISMATCH.value, 1),
+                    EvaluationCount(OfflineTrialStatus.INCOMPLETE.value, 0),
+                ),
+            ),
+            'aggregate_metric': rebuilt_report(
+                failed,
+                aggregate_metrics=(AggregateExactMetric('outcome-agreement', 2, 2),),
+            ),
+            'disposition': rebuilt_report(
+                successful,
+                disposition=OfflineEvaluationDisposition.DOES_NOT_MEET_OFFLINE_CRITERIA,
+            ),
+        }.items():
+            with self.subTest(name=name):
+                self.assertFalse(verify_evaluation_report(forged))
+
+    def test_trial_outside_embedded_corpus_cannot_verify(self):
+        genuine = evaluate_offline(
+            corpus=self.corpus,
+            candidate=self.candidate,
+            trials=self.all_matching(),
+        )
+        outside_reference = DemonstrationEpisodeReference.from_verified_episode(
+            fixture_episode('outside-holdout', DemonstrationOutcomeStatus.DEFERRED),
+            CorpusPartition.HOLDOUT_EVALUATION,
+        )
+        outside_trial = matching_trial(self.candidate, outside_reference)
+        forged = rebuilt_report(
+            genuine,
+            trial_evidence=(outside_trial, genuine.trial_evidence[1]),
+            trial_ids=tuple(sorted((outside_trial.trial_id, genuine.trial_ids[1]))),
+        )
+
+        self.assertFalse(verify_evaluation_report(forged))
+
+    def test_report_embeds_canonical_corpus_and_trial_evidence(self):
+        report = evaluate_offline(
+            corpus=self.corpus,
+            candidate=self.candidate,
+            trials=list(reversed(self.all_matching())),
+        )
+
+        self.assertEqual(self.corpus, report.corpus)
+        self.assertEqual(
+            tuple(sorted(report.trial_evidence, key=lambda item: item.holdout_episode_id)),
+            report.trial_evidence,
+        )
+        self.assertEqual(
+            tuple(sorted(item.trial_id for item in report.trial_evidence)),
+            report.trial_ids,
+        )
+        self.assertTrue(verify_evaluation_report(report))
+
+    def test_trial_reasons_must_correspond_to_actual_status(self):
+        with self.assertRaisesRegex(EvaluationTrialError, 'correspond'):
+            matching_trial(
+                self.candidate,
+                self.references[0],
+                reasons=(OfflineTrialReason.DIFFERENT_OUTCOME_OBSERVED,),
+            )
 
     def test_report_verifier_rejects_coverage_and_partition_contradictions(self):
         complete = evaluate_offline(
