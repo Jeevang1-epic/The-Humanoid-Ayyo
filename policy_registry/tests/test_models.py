@@ -3,8 +3,10 @@ from dataclasses import FrozenInstanceError
 import pytest
 
 from ayyo_policy_registry import (
+    PolicyRegistryIntegrityError,
     PolicyRegistrySnapshot,
     PolicyResolutionError,
+    RegistrationResult,
     RegistrationStatus,
     resolve_policy_version,
     resolve_registered_policy,
@@ -15,6 +17,17 @@ from ayyo_policy_registry import (
 )
 
 from helpers import fixture_registration_bundle, register_bundle
+
+
+def result_fields(result):
+    return {
+        'status': result.status,
+        'registration_request_id': result.registration_request_id,
+        'registration_request_fingerprint': result.registration_request_fingerprint,
+        'registered_version': result.registered_version,
+        'previous_snapshot': result.previous_snapshot,
+        'updated_snapshot': result.updated_snapshot,
+    }
 
 
 def test_empty_snapshot_is_deterministic_immutable_and_verified():
@@ -73,6 +86,79 @@ def test_valid_registration_preserves_the_complete_identity_chain():
     assert verify_registered_policy_version(record)
     assert verify_policy_registry_snapshot(result.updated_snapshot)
     assert verify_registration_result(result)
+
+
+@pytest.mark.parametrize('already_registered', [False, True])
+def test_result_rejects_a_different_valid_request_identity_for_both_statuses(
+    already_registered,
+):
+    bundle = fixture_registration_bundle('result-request-binding')
+    alternate = fixture_registration_bundle(
+        'result-request-substitution'
+    )['registration_request']
+    registered = register_bundle(bundle)
+    result = (
+        register_bundle(bundle, registered.updated_snapshot)
+        if already_registered
+        else registered
+    )
+    fields = result_fields(result)
+    fields.update(
+        registration_request_id=alternate.registration_request_id,
+        registration_request_fingerprint=alternate.registration_request_fingerprint,
+    )
+
+    with pytest.raises(PolicyRegistryIntegrityError, match='differs'):
+        RegistrationResult._from_fields(**fields)
+
+
+@pytest.mark.parametrize(
+    'field_name',
+    ['registration_request_id', 'registration_request_fingerprint'],
+)
+def test_result_rejects_substitution_of_either_request_identity_component(field_name):
+    result = register_bundle(fixture_registration_bundle('component-binding'))
+    alternate = fixture_registration_bundle(
+        'component-substitution'
+    )['registration_request']
+    fields = result_fields(result)
+    fields[field_name] = getattr(alternate, field_name)
+
+    with pytest.raises(PolicyRegistryIntegrityError, match='differs'):
+        RegistrationResult._from_fields(**fields)
+
+
+@pytest.mark.parametrize(
+    'field_name',
+    ['registration_request_id', 'registration_request_fingerprint'],
+)
+def test_result_verifier_rejects_in_memory_request_identity_substitution(field_name):
+    result = register_bundle(fixture_registration_bundle('in-memory-binding'))
+    alternate = fixture_registration_bundle(
+        'in-memory-substitution'
+    )['registration_request']
+    object.__setattr__(result, field_name, getattr(alternate, field_name))
+
+    assert not verify_registration_result(result)
+
+
+def test_legitimate_registered_and_already_registered_results_remain_verified():
+    bundle = fixture_registration_bundle('legitimate-results')
+    registered = register_bundle(bundle)
+    already_registered = register_bundle(bundle, registered.updated_snapshot)
+
+    assert registered.status is RegistrationStatus.REGISTERED
+    assert already_registered.status is RegistrationStatus.ALREADY_REGISTERED
+    assert verify_registration_result(registered)
+    assert verify_registration_result(already_registered)
+    for result in (registered, already_registered):
+        assert (
+            result.registration_request_id,
+            result.registration_request_fingerprint,
+        ) == (
+            result.registered_version.registration_request_id,
+            result.registered_version.registration_request_fingerprint,
+        )
 
 
 def test_registered_record_and_result_are_immutable():

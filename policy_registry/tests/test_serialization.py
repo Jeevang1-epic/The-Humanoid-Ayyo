@@ -1,4 +1,5 @@
 import json
+from hashlib import sha256
 
 import pytest
 
@@ -23,6 +24,10 @@ def canonical(document):
         ensure_ascii=False,
         allow_nan=False,
     )
+
+
+def semantic_sha256(prefix, document):
+    return f'{prefix}-sha256-{sha256(canonical(document).encode("utf-8")).hexdigest()}'
 
 
 def artifact_fixture():
@@ -58,6 +63,50 @@ def test_canonical_encoding_is_deterministic_and_compact():
     assert encoded == canonical_registry_artifact_json(second)
     assert '\n' not in encoded
     assert ': ' not in encoded
+
+
+def test_legitimate_already_registered_result_round_trip_is_byte_deterministic():
+    bundle = fixture_registration_bundle('already-registered-round-trip')
+    registered = register_bundle(bundle)
+    result = register_bundle(bundle, registered.updated_snapshot)
+    encoded = canonical_registry_artifact_json(result)
+
+    decoded = registry_artifact_from_canonical_json(encoded)
+
+    assert decoded == result
+    assert canonical_registry_artifact_json(decoded) == encoded
+
+
+def test_recomputed_outer_result_rejects_cross_composed_request_identity():
+    result = register_bundle(fixture_registration_bundle('canonical-result-binding'))
+    alternate = fixture_registration_bundle(
+        'canonical-result-substitution'
+    )['registration_request']
+    document = result.as_dict()
+    document['registration_request'] = {
+        'fingerprint': alternate.registration_request_fingerprint,
+        'id': alternate.registration_request_id,
+    }
+    semantic_document = {
+        key: value
+        for key, value in document.items()
+        if key not in {'result_fingerprint', 'result_id'}
+    }
+    result_fingerprint = semantic_sha256(
+        'registration-result-content', semantic_document
+    )
+    document['result_fingerprint'] = result_fingerprint
+    document['result_id'] = semantic_sha256(
+        'registration-result',
+        {
+            'content_fingerprint': result_fingerprint,
+            'schema_id': document['schema']['id'],
+            'schema_version': document['schema']['version'],
+        },
+    )
+
+    with pytest.raises(PolicyRegistryIntegrityError, match='differs'):
+        registry_artifact_from_canonical_json(canonical(document))
 
 
 @pytest.mark.parametrize(
