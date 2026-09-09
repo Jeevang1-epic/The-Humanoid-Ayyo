@@ -2,12 +2,6 @@
 
 from __future__ import annotations
 
-from ayyo_learning_evaluation import (
-    CandidatePolicyManifest,
-    OfflineEvaluationReport,
-    verify_candidate_policy,
-    verify_evaluation_report,
-)
 from ayyo_promotion_control import (
     CandidatePromotionRequest,
     PromotionCriteria,
@@ -36,17 +30,15 @@ def _identity(value: object, identifier_name: str, fingerprint_name: str) -> tup
     return getattr(value, identifier_name), getattr(value, fingerprint_name)
 
 
-def _require_verified_artifacts(
+def _authoritative_decision(
     *,
     candidate: object,
     evaluation_report: object,
     promotion_criteria: object,
     promotion_request: object,
     promotion_decision: object,
-) -> None:
+) -> PromotionDecision:
     checks = (
-        (verify_candidate_policy(candidate), 'candidate'),
-        (verify_evaluation_report(evaluation_report), 'evaluation report'),
         (verify_promotion_criteria(promotion_criteria), 'promotion criteria'),
         (verify_promotion_request(promotion_request), 'promotion request'),
         (verify_promotion_decision(promotion_decision), 'promotion decision'),
@@ -54,13 +46,24 @@ def _require_verified_artifacts(
     for verified, label in checks:
         if not verified:
             raise CandidateRegistrationError(f'{label} failed integrity verification')
+    try:
+        return evaluate_promotion(
+            criteria=promotion_criteria,
+            request=promotion_request,
+            candidate=candidate,
+            report=evaluation_report,
+        )
+    except (AttributeError, TypeError, ValueError) as error:
+        raise CandidateRegistrationError(
+            'candidate or evaluation report failed authoritative verification'
+        ) from error
 
 
 def _require_request_bindings(
     *,
     request: CandidateRegistrationRequest,
-    candidate: CandidatePolicyManifest,
-    evaluation_report: OfflineEvaluationReport,
+    candidate: object,
+    evaluation_report: object,
     promotion_criteria: PromotionCriteria,
     promotion_request: CandidatePromotionRequest,
     promotion_decision: PromotionDecision,
@@ -102,8 +105,8 @@ def _require_request_bindings(
 def _record_from_evidence(
     *,
     request: CandidateRegistrationRequest,
-    candidate: CandidatePolicyManifest,
-    evaluation_report: OfflineEvaluationReport,
+    candidate: object,
+    evaluation_report: object,
     promotion_criteria: PromotionCriteria,
     promotion_request: CandidatePromotionRequest,
     promotion_decision: PromotionDecision,
@@ -183,8 +186,8 @@ def register_candidate(
     *,
     previous_snapshot: PolicyRegistrySnapshot,
     request: CandidateRegistrationRequest,
-    candidate: CandidatePolicyManifest,
-    evaluation_report: OfflineEvaluationReport,
+    candidate: object,
+    evaluation_report: object,
     promotion_criteria: PromotionCriteria,
     promotion_request: CandidatePromotionRequest,
     promotion_decision: PromotionDecision,
@@ -194,7 +197,7 @@ def register_candidate(
         raise CandidateRegistrationError('previous snapshot failed integrity verification')
     if not verify_registration_request(request):
         raise CandidateRegistrationError('registration request failed integrity verification')
-    _require_verified_artifacts(
+    expected_decision = _authoritative_decision(
         candidate=candidate,
         evaluation_report=evaluation_report,
         promotion_criteria=promotion_criteria,
@@ -208,12 +211,6 @@ def register_candidate(
         promotion_criteria=promotion_criteria,
         promotion_request=promotion_request,
         promotion_decision=promotion_decision,
-    )
-    expected_decision = evaluate_promotion(
-        criteria=promotion_criteria,
-        request=promotion_request,
-        candidate=candidate,
-        report=evaluation_report,
     )
     if expected_decision != promotion_decision:
         raise CandidateRegistrationError(

@@ -5,17 +5,12 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import StrEnum
 
-from ayyo_learning_evaluation import (
-    CandidatePolicyManifest,
-    OfflineEvaluationReport,
-    verify_candidate_policy,
-    verify_evaluation_report,
-)
 from ayyo_promotion_control import (
     CandidatePromotionRequest,
     PromotionCriteria,
     PromotionDecision,
     PromotionTargetStage,
+    evaluate_promotion,
     verify_promotion_criteria,
     verify_promotion_decision,
     verify_promotion_request,
@@ -109,8 +104,8 @@ class CandidateRegistrationRequest:
     def __init__(
         self,
         *,
-        candidate: CandidatePolicyManifest,
-        evaluation_report: OfflineEvaluationReport,
+        candidate: object,
+        evaluation_report: object,
         promotion_criteria: PromotionCriteria,
         promotion_request: CandidatePromotionRequest,
         promotion_decision: PromotionDecision,
@@ -119,16 +114,23 @@ class CandidateRegistrationRequest:
         provenance_fingerprint: str,
         note: str | None = None,
     ) -> None:
-        if not verify_candidate_policy(candidate):
-            raise RegistrationRequestError('request requires a verified candidate')
-        if not verify_evaluation_report(evaluation_report):
-            raise RegistrationRequestError('request requires a verified evaluation report')
         if not verify_promotion_criteria(promotion_criteria):
             raise RegistrationRequestError('request requires verified promotion criteria')
         if not verify_promotion_request(promotion_request):
             raise RegistrationRequestError('request requires a verified promotion request')
         if not verify_promotion_decision(promotion_decision):
             raise RegistrationRequestError('request requires a verified promotion decision')
+        try:
+            evaluate_promotion(
+                criteria=promotion_criteria,
+                request=promotion_request,
+                candidate=candidate,
+                report=evaluation_report,
+            )
+        except (AttributeError, TypeError, ValueError) as error:
+            raise RegistrationRequestError(
+                'request requires verified candidate and evaluation artifacts'
+            ) from error
         self._initialize(
             candidate_id=candidate.candidate_id,
             candidate_fingerprint=candidate.candidate_fingerprint,
