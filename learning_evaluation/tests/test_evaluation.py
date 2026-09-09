@@ -284,6 +284,32 @@ class OfflineEvaluationTest(unittest.TestCase):
         object.__setattr__(report, 'coverage_numerator', 0)
         self.assertFalse(verify_evaluation_report(report))
 
+    def test_genuine_trial_ids_cannot_support_rewritten_all_success_report(self):
+        mismatch = matching_trial(
+            self.candidate,
+            self.references[0],
+            observed_outcome=DemonstrationOutcomeStatus.FAILURE,
+            status=OfflineTrialStatus.OUTCOME_MISMATCH,
+            reasons=(OfflineTrialReason.DIFFERENT_OUTCOME_OBSERVED,),
+        )
+        genuine = evaluate_offline(
+            corpus=self.corpus,
+            candidate=self.candidate,
+            trials=[mismatch, matching_trial(self.candidate, self.references[1])],
+        )
+        forged = rebuilt_report(
+            genuine,
+            status_counts=(
+                EvaluationCount(OfflineTrialStatus.OUTCOME_MATCH.value, 2),
+                EvaluationCount(OfflineTrialStatus.OUTCOME_MISMATCH.value, 0),
+                EvaluationCount(OfflineTrialStatus.INCOMPLETE.value, 0),
+            ),
+            reasons=(EvaluationReportReason.ALL_HOLDOUT_OUTCOMES_MATCH,),
+            disposition=OfflineEvaluationDisposition.MEETS_OFFLINE_CRITERIA,
+        )
+
+        self.assertFalse(verify_evaluation_report(forged))
+
     def test_report_verifier_rejects_coverage_and_partition_contradictions(self):
         complete = evaluate_offline(
             corpus=self.corpus, candidate=self.candidate, trials=self.all_matching()
