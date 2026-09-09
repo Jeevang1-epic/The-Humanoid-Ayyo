@@ -503,11 +503,11 @@ def _validate_snapshot_versions(versions: object) -> tuple[RegisteredPolicyVersi
     if not all(verify_registered_policy_version(item) for item in snapshot):
         raise PolicyRegistrySnapshotError('a registered version failed integrity verification')
     record_ids = [item.record_id for item in snapshot]
-    candidate_keys = [(item.candidate_id, item.candidate_fingerprint) for item in snapshot]
+    candidate_ids = [item.candidate_id for item in snapshot]
     version_keys = [(item.policy_family_id, item.semantic_version) for item in snapshot]
     if len(record_ids) != len(set(record_ids)):
         raise PolicyRegistrySnapshotError('duplicate registry record identity')
-    if len(candidate_keys) != len(set(candidate_keys)):
+    if len(candidate_ids) != len(set(candidate_ids)):
         raise PolicyRegistrySnapshotError('duplicate candidate identity')
     if len(version_keys) != len(set(version_keys)):
         raise PolicyRegistrySnapshotError('conflicting semantic version within policy family')

@@ -180,6 +180,20 @@ def test_snapshot_rejects_duplicate_record_and_candidate():
         PolicyRegistrySnapshot((record, record))
 
 
+def test_snapshot_rejects_same_candidate_id_with_conflicting_fingerprint():
+    first = register_bundle(
+        fixture_registration_bundle('candidate-id-conflict', semantic_version='1.0.0')
+    ).registered_version
+    second = rebuild_registered_version(
+        first,
+        candidate_fingerprint=fingerprint('conflicting-candidate', 'one'),
+        semantic_version='2.0.0',
+    )
+
+    with pytest.raises(PolicyRegistrySnapshotError, match='duplicate candidate identity'):
+        PolicyRegistrySnapshot((first, second))
+
+
 def test_snapshot_enforces_registered_version_bound():
     base = register_bundle(fixture_registration_bundle('version-bound')).registered_version
     records = tuple(
