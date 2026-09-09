@@ -673,6 +673,16 @@ class RegistrationResult:
                 raise PolicyRegistryIntegrityError(
                     'registration result requires a verified registered version'
                 )
+            if (
+                self.registration_request_id,
+                self.registration_request_fingerprint,
+            ) != (
+                record.registration_request_id,
+                record.registration_request_fingerprint,
+            ):
+                raise PolicyRegistryIntegrityError(
+                    'registration result request identity differs from its registered version'
+                )
             if not verify_policy_registry_snapshot(previous) or not verify_policy_registry_snapshot(
                 updated
             ):
