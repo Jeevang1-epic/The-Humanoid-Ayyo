@@ -50,15 +50,17 @@
   content identities, and strict canonical corpus verification
 - Immutable non-executable candidate-policy manifests that bind only candidate
   evidence, explicit caller-supplied holdout trial results, and a pure
-  deterministic content-addressed evaluation report with honest missing,
-  incomplete, mismatch, deferred, and rejected evidence
+  deterministic content-addressed evaluation report that retains the canonical
+  corpus/trial evidence and derives honest missing, incomplete, mismatch,
+  deferred, rejected, metric, coverage, reason, and disposition summaries
 - Standalone `ayyo-promotion-control` Stage-7 package with immutable
   caller-owned promotion and rollback criteria, exact requests, closed
   target/status/reason enums, deterministic SHA-256 identities, and strict
   canonical serialization for all public artifacts
-- Pure promotion eligibility over exact candidate, report, schema/version,
-  disposition, trial-bound, target-stage, and holdout identities, with no
-  installation, policy execution, automatic promotion, or runtime authority
+- Pure promotion eligibility over an independently verified trial-to-episode-
+  to-outcome report plus exact candidate, schema/version, target-stage, and
+  holdout identities, with no installation, policy execution, automatic
+  promotion, or runtime authority
 - Immutable known-good references chained to exact eligible promotion evidence,
   typed rollback reason evidence, and pure rollback eligibility that rejects
   unknown targets, self-rollback, substitution, incompatible lineage, tampering,

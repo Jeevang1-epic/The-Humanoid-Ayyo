@@ -59,9 +59,12 @@ The standalone
 [Demonstration Candidate Policy and Offline Evaluation Foundation](DEMONSTRATION_POLICY_OFFLINE_EVALUATION.md)
 depends only on Teach Mode. Separate content-addressed candidate and holdout
 sets enforce the leakage boundary: candidate artifacts store only the candidate
-set identity. Pure evaluation aggregates explicit caller-supplied results and
-grants no training, execution, promotion, Safety, Skill, Runtime, simulation,
-or hardware authority. Teach Mode and every lower layer remain unaware of it.
+set identity. Pure evaluation retains the bounded canonical corpus snapshot and
+complete caller-supplied trial evidence in its report, then derives every
+partition, count, metric, reason, coverage value, and disposition from that
+evidence. It grants no training, execution, promotion, Safety, Skill, Runtime,
+simulation, or hardware authority. Teach Mode and every lower layer remain
+unaware of it.
 
 The standalone
 [Candidate Policy Promotion and Rollback Control Plane](CANDIDATE_POLICY_PROMOTION_ROLLBACK_CONTROL.md)

@@ -42,7 +42,9 @@ Implemented:
 - A standalone `ayyo-learning-evaluation` Stage-7 layer with explicitly assigned
   candidate-evidence and holdout partitions, separate content identities, an
   inert versioned candidate manifest, caller-supplied trial contracts, and pure
-  deterministic offline reports with no execution or promotion authority
+  deterministic offline reports that retain bounded canonical corpus/trial
+  evidence and derive every summary from it, with no execution or promotion
+  authority
 - A standalone `ayyo-promotion-control` Stage-7 layer with caller-owned
   promotion/rollback criteria, exact candidate/report/known-good lineage,
   canonical immutable eligibility decisions, typed reason evidence, and no
