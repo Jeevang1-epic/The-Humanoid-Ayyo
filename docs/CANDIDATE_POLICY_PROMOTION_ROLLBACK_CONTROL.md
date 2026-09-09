@@ -154,6 +154,12 @@ rollback, runtime dispatch, policy registry, persistence, scheduling,
 authentication/authorization, human approval workflow, ROS/Gazebo, simulation
 control, robot/hardware commands, or physical validation.
 
+The separately owned downstream
+[Candidate Policy Registry and Immutable Version Lineage Foundation](CANDIDATE_POLICY_REGISTRY_LINEAGE.md)
+now consumes an exact verified eligible promotion chain. Promotion control still
+owns no registry or state transition and has no reverse dependency on that
+layer.
+
 ## Focused validation
 
 ```bash

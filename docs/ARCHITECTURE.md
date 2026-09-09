@@ -42,8 +42,11 @@ explicit caller events or immutable Stage-6 report
 → immutable offline evaluation report
 → explicit caller-owned promotion criteria and request
 → immutable promotion eligibility decision
-→ explicit known-good reference and rollback evidence
-→ immutable rollback eligibility decision
+├→ explicit candidate registration and immutable version lineage
+│ → bounded policy registry snapshot
+│ → stop
+└→ explicit known-good reference and rollback evidence
+  → immutable rollback eligibility decision
 → stop
 ```
 
@@ -74,6 +77,19 @@ identities into immutable eligibility decisions. Eligibility is evidence for a
 later review boundary, not an installation, activation, execution, automatic
 promotion/rollback, Runtime, ROS/Gazebo, or hardware action. The package owns no
 policy registry or active-policy state, and lower layers remain unaware of it.
+
+The standalone
+[Candidate Policy Registry and Immutable Version Lineage Foundation](CANDIDATE_POLICY_REGISTRY_LINEAGE.md)
+depends only on promotion control. It reuses the authoritative promotion
+evaluation route, requires an exact eligible candidate/report/criteria/request/
+decision chain, and derives immutable exact-version records in bounded
+content-addressed snapshots. Candidate parentage is accepted only when the
+upstream manifest explicitly names an exact already-registered compatible
+parent; semantic-version ordering never establishes ancestry. Registration is
+not approval, activation, deployment, execution, or physical safety. The
+registry has no mutable alias, active-policy pointer, persistence, model loader,
+Runtime, ROS/Gazebo, or hardware authority, and every lower layer remains
+unaware of it.
 
 The standalone [Memory OS core](MEMORY_OS.md) implements the persistence and
 domain boundary for provenance-aware owner memory. The deterministic
@@ -390,5 +406,12 @@ replace proxy geometry without duplicating or bypassing frame semantics.
   candidate-policy identity, caller-supplied offline trial contracts, and pure
   immutable reports. It cannot capture or execute a demonstration, run a
   candidate, train, promote, roll back, persist, call ROS, or create authority.
+- Promotion Control owns caller-supplied promotion/rollback criteria and pure
+  evidence eligibility decisions. `ELIGIBLE` and `ROLLBACK_ELIGIBLE` are not
+  state transitions or authorization.
+- Policy Registry owns exact registration requests, immutable version records,
+  explicit parent lineage, bounded canonical snapshots, and exact read-only
+  resolution. It cannot choose a latest version, make a policy active, persist,
+  load or execute a model, dispatch Runtime, call ROS, or bypass Safety.
 - Learning updates remain candidates until evaluation and controlled promotion;
   consolidation does not bypass safety or permissions.

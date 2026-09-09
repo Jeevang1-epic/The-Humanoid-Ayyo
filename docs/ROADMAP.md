@@ -17,9 +17,11 @@ foundation.
    justified robot description.
 6. **Developmental simulation scenarios** — Repeatable environments for testing
    perception, planning, interaction, and safe outcomes.
-7. **Teach Mode / Learning Pipeline** — Demonstration capture plus bounded
-   candidate-policy identity and offline evaluation foundations are implemented;
-   training, execution, promotion, and rollback remain separately reviewed.
+7. **Teach Mode / Learning Pipeline** — Demonstration capture, bounded
+   candidate-policy evaluation, promotion/rollback eligibility, and immutable
+   version registration foundations are implemented; training, execution,
+   authority approval, activation, and live state changes remain separately
+   reviewed.
 8. **Software Showcase** — An integrated, truthful demonstration of implemented
    software capabilities.
 9. **Physical Manipulator** — Safety-bounded manipulation on limited hardware.
@@ -204,6 +206,17 @@ promotion or rollback eligibility evidence. They do not install, load, execute,
 activate, dispatch, promote, or roll back a policy and own no registry,
 persistence, ROS/Gazebo, simulation, or hardware authority.
 
+Stage 7 now also has Candidate Policy Registry and Immutable Version Lineage
+Foundation v1. An explicit registration request binds the exact verified
+candidate/report/criteria/request/eligible-decision chain. Pure registration
+produces immutable exact-version records and bounded canonical snapshots;
+lineage exists only when a candidate explicitly identifies an already-
+registered compatible parent. Exact duplicate registration is explicit and
+idempotent. Semantic-version ordering does not imply ancestry or preference.
+The registry has no latest/active pointer, persistence, activation, model
+loading/execution, automatic promotion/rollback, Runtime, ROS/Gazebo,
+simulation, hardware, or Safety authority.
+
 Final Ayyo assets, graphical controlled-design validation, additional joints,
 trajectory/whole-body controllers, validated dynamics/contact behavior,
 authenticated identity, permissions, approval verification, live backend
@@ -217,7 +230,8 @@ production, background/scheduled review invocation, automatic durable
 consolidation, additional Teach Mode sources, authenticated teacher/owner
 identity, physical or recorded-source adapters, raw-recording management,
 candidate generation, model runners, training, executable replay, automatic
-rollback, and automatic learning promotion also remain future work. Executive
+rollback, automatic learning promotion, human/authority approval, policy
+activation, and installed/active policy state also remain future work. Executive
 proposals, Safety eligibility,
 Skill Manager runtime-handoff eligibility, Runtime Bridge
 eligibility, transport acceptance, development injection, and simulated motion
