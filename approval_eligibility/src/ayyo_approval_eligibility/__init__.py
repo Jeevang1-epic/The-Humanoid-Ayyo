@@ -44,6 +44,11 @@ from .models import (
     verify_authority_approval_evidence,
     verify_authority_reference,
 )
+from .serialization import (
+    ApprovalEligibilityArtifact,
+    approval_eligibility_artifact_from_canonical_json,
+    canonical_approval_eligibility_artifact_json,
+)
 
 
 __all__ = [
@@ -68,6 +73,7 @@ __all__ = [
     'ActivationEligibilityStatus',
     'ApprovalDisposition',
     'ApprovalEligibilityError',
+    'ApprovalEligibilityArtifact',
     'ApprovalEligibilityIntegrityError',
     'ApprovalEvidenceError',
     'ApprovalRequest',
@@ -77,6 +83,8 @@ __all__ = [
     'AuthorityReference',
     'AuthorityReferenceError',
     'AuthorityVerificationStatus',
+    'approval_eligibility_artifact_from_canonical_json',
+    'canonical_approval_eligibility_artifact_json',
     'evaluate_activation_eligibility',
     'verify_activation_eligibility_decision',
     'verify_activation_eligibility_request',
