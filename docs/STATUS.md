@@ -65,6 +65,19 @@
   typed rollback reason evidence, and pure rollback eligibility that rejects
   unknown targets, self-rollback, substitution, incompatible lineage, tampering,
   and insufficient evidence without mutating state
+- Standalone `ayyo-policy-registry` Stage-7 package with immutable registration
+  requests, exact candidate/report/criteria/request/decision bindings, strict
+  canonical serialization, typed failures, and one direct dependency on
+  `ayyo-promotion-control==0.1.0`
+- Immutable content-addressed registered-version records and 64-version/
+  16-family bounded snapshots with deterministic ordering, exact idempotency,
+  conflicting-version rejection, and no aliases or active-policy pointer
+- Explicit candidate-manifest parent lineage requiring an exact registered
+  same-family contract-compatible parent, with missing parent, substitution,
+  self-parent, and cycle rejection; semantic version order grants no ancestry
+- Exact read-only record and family/version resolution plus a cross-layer
+  evidence proof ending at an inert registry snapshot without loading or
+  executing candidate code
 - Standalone Memory OS core with typed records and mandatory provenance
 - SQLite persistence with schema versioning, foreign keys, WAL journaling,
   transactional corrections, retractions, and conflict records
@@ -404,7 +417,9 @@
 - Candidate generation, learning/training, model runners, policy execution,
   executable replay, automatic promotion/rollback, and automatic memory/model
   updates; the implemented promotion-control layer emits eligibility evidence
-  only
+  only and the registry records immutable review identity only
+- Human/authority approval, policy activation, sandbox/model runner, deployment,
+  and installed or active policy state
 - Physical hardware
 
 The repository contains the engineering foundation, Memory OS core,
@@ -415,8 +430,10 @@ a deterministic proposal-only Executive layer, an immutable fail-closed Safety
 proposal-review boundary, an inert declarative Skill Manager boundary, and a
 controlled ROS Runtime Bridge compatibility boundary, an evidence-only Teach
 Mode capture foundation, an inert offline policy-evaluation foundation, and an
-inert candidate promotion/rollback eligibility foundation. The downstream
-Simulation Control Foundation can actuate one bounded simulated neck joint only
+inert candidate promotion/rollback eligibility foundation, plus an immutable
+candidate-version registry/lineage foundation with no active-policy state. The
+downstream Simulation Control Foundation can actuate one bounded simulated
+neck joint only
 through explicit development injection and can prove the result from
 controller-derived feedback. The independent perception boundary admits
 standard joint/IMU, exact body-localization, allowlisted diagnostic, and

@@ -7,12 +7,12 @@ can mature behind stable boundaries before physical hardware is introduced.
 
 ## Current status
 
-Ayyo has reached the Demonstration Candidate Policy and Offline Evaluation
-Foundation v1 milestone. Stage 7 now turns explicit verified Teach Mode episodes
-into a bounded caller-partitioned corpus, an inert candidate identity, explicit
-offline trial results, and an immutable deterministic report. It adds no
-training, inference, policy execution, promotion, rollback, persistence, or
-motion authority.
+Ayyo has reached the Candidate Policy Registry and Immutable Version Lineage
+Foundation v1 milestone. Stage 7 now carries explicit verified Teach Mode
+evidence through inert candidate evaluation and promotion eligibility into a
+bounded immutable registry snapshot with exact version ancestry. Registration
+adds no deployment, activation, training, inference, policy execution,
+persistence, Runtime, ROS/Gazebo, or motion authority.
 
 Implemented:
 
@@ -49,6 +49,10 @@ Implemented:
   promotion/rollback criteria, exact candidate/report/known-good lineage,
   canonical immutable eligibility decisions, typed reason evidence, and no
   policy execution, installation, automatic state change, or runtime authority
+- A standalone `ayyo-policy-registry` Stage-7 layer with exact upstream
+  evidence-chain binding, immutable candidate-version records, explicit parent
+  lineage, bounded canonical snapshots, deterministic read-only resolution,
+  and no active-policy state, persistence, execution, or deployment authority
 - A verified local ROS 2, Gazebo, and RViz development setup
 - A standalone, provenance-aware Memory OS core with SQLite persistence
 - A standalone deterministic validation and consolidation policy for candidate
@@ -233,6 +237,8 @@ Planned, but not implemented:
   enforcement; Safety v1 still defers all physical movement
 - Additional Teach Mode sources, authenticated teacher identity, physical
   demonstration capture, and executable learning/training integration
+- Human/authority approval, an activation gate, sandbox/model runner, and
+  installed or active policy state
 - Physical hardware
 
 ## Architecture
@@ -265,6 +271,8 @@ independent of cognition and learned policies. See
 [docs/HEAD_AUDIO_PERCEPTION_FOUNDATION.md](docs/HEAD_AUDIO_PERCEPTION_FOUNDATION.md),
 [docs/TEACH_MODE_DEMONSTRATION_CAPTURE.md](docs/TEACH_MODE_DEMONSTRATION_CAPTURE.md),
 [docs/DEMONSTRATION_POLICY_OFFLINE_EVALUATION.md](docs/DEMONSTRATION_POLICY_OFFLINE_EVALUATION.md),
+[docs/CANDIDATE_POLICY_PROMOTION_ROLLBACK_CONTROL.md](docs/CANDIDATE_POLICY_PROMOTION_ROLLBACK_CONTROL.md),
+[docs/CANDIDATE_POLICY_REGISTRY_LINEAGE.md](docs/CANDIDATE_POLICY_REGISTRY_LINEAGE.md),
 [docs/AYYO_MESH_IMPORT.md](docs/AYYO_MESH_IMPORT.md), and
 [docs/SAFETY.md](docs/SAFETY.md).
 
@@ -339,6 +347,13 @@ Run the inert candidate promotion and rollback control-plane tests:
 ```bash
 PYTHONPATH=memory/src:personal_context/src:executive/src:safety_kernel/src:skill_manager/src:runtime_bridge/src:developmental_scenarios/src:teach_mode/src:learning_evaluation/src:promotion_control/src \
 python3 -m pytest -q promotion_control/tests
+```
+
+Run the immutable candidate policy registry and version-lineage tests:
+
+```bash
+PYTHONPATH=memory/src:personal_context/src:executive/src:safety_kernel/src:skill_manager/src:runtime_bridge/src:developmental_scenarios/src:teach_mode/src:learning_evaluation/src:promotion_control/src:policy_registry/src \
+python3 -m pytest -q policy_registry/tests
 ```
 
 Run Memory OS tests:
@@ -554,6 +569,8 @@ simulation_control/  Bounded deterministic simulation-control policy and feedbac
 developmental_scenarios/  Bounded Stage-6 definitions, runner, reports, and tests
 teach_mode/     Bounded immutable Stage-7 demonstration evidence and Stage-6 adapter
 learning_evaluation/  Inert candidate identity and pure offline evaluation evidence
+promotion_control/  Pure candidate promotion and rollback eligibility evidence
+policy_registry/  Immutable candidate registration, snapshots, and exact lineage
 world_model/  Transport-neutral embodied/environment observations and snapshots
 perception/  Deterministic sensor/provenance/time admission trust boundary
 physical_camera/  Driver-neutral physical source, calibration, lifecycle, and diagnostics
@@ -650,3 +667,13 @@ only verified Teach Mode evidence through an explicit bounded corpus. See
 [Demonstration Candidate Policy and Offline Evaluation](docs/DEMONSTRATION_POLICY_OFFLINE_EVALUATION.md).
 Its candidate manifests are inert, holdout evidence cannot affect candidate
 identity, and offline criteria grant no execution, promotion, or Safety rights.
+Candidate Policy Promotion and Rollback Control Plane Foundation v1 turns that
+verified report chain into immutable eligibility evidence without performing a
+promotion or rollback. See
+[Candidate Policy Promotion and Rollback Control Plane](docs/CANDIDATE_POLICY_PROMOTION_ROLLBACK_CONTROL.md).
+Candidate Policy Registry and Immutable Version Lineage Foundation v1 consumes
+only that verified promotion chain and records exact inert versions in bounded
+canonical snapshots. See
+[Candidate Policy Registry and Immutable Version Lineage](docs/CANDIDATE_POLICY_REGISTRY_LINEAGE.md).
+Registry presence is not approval, activation, deployment, execution, or a
+physical-safety claim.

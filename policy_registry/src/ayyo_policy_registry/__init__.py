@@ -1,0 +1,88 @@
+"""Public API for immutable candidate-policy registration and version lineage."""
+
+from .canonical import (
+    MAX_IDENTIFIER_LENGTH,
+    MAX_NOTE_LENGTH,
+    MAX_POLICY_FAMILIES,
+    MAX_REGISTERED_VERSIONS,
+    MAX_SERIALIZED_RECORD_BYTES,
+    MAX_SERIALIZED_REQUEST_BYTES,
+    MAX_SERIALIZED_RESULT_BYTES,
+    MAX_SERIALIZED_SNAPSHOT_BYTES,
+)
+from .errors import (
+    CandidateRegistrationError,
+    PolicyRegistryError,
+    PolicyRegistryIntegrityError,
+    PolicyRegistrySnapshotError,
+    PolicyResolutionError,
+    RegisteredPolicyVersionError,
+    RegistrationRequestError,
+    VersionLineageError,
+)
+from .models import (
+    POLICY_REGISTRY_SCHEMA_VERSION,
+    POLICY_REGISTRY_SNAPSHOT_SCHEMA_ID,
+    REGISTERED_POLICY_VERSION_SCHEMA_ID,
+    REGISTRATION_REQUEST_SCHEMA_ID,
+    REGISTRATION_RESULT_SCHEMA_ID,
+    CandidateRegistrationRequest,
+    PolicyRegistrySnapshot,
+    RegisteredPolicyVersion,
+    RegistrationResult,
+    RegistrationStatus,
+    verify_policy_registry_snapshot,
+    verify_registered_policy_version,
+    verify_registration_request,
+    verify_registration_result,
+)
+from .registration import (
+    register_candidate,
+    resolve_policy_version,
+    resolve_registered_policy,
+)
+from .serialization import (
+    RegistryArtifact,
+    canonical_registry_artifact_json,
+    registry_artifact_from_canonical_json,
+)
+
+
+__all__ = [
+    'MAX_IDENTIFIER_LENGTH',
+    'MAX_NOTE_LENGTH',
+    'MAX_POLICY_FAMILIES',
+    'MAX_REGISTERED_VERSIONS',
+    'MAX_SERIALIZED_RECORD_BYTES',
+    'MAX_SERIALIZED_REQUEST_BYTES',
+    'MAX_SERIALIZED_RESULT_BYTES',
+    'MAX_SERIALIZED_SNAPSHOT_BYTES',
+    'POLICY_REGISTRY_SCHEMA_VERSION',
+    'POLICY_REGISTRY_SNAPSHOT_SCHEMA_ID',
+    'REGISTERED_POLICY_VERSION_SCHEMA_ID',
+    'REGISTRATION_REQUEST_SCHEMA_ID',
+    'REGISTRATION_RESULT_SCHEMA_ID',
+    'CandidateRegistrationError',
+    'CandidateRegistrationRequest',
+    'PolicyRegistryError',
+    'PolicyRegistryIntegrityError',
+    'PolicyRegistrySnapshot',
+    'PolicyRegistrySnapshotError',
+    'PolicyResolutionError',
+    'RegisteredPolicyVersion',
+    'RegisteredPolicyVersionError',
+    'RegistrationRequestError',
+    'RegistrationResult',
+    'RegistrationStatus',
+    'RegistryArtifact',
+    'VersionLineageError',
+    'canonical_registry_artifact_json',
+    'register_candidate',
+    'registry_artifact_from_canonical_json',
+    'resolve_policy_version',
+    'resolve_registered_policy',
+    'verify_policy_registry_snapshot',
+    'verify_registered_policy_version',
+    'verify_registration_request',
+    'verify_registration_result',
+]
