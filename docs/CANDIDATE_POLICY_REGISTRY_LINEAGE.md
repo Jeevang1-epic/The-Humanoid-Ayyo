@@ -201,9 +201,11 @@ persistence, cache, registry service, background work, Runtime dispatch, Safety
 bypass, Skill execution, ROS/Gazebo, simulation control, robot commands, or
 hardware authority.
 
-Future activation requires a separately reviewed human/authority approval and
-activation boundary before any sandbox/model runner or runtime path exists.
-Registry presence alone cannot satisfy that boundary.
+The separately reviewed approval-evidence and future-activation eligibility
+boundary now consumes exact registry identity, but registry presence alone
+cannot satisfy it. Production authority authentication/enforcement and any
+actual activation boundary remain future work before a sandbox/model runner or
+runtime path may exist.
 
 ## Focused validation
 

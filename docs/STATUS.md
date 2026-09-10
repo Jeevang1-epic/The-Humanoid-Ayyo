@@ -78,6 +78,21 @@
 - Exact read-only record and family/version resolution plus a cross-layer
   evidence proof ending at an inert registry snapshot without loading or
   executing candidate code
+- Standalone `ayyo-approval-eligibility` Stage-7 package with immutable bounded
+  authority references, approval requests, approval evidence, future-activation
+  eligibility requests/decisions, strict canonical serialization, typed
+  failures, and one direct dependency on `ayyo-policy-registry==0.1.0`
+- Exact cross-object binding of candidate ID/fingerprint/version, registry
+  record, registration request, promotion decision, approval request, authority
+  identity/reference, approval scope, and schema/version; valid-but-unrelated,
+  ID-only, fingerprint-only, and recomputed-outer substitutions fail closed
+- Explicit verification seam where `UNVERIFIED` authority evidence is always
+  ineligible and `EXTERNALLY_VERIFIED` carries external provider/evidence
+  identities without this repository claiming to authenticate the authority
+- Pure eligibility evaluation over exactly one concrete approval evidence
+  object, with revoked/rejected/conflicting evidence unable to become eligible
+  and no activation, installation, execution, persistence, model, Runtime, ROS,
+  hardware, or Safety authority
 - Standalone Memory OS core with typed records and mandatory provenance
 - SQLite persistence with schema versioning, foreign keys, WAL journaling,
   transactional corrections, retractions, and conflict records
@@ -400,7 +415,8 @@
 - ROS 2 memory bridge
 - Natural-language/model cognition integration
 - Live backend discovery and runtime capability attestation
-- Authenticated identity, permissions, and approval verification
+- Production authenticated identity, permissions, and external approval
+  verification/enforcement
 - Motion/contact safety evaluation and physical emergency-stop integration
 - Runtime robot skill implementations
 - Production-authorized statically typed ROS services and backend handlers
@@ -417,9 +433,10 @@
 - Candidate generation, learning/training, model runners, policy execution,
   executable replay, automatic promotion/rollback, and automatic memory/model
   updates; the implemented promotion-control layer emits eligibility evidence
-  only and the registry records immutable review identity only
-- Human/authority approval, policy activation, sandbox/model runner, deployment,
-  and installed or active policy state
+  only, the registry records immutable review identity only, and approval
+  eligibility emits future-stage structural evidence only
+- Production approval workflow, policy activation, sandbox/model runner,
+  deployment, and installed or active policy state
 - Physical hardware
 
 The repository contains the engineering foundation, Memory OS core,
@@ -431,7 +448,8 @@ proposal-review boundary, an inert declarative Skill Manager boundary, and a
 controlled ROS Runtime Bridge compatibility boundary, an evidence-only Teach
 Mode capture foundation, an inert offline policy-evaluation foundation, and an
 inert candidate promotion/rollback eligibility foundation, plus an immutable
-candidate-version registry/lineage foundation with no active-policy state. The
+candidate-version registry/lineage foundation and an inert exact authority-
+approval/future-activation eligibility boundary with no active-policy state. The
 downstream Simulation Control Foundation can actuate one bounded simulated
 neck joint only
 through explicit development injection and can prove the result from

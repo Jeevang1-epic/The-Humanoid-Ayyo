@@ -7,12 +7,14 @@ can mature behind stable boundaries before physical hardware is introduced.
 
 ## Current status
 
-Ayyo has reached the Candidate Policy Registry and Immutable Version Lineage
-Foundation v1 milestone. Stage 7 now carries explicit verified Teach Mode
-evidence through inert candidate evaluation and promotion eligibility into a
-bounded immutable registry snapshot with exact version ancestry. Registration
-adds no deployment, activation, training, inference, policy execution,
-persistence, Runtime, ROS/Gazebo, or motion authority.
+Ayyo has reached the Human / Authority Approval Evidence and Activation
+Eligibility Boundary Foundation v1 milestone. Stage 7 now carries explicit
+verified Teach Mode evidence through inert evaluation, promotion eligibility,
+and immutable registration into an exact approval-evidence chain. A pure final
+check may return only eligibility for a separately reviewed future activation
+stage. It does not authenticate an authority, activate a policy, or add
+deployment, training, inference, execution, persistence, Runtime, ROS/Gazebo,
+hardware, Safety, or motion authority.
 
 Implemented:
 
@@ -53,6 +55,12 @@ Implemented:
   evidence-chain binding, immutable candidate-version records, explicit parent
   lineage, bounded canonical snapshots, deterministic read-only resolution,
   and no active-policy state, persistence, execution, or deployment authority
+- A standalone `ayyo-approval-eligibility` Stage-7 layer with bounded immutable
+  authority references, exact registry/request/approval evidence binding,
+  explicit unverified/externally-verified/revoked authority states, strict
+  canonical artifacts, and pure future-activation eligibility decisions;
+  `UNVERIFIED` always fails closed and external verification is asserted by an
+  upstream seam rather than performed or fabricated here
 - A verified local ROS 2, Gazebo, and RViz development setup
 - A standalone, provenance-aware Memory OS core with SQLite persistence
 - A standalone deterministic validation and consolidation policy for candidate
@@ -231,14 +239,15 @@ Planned, but not implemented:
 - Background/scheduled review invocation, automatic durable consolidation,
   autonomous durable memory formation, confidence synthesis, and provenance
   aggregation
-- Natural-language/model integration and authenticated identity/approval
+- Natural-language/model integration and a production authority-authentication
+  provider, permissions, and external verification enforcement
 - Runtime skill implementations, manipulation, and navigation
 - Production-authorized typed ROS services, runtime scheduling, and resource
   enforcement; Safety v1 still defers all physical movement
 - Additional Teach Mode sources, authenticated teacher identity, physical
   demonstration capture, and executable learning/training integration
-- Human/authority approval, an activation gate, sandbox/model runner, and
-  installed or active policy state
+- Production approval workflow, an actual activation gate, sandbox/model
+  runner, and installed or active policy state
 - Physical hardware
 
 ## Architecture
@@ -273,6 +282,7 @@ independent of cognition and learned policies. See
 [docs/DEMONSTRATION_POLICY_OFFLINE_EVALUATION.md](docs/DEMONSTRATION_POLICY_OFFLINE_EVALUATION.md),
 [docs/CANDIDATE_POLICY_PROMOTION_ROLLBACK_CONTROL.md](docs/CANDIDATE_POLICY_PROMOTION_ROLLBACK_CONTROL.md),
 [docs/CANDIDATE_POLICY_REGISTRY_LINEAGE.md](docs/CANDIDATE_POLICY_REGISTRY_LINEAGE.md),
+[docs/HUMAN_AUTHORITY_APPROVAL_ACTIVATION_ELIGIBILITY.md](docs/HUMAN_AUTHORITY_APPROVAL_ACTIVATION_ELIGIBILITY.md),
 [docs/AYYO_MESH_IMPORT.md](docs/AYYO_MESH_IMPORT.md), and
 [docs/SAFETY.md](docs/SAFETY.md).
 
@@ -354,6 +364,13 @@ Run the immutable candidate policy registry and version-lineage tests:
 ```bash
 PYTHONPATH=memory/src:personal_context/src:executive/src:safety_kernel/src:skill_manager/src:runtime_bridge/src:developmental_scenarios/src:teach_mode/src:learning_evaluation/src:promotion_control/src:policy_registry/src \
 python3 -m pytest -q policy_registry/tests
+```
+
+Run the inert authority-approval and future-activation eligibility tests:
+
+```bash
+PYTHONPATH=memory/src:personal_context/src:executive/src:safety_kernel/src:skill_manager/src:runtime_bridge/src:developmental_scenarios/src:teach_mode/src:learning_evaluation/src:promotion_control/src:policy_registry/src:approval_eligibility/src \
+python3 -m pytest -q approval_eligibility/tests
 ```
 
 Run Memory OS tests:
@@ -571,6 +588,7 @@ teach_mode/     Bounded immutable Stage-7 demonstration evidence and Stage-6 ada
 learning_evaluation/  Inert candidate identity and pure offline evaluation evidence
 promotion_control/  Pure candidate promotion and rollback eligibility evidence
 policy_registry/  Immutable candidate registration, snapshots, and exact lineage
+approval_eligibility/  Inert authority evidence and future-activation eligibility
 world_model/  Transport-neutral embodied/environment observations and snapshots
 perception/  Deterministic sensor/provenance/time admission trust boundary
 physical_camera/  Driver-neutral physical source, calibration, lifecycle, and diagnostics
@@ -645,10 +663,10 @@ The pipeline has no application, persistence, background, ROS, or action API.
 Production motion remains
 closed because Safety v1 defers physical movement; only explicit development
 injection can exercise the simulated neck joint. The perception path adds
-evidence only and grants no execution authority. Final Ayyo assets,
-authenticated identity/approval, production runtime services, additional
-controllers, physical-safety subsystems, and physical robot execution remain
-planned.
+evidence only and grants no execution authority. Final Ayyo assets, production
+identity authentication and approval enforcement, production runtime services,
+additional controllers, physical-safety subsystems, and physical robot
+execution remain planned.
 
 Developmental Simulation Scenario Harness Foundation v1 now integrates those
 truths as six fixed, headless, deterministic stories. See
@@ -677,3 +695,12 @@ canonical snapshots. See
 [Candidate Policy Registry and Immutable Version Lineage](docs/CANDIDATE_POLICY_REGISTRY_LINEAGE.md).
 Registry presence is not approval, activation, deployment, execution, or a
 physical-safety claim.
+Human / Authority Approval Evidence and Activation Eligibility Boundary
+Foundation v1 consumes only an exact verified registry record and binds it to
+one immutable approval request, one exact authority reference, and one explicit
+approval disposition. See
+[Human / Authority Approval Evidence and Activation Eligibility](docs/HUMAN_AUTHORITY_APPROVAL_ACTIVATION_ELIGIBILITY.md).
+An `EXTERNALLY_VERIFIED` status carries caller-supplied provider and evidence
+identities but is not authentication performed by this package. `UNVERIFIED`
+always yields `INELIGIBLE`; an eligible result means only structurally eligible
+to proceed to a separately reviewed future activation stage.

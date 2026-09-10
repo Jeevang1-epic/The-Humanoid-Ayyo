@@ -44,6 +44,9 @@ explicit caller events or immutable Stage-6 report
 → immutable promotion eligibility decision
 ├→ explicit candidate registration and immutable version lineage
 │ → bounded policy registry snapshot
+│ → exact approval request and externally supplied authority reference
+│ → one immutable authority approval evidence object
+│ → pure future-activation eligibility decision
 │ → stop
 └→ explicit known-good reference and rollback evidence
   → immutable rollback eligibility decision
@@ -90,6 +93,22 @@ not approval, activation, deployment, execution, or physical safety. The
 registry has no mutable alias, active-policy pointer, persistence, model loader,
 Runtime, ROS/Gazebo, or hardware authority, and every lower layer remains
 unaware of it.
+
+The standalone
+[Human / Authority Approval Evidence and Activation Eligibility Boundary Foundation](HUMAN_AUTHORITY_APPROVAL_ACTIVATION_ELIGIBILITY.md)
+depends only on Policy Registry. In the repository dependency-arrow convention,
+the complete side path is `approval_eligibility → policy_registry →
+promotion_control → learning_evaluation → teach_mode`: each package points to
+the lower package it consumes. It binds one exact registered version, its
+candidate/version/registration/promotion identities, one approval request, one
+authority reference, and one approval evidence object before a pure evaluator
+can return eligibility for a separately reviewed future activation stage.
+`UNVERIFIED` authority evidence is always ineligible. `EXTERNALLY_VERIFIED`
+means only that caller-supplied provider and evidence identities are present;
+this package does not authenticate a human or validate those external systems.
+It has no active state, persistence, model loader, execution path, background
+worker, network, Runtime, ROS/Gazebo, hardware, or Safety authority, and no
+lower layer depends on it.
 
 The standalone [Memory OS core](MEMORY_OS.md) implements the persistence and
 domain boundary for provenance-aware owner memory. The deterministic
@@ -212,7 +231,8 @@ client. The downstream [Simulation Control Foundation](SIMULATION_CONTROL.md)
 now provides a typed, URDF-bounded controller adapter and one explicitly
 enabled development injection path. Production movement remains closed because
 Safety v1 defers physical movement and no production runtime motion service is
-implemented. Identity/approval authority, runtime skill implementations,
+implemented. Production identity authentication and approval enforcement,
+runtime skill implementations,
 physical-safety subsystems, and physical control remain separate future layers.
 
 The [Robot Description & Simulation Foundation](ROBOT_DESCRIPTION_SIMULATION.md)
@@ -413,5 +433,11 @@ replace proxy geometry without duplicating or bypassing frame semantics.
   explicit parent lineage, bounded canonical snapshots, and exact read-only
   resolution. It cannot choose a latest version, make a policy active, persist,
   load or execute a model, dispatch Runtime, call ROS, or bypass Safety.
+- Approval Eligibility owns bounded authority references, exact approval
+  requests/evidence, cross-object registry-lineage verification, and pure
+  future-activation eligibility decisions. It accepts exactly one concrete
+  approval evidence object, never authenticates the referenced authority, and
+  cannot activate, install, load, execute, persist, deploy, dispatch Runtime,
+  call ROS, control hardware, or bypass Safety.
 - Learning updates remain candidates until evaluation and controlled promotion;
   consolidation does not bypass safety or permissions.
