@@ -19,9 +19,10 @@ foundation.
    perception, planning, interaction, and safe outcomes.
 7. **Teach Mode / Learning Pipeline** — Demonstration capture, bounded
    candidate-policy evaluation, promotion/rollback eligibility, and immutable
-   version registration foundations are implemented; training, execution,
-   authority approval, activation, and live state changes remain separately
-   reviewed.
+   version registration foundations are implemented, followed by inert exact
+   authority-approval evidence and future-activation eligibility. Training,
+   execution, production authentication/approval enforcement, activation, and
+   live state changes remain separately reviewed.
 8. **Software Showcase** — An integrated, truthful demonstration of implemented
    software capabilities.
 9. **Physical Manipulator** — Safety-bounded manipulation on limited hardware.
@@ -217,10 +218,21 @@ The registry has no latest/active pointer, persistence, activation, model
 loading/execution, automatic promotion/rollback, Runtime, ROS/Gazebo,
 simulation, hardware, or Safety authority.
 
+Stage 7 now also has Human / Authority Approval Evidence and Activation
+Eligibility Boundary Foundation v1. Immutable authority references distinguish
+`UNVERIFIED`, `EXTERNALLY_VERIFIED`, and `REVOKED` assertions without claiming
+to authenticate anyone. Exact approval requests and evidence bind the complete
+registered candidate/version/registration/promotion chain, approval scope, and
+authority identity. A pure evaluator fails closed for unverified, revoked,
+rejected, or revoked-approval evidence and can otherwise return only
+`ELIGIBLE_FOR_FUTURE_ACTIVATION`. It provides no activation gate, active state,
+persistence, model loading/execution, background work, network authentication,
+Runtime, ROS/Gazebo, simulation, hardware, or Safety authority.
+
 Final Ayyo assets, graphical controlled-design validation, additional joints,
 trajectory/whole-body controllers, validated dynamics/contact behavior,
-authenticated identity, permissions, approval verification, live backend
-attestation, production typed ROS services, audit persistence,
+production authenticated identity, permissions, external approval enforcement,
+live backend attestation, production typed ROS services, audit persistence,
 timeout/resource enforcement, runtime skill implementations, and
 physical-safety integration remain future work. Production visual producer
 promotion and live physical audio/depth/force/touch perception, physical
@@ -230,7 +242,7 @@ production, background/scheduled review invocation, automatic durable
 consolidation, additional Teach Mode sources, authenticated teacher/owner
 identity, physical or recorded-source adapters, raw-recording management,
 candidate generation, model runners, training, executable replay, automatic
-rollback, automatic learning promotion, human/authority approval, policy
+rollback, automatic learning promotion, production approval workflow, policy
 activation, and installed/active policy state also remain future work. Executive
 proposals, Safety eligibility,
 Skill Manager runtime-handoff eligibility, Runtime Bridge
