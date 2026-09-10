@@ -3,6 +3,7 @@ from dataclasses import FrozenInstanceError, replace
 import pytest
 
 from ayyo_software_showcase import (
+    MAX_SUMMARY_LENGTH,
     ShowcaseCapability,
     ShowcaseCapabilityError,
     ShowcaseClassification,
@@ -55,6 +56,8 @@ def test_catalog_covers_reviewed_software_and_explicit_unavailable_boundaries():
     }
 
     assert {item.capability_id for item in manifest.capabilities} == expected
+    assert len(manifest.capabilities) == 15
+    assert len(manifest.evidence) == 19
     assert tuple(item.sequence_index for item in manifest.capabilities) == tuple(
         range(len(expected))
     )
@@ -106,6 +109,20 @@ def test_capability_rejects_duplicate_evidence_and_non_claims():
         replace(
             source,
             does_not_prove=(ShowcaseNonClaim.PHYSICAL_VALIDATION,) * 2,
+        )
+
+
+def test_capability_and_manifest_text_are_hard_bounded():
+    manifest = build_showcase_manifest()
+
+    with pytest.raises(ShowcaseCapabilityError):
+        replace(manifest.capabilities[0], summary="x" * (MAX_SUMMARY_LENGTH + 1))
+    with pytest.raises(ShowcaseManifestError):
+        ShowcaseManifest(
+            title=manifest.title,
+            summary="x" * (MAX_SUMMARY_LENGTH + 1),
+            capabilities=manifest.capabilities,
+            evidence=manifest.evidence,
         )
 
 

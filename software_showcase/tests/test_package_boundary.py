@@ -9,6 +9,7 @@ import tomllib
 import zipfile
 
 import ayyo_software_showcase as public_api
+from ayyo_approval_eligibility import ActivationEligibilityDecision
 
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
@@ -258,6 +259,31 @@ def test_models_have_no_payload_path_active_alias_or_runtime_authority_fields():
         public_api.ShowcaseReport,
     ):
         assert forbidden.isdisjoint(model.__annotations__)
+
+
+def test_future_eligibility_has_no_hidden_production_activation_package_or_surface():
+    project_names = {
+        tomllib.loads(path.read_text(encoding="utf-8"))["project"]["name"]
+        for path in REPOSITORY_ROOT.glob("*/pyproject.toml")
+    }
+    forbidden_surface = {
+        "active_policy",
+        "activate",
+        "deploy",
+        "dispatch",
+        "execute",
+        "install",
+        "load_model",
+        "runtime_handle",
+    }
+
+    assert "ayyo-policy-activation" not in project_names
+    assert forbidden_surface.isdisjoint(
+        ActivationEligibilityDecision.__annotations__
+    )
+    assert not any(
+        hasattr(ActivationEligibilityDecision, name) for name in forbidden_surface
+    )
 
 
 def test_live_catalog_evidence_points_only_to_expected_public_module_roots():
