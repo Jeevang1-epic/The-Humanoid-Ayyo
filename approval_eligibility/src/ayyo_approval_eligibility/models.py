@@ -45,6 +45,9 @@ ACTIVATION_ELIGIBILITY_REQUEST_SCHEMA_ID = (
 ACTIVATION_ELIGIBILITY_DECISION_SCHEMA_ID = (
     'ayyo.approval-eligibility.activation-eligibility-decision.v1'
 )
+_POLICY_REGISTRY_V1_TARGET_STAGES = frozenset(
+    {'reviewed_candidate', 'future_deployment_review'}
+)
 
 
 class AuthorityVerificationStatus(StrEnum):
@@ -390,12 +393,19 @@ class ApprovalRequest:
                 'registry_record_id',
                 'registration_request_id',
                 'promotion_decision_id',
-                'promotion_target_stage',
                 'authority_reference_id',
                 'authority_id',
                 'provenance_ref',
             ):
                 object.__setattr__(self, name, identifier(fields[name], name))
+            promotion_target_stage = identifier(
+                fields['promotion_target_stage'], 'promotion_target_stage'
+            )
+            if promotion_target_stage not in _POLICY_REGISTRY_V1_TARGET_STAGES:
+                raise ApprovalRequestError(
+                    'promotion_target_stage is unsupported by the registry v1 contract'
+                )
+            object.__setattr__(self, 'promotion_target_stage', promotion_target_stage)
             for name in (
                 'candidate_fingerprint',
                 'registry_record_fingerprint',
