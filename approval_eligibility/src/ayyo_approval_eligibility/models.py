@@ -14,6 +14,8 @@ from .canonical import (
     MAX_SERIALIZED_APPROVAL_EVIDENCE_BYTES,
     MAX_SERIALIZED_APPROVAL_REQUEST_BYTES,
     MAX_SERIALIZED_AUTHORITY_BYTES,
+    MAX_SERIALIZED_ELIGIBILITY_DECISION_BYTES,
+    MAX_SERIALIZED_ELIGIBILITY_REQUEST_BYTES,
     assert_size,
     fingerprint,
     identifier,
@@ -22,6 +24,8 @@ from .canonical import (
     semantic_version,
 )
 from .errors import (
+    ActivationEligibilityDecisionError,
+    ActivationEligibilityRequestError,
     ApprovalEligibilityIntegrityError,
     ApprovalEvidenceError,
     ApprovalRequestError,
@@ -34,6 +38,12 @@ AUTHORITY_REFERENCE_SCHEMA_ID = 'ayyo.approval-eligibility.authority-reference.v
 APPROVAL_REQUEST_SCHEMA_ID = 'ayyo.approval-eligibility.approval-request.v1'
 AUTHORITY_APPROVAL_EVIDENCE_SCHEMA_ID = (
     'ayyo.approval-eligibility.authority-approval-evidence.v1'
+)
+ACTIVATION_ELIGIBILITY_REQUEST_SCHEMA_ID = (
+    'ayyo.approval-eligibility.activation-eligibility-request.v1'
+)
+ACTIVATION_ELIGIBILITY_DECISION_SCHEMA_ID = (
+    'ayyo.approval-eligibility.activation-eligibility-decision.v1'
 )
 
 
@@ -51,6 +61,19 @@ class ApprovalDisposition(StrEnum):
     APPROVED = 'approved'
     REJECTED = 'rejected'
     REVOKED = 'revoked'
+
+
+class ActivationEligibilityStatus(StrEnum):
+    ELIGIBLE_FOR_FUTURE_ACTIVATION = 'eligible_for_future_activation'
+    INELIGIBLE = 'ineligible'
+
+
+class ActivationEligibilityReason(StrEnum):
+    ELIGIBILITY_REQUIREMENTS_SATISFIED = 'eligibility_requirements_satisfied'
+    AUTHORITY_NOT_EXTERNALLY_VERIFIED = 'authority_not_externally_verified'
+    AUTHORITY_REVOKED = 'authority_revoked'
+    APPROVAL_REJECTED = 'approval_rejected'
+    APPROVAL_REVOKED = 'approval_revoked'
 
 
 def _identity(identifier_value: str, fingerprint_value: str) -> dict[str, str]:
@@ -634,3 +657,318 @@ def verify_authority_approval_evidence(evidence: object) -> bool:
     except (AttributeError, TypeError, ValueError):
         return False
     return rebuilt == evidence
+
+
+def _require_exact_approval_chain(
+    registered_version: RegisteredPolicyVersion,
+    approval_request: ApprovalRequest,
+    approval_evidence: AuthorityApprovalEvidence,
+) -> None:
+    expected_request_chain = (
+        registered_version.candidate_id,
+        registered_version.candidate_fingerprint,
+        registered_version.semantic_version,
+        registered_version.record_id,
+        registered_version.record_fingerprint,
+        registered_version.registration_request_id,
+        registered_version.registration_request_fingerprint,
+        registered_version.promotion_decision_id,
+        registered_version.promotion_decision_fingerprint,
+        registered_version.target_stage.value,
+    )
+    actual_request_chain = (
+        approval_request.candidate_id,
+        approval_request.candidate_fingerprint,
+        approval_request.candidate_semantic_version,
+        approval_request.registry_record_id,
+        approval_request.registry_record_fingerprint,
+        approval_request.registration_request_id,
+        approval_request.registration_request_fingerprint,
+        approval_request.promotion_decision_id,
+        approval_request.promotion_decision_fingerprint,
+        approval_request.promotion_target_stage,
+    )
+    if actual_request_chain != expected_request_chain:
+        raise ActivationEligibilityRequestError(
+            'approval request differs from the exact registered policy evidence chain'
+        )
+    if approval_request.approval_scope is not ApprovalScope.FUTURE_ACTIVATION_REVIEW:
+        raise ActivationEligibilityRequestError(
+            'approval request does not target the v1 future-activation review scope'
+        )
+    if approval_evidence.approval_request != approval_request:
+        raise ActivationEligibilityRequestError(
+            'approval evidence differs from the exact approval request'
+        )
+    expected_authority_chain = (
+        approval_request.authority_reference_id,
+        approval_request.authority_reference_fingerprint,
+        approval_request.authority_id,
+        approval_request.authority_fingerprint,
+    )
+    actual_authority_chain = (
+        approval_evidence.authority.authority_reference_id,
+        approval_evidence.authority.authority_reference_fingerprint,
+        approval_evidence.authority.authority_id,
+        approval_evidence.authority.authority_fingerprint,
+    )
+    if actual_authority_chain != expected_authority_chain:
+        raise ActivationEligibilityRequestError(
+            'approval authority differs from the exact approval request authority'
+        )
+
+
+@dataclass(frozen=True, slots=True, init=False)
+class ActivationEligibilityRequest:
+    schema_id: str
+    schema_version: str
+    eligibility_request_id: str
+    eligibility_request_fingerprint: str
+    registered_version: RegisteredPolicyVersion
+    approval_request: ApprovalRequest
+    approval_evidence: AuthorityApprovalEvidence
+    provenance_ref: str
+    provenance_fingerprint: str
+    note: str | None
+
+    def __init__(
+        self,
+        *,
+        registered_version: RegisteredPolicyVersion,
+        approval_request: ApprovalRequest,
+        approval_evidence: AuthorityApprovalEvidence,
+        provenance_ref: str,
+        provenance_fingerprint: str,
+        note: str | None = None,
+    ) -> None:
+        self._initialize(
+            registered_version=registered_version,
+            approval_request=approval_request,
+            approval_evidence=approval_evidence,
+            provenance_ref=provenance_ref,
+            provenance_fingerprint=provenance_fingerprint,
+            note=note,
+        )
+
+    @classmethod
+    def _from_fields(cls, **fields) -> ActivationEligibilityRequest:
+        instance = object.__new__(cls)
+        instance._initialize(**fields)
+        return instance
+
+    def _initialize(self, **fields) -> None:
+        try:
+            registered_version = fields['registered_version']
+            approval_request = fields['approval_request']
+            approval_evidence = fields['approval_evidence']
+            if not verify_registered_policy_version(registered_version):
+                raise ActivationEligibilityRequestError(
+                    'eligibility request requires a verified registry record'
+                )
+            if not verify_approval_request(approval_request):
+                raise ActivationEligibilityRequestError(
+                    'eligibility request requires a verified approval request'
+                )
+            if not verify_authority_approval_evidence(approval_evidence):
+                raise ActivationEligibilityRequestError(
+                    'eligibility request requires one verified approval evidence object'
+                )
+            _require_exact_approval_chain(
+                registered_version,
+                approval_request,
+                approval_evidence,
+            )
+            object.__setattr__(
+                self, 'schema_id', ACTIVATION_ELIGIBILITY_REQUEST_SCHEMA_ID
+            )
+            object.__setattr__(self, 'schema_version', APPROVAL_ELIGIBILITY_SCHEMA_VERSION)
+            object.__setattr__(self, 'registered_version', registered_version)
+            object.__setattr__(self, 'approval_request', approval_request)
+            object.__setattr__(self, 'approval_evidence', approval_evidence)
+            object.__setattr__(
+                self,
+                'provenance_ref',
+                identifier(fields['provenance_ref'], 'provenance_ref'),
+            )
+            object.__setattr__(
+                self,
+                'provenance_fingerprint',
+                fingerprint(fields['provenance_fingerprint'], 'provenance_fingerprint'),
+            )
+            object.__setattr__(self, 'note', optional_note(fields['note']))
+            _set_identity(
+                self,
+                prefix='activation-eligibility-request',
+                fingerprint_name='eligibility_request_fingerprint',
+                id_name='eligibility_request_id',
+                maximum_bytes=MAX_SERIALIZED_ELIGIBILITY_REQUEST_BYTES,
+                artifact_name='activation eligibility request',
+            )
+        except ActivationEligibilityRequestError:
+            raise
+        except (KeyError, TypeError, ValueError) as error:
+            raise ActivationEligibilityRequestError(
+                'activation eligibility request violates the v1 contract'
+            ) from error
+
+    def semantic_document(self) -> dict[str, object]:
+        return {
+            'approval_evidence': self.approval_evidence.as_dict(),
+            'approval_request': self.approval_request.as_dict(),
+            'note': self.note,
+            'provenance': {
+                'fingerprint': self.provenance_fingerprint,
+                'source_ref': self.provenance_ref,
+            },
+            'registered_version': self.registered_version.as_dict(),
+            'schema': {'id': self.schema_id, 'version': self.schema_version},
+        }
+
+    def recompute_fingerprint(self) -> str:
+        return semantic_sha256(
+            'activation-eligibility-request-content', self.semantic_document()
+        )
+
+    def recompute_eligibility_request_id(self) -> str:
+        return semantic_sha256(
+            'activation-eligibility-request',
+            {
+                'content_fingerprint': self.recompute_fingerprint(),
+                'schema_id': self.schema_id,
+                'schema_version': self.schema_version,
+            },
+        )
+
+    def as_dict(self) -> dict[str, object]:
+        return {
+            **self.semantic_document(),
+            'eligibility_request_fingerprint': self.eligibility_request_fingerprint,
+            'eligibility_request_id': self.eligibility_request_id,
+        }
+
+
+def verify_activation_eligibility_request(request: object) -> bool:
+    if type(request) is not ActivationEligibilityRequest:
+        return False
+    try:
+        rebuilt = ActivationEligibilityRequest._from_fields(
+            registered_version=request.registered_version,
+            approval_request=request.approval_request,
+            approval_evidence=request.approval_evidence,
+            provenance_ref=request.provenance_ref,
+            provenance_fingerprint=request.provenance_fingerprint,
+            note=request.note,
+        )
+    except (AttributeError, TypeError, ValueError):
+        return False
+    return rebuilt == request
+
+
+@dataclass(frozen=True, slots=True, init=False)
+class ActivationEligibilityDecision:
+    schema_id: str
+    schema_version: str
+    eligibility_decision_id: str
+    eligibility_decision_fingerprint: str
+    request: ActivationEligibilityRequest
+    status: ActivationEligibilityStatus
+    reasons: tuple[ActivationEligibilityReason, ...]
+
+    @classmethod
+    def _create(cls, **fields) -> ActivationEligibilityDecision:
+        instance = object.__new__(cls)
+        instance._initialize(**fields)
+        return instance
+
+    def _initialize(self, **fields) -> None:
+        try:
+            request = fields['request']
+            if not verify_activation_eligibility_request(request):
+                raise ActivationEligibilityDecisionError(
+                    'eligibility decision requires a verified request'
+                )
+            status = fields['status']
+            if not isinstance(status, ActivationEligibilityStatus):
+                raise ActivationEligibilityDecisionError('status must use its closed enum')
+            raw_reasons = fields['reasons']
+            if isinstance(raw_reasons, (str, bytes)):
+                raise ActivationEligibilityDecisionError(
+                    'eligibility reasons must be a bounded sequence'
+                )
+            try:
+                reasons = tuple(raw_reasons)
+            except TypeError as error:
+                raise ActivationEligibilityDecisionError(
+                    'eligibility reasons must be a bounded sequence'
+                ) from error
+            if (
+                not reasons
+                or len(reasons) > len(ActivationEligibilityReason)
+                or any(not isinstance(item, ActivationEligibilityReason) for item in reasons)
+                or len(set(reasons)) != len(reasons)
+                or reasons != tuple(sorted(reasons, key=lambda item: item.value))
+            ):
+                raise ActivationEligibilityDecisionError(
+                    'eligibility reasons must be unique canonical closed-enum values'
+                )
+            satisfied = ActivationEligibilityReason.ELIGIBILITY_REQUIREMENTS_SATISFIED
+            if status is ActivationEligibilityStatus.ELIGIBLE_FOR_FUTURE_ACTIVATION:
+                if reasons != (satisfied,):
+                    raise ActivationEligibilityDecisionError(
+                        'eligible decision requires only requirements_satisfied'
+                    )
+            elif satisfied in reasons:
+                raise ActivationEligibilityDecisionError(
+                    'ineligible decision cannot claim requirements_satisfied'
+                )
+            object.__setattr__(
+                self, 'schema_id', ACTIVATION_ELIGIBILITY_DECISION_SCHEMA_ID
+            )
+            object.__setattr__(self, 'schema_version', APPROVAL_ELIGIBILITY_SCHEMA_VERSION)
+            object.__setattr__(self, 'request', request)
+            object.__setattr__(self, 'status', status)
+            object.__setattr__(self, 'reasons', reasons)
+            _set_identity(
+                self,
+                prefix='activation-eligibility-decision',
+                fingerprint_name='eligibility_decision_fingerprint',
+                id_name='eligibility_decision_id',
+                maximum_bytes=MAX_SERIALIZED_ELIGIBILITY_DECISION_BYTES,
+                artifact_name='activation eligibility decision',
+            )
+        except ActivationEligibilityDecisionError:
+            raise
+        except (KeyError, TypeError, ValueError) as error:
+            raise ActivationEligibilityDecisionError(
+                'activation eligibility decision violates the v1 contract'
+            ) from error
+
+    def semantic_document(self) -> dict[str, object]:
+        return {
+            'reasons': [item.value for item in self.reasons],
+            'request': self.request.as_dict(),
+            'schema': {'id': self.schema_id, 'version': self.schema_version},
+            'status': self.status.value,
+        }
+
+    def recompute_fingerprint(self) -> str:
+        return semantic_sha256(
+            'activation-eligibility-decision-content', self.semantic_document()
+        )
+
+    def recompute_eligibility_decision_id(self) -> str:
+        return semantic_sha256(
+            'activation-eligibility-decision',
+            {
+                'content_fingerprint': self.recompute_fingerprint(),
+                'schema_id': self.schema_id,
+                'schema_version': self.schema_version,
+            },
+        )
+
+    def as_dict(self) -> dict[str, object]:
+        return {
+            **self.semantic_document(),
+            'eligibility_decision_fingerprint': self.eligibility_decision_fingerprint,
+            'eligibility_decision_id': self.eligibility_decision_id,
+        }
