@@ -1,0 +1,38 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ayyo-software-showcase"
+version = "0.1.0"
+description = "Deterministic evidence-backed software showcase for Ayyo"
+requires-python = ">=3.12"
+license = {text = "Proprietary"}
+maintainers = [
+  {name = "P. Jeevan Kumar", email = "jeevan116p@gmail.com"},
+]
+dependencies = [
+  "ayyo-approval-eligibility==0.1.0",
+  "ayyo-developmental-scenarios==0.1.0",
+  "ayyo-executive==0.1.0",
+  "ayyo-learning-evaluation==0.1.0",
+  "ayyo-memory-consolidation==0.1.0",
+  "ayyo-memory-validation==0.1.0",
+  "ayyo-perception==0.1.0",
+  "ayyo-personal-context==0.1.0",
+  "ayyo-policy-registry==0.1.0",
+  "ayyo-promotion-control==0.1.0",
+  "ayyo-runtime-bridge==0.1.0",
+  "ayyo-safety==0.1.0",
+  "ayyo-simulation-control==0.1.0",
+  "ayyo-skill-manager==0.1.0",
+  "ayyo-teach-mode==0.1.0",
+  "ayyo-working-memory==0.1.0",
+  "ayyo-world-model==0.1.0",
+]
+
+[project.scripts]
+ayyo-showcase = "ayyo_software_showcase.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
