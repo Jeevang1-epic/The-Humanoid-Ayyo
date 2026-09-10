@@ -1,0 +1,66 @@
+"""Public API for inert authority approval and activation eligibility evidence."""
+
+from .canonical import (
+    MAX_IDENTIFIER_LENGTH,
+    MAX_NOTE_LENGTH,
+    MAX_SERIALIZED_APPROVAL_EVIDENCE_BYTES,
+    MAX_SERIALIZED_APPROVAL_REQUEST_BYTES,
+    MAX_SERIALIZED_AUTHORITY_BYTES,
+    MAX_SERIALIZED_ELIGIBILITY_DECISION_BYTES,
+    MAX_SERIALIZED_ELIGIBILITY_REQUEST_BYTES,
+)
+from .errors import (
+    ActivationEligibilityDecisionError,
+    ActivationEligibilityRequestError,
+    ApprovalEligibilityError,
+    ApprovalEligibilityIntegrityError,
+    ApprovalEvidenceError,
+    ApprovalRequestError,
+    AuthorityReferenceError,
+)
+from .models import (
+    APPROVAL_ELIGIBILITY_SCHEMA_VERSION,
+    APPROVAL_REQUEST_SCHEMA_ID,
+    AUTHORITY_APPROVAL_EVIDENCE_SCHEMA_ID,
+    AUTHORITY_REFERENCE_SCHEMA_ID,
+    ApprovalDisposition,
+    ApprovalRequest,
+    ApprovalScope,
+    AuthorityApprovalEvidence,
+    AuthorityReference,
+    AuthorityVerificationStatus,
+    verify_approval_request,
+    verify_authority_approval_evidence,
+    verify_authority_reference,
+)
+
+
+__all__ = [
+    'APPROVAL_ELIGIBILITY_SCHEMA_VERSION',
+    'APPROVAL_REQUEST_SCHEMA_ID',
+    'AUTHORITY_APPROVAL_EVIDENCE_SCHEMA_ID',
+    'AUTHORITY_REFERENCE_SCHEMA_ID',
+    'MAX_IDENTIFIER_LENGTH',
+    'MAX_NOTE_LENGTH',
+    'MAX_SERIALIZED_APPROVAL_EVIDENCE_BYTES',
+    'MAX_SERIALIZED_APPROVAL_REQUEST_BYTES',
+    'MAX_SERIALIZED_AUTHORITY_BYTES',
+    'MAX_SERIALIZED_ELIGIBILITY_DECISION_BYTES',
+    'MAX_SERIALIZED_ELIGIBILITY_REQUEST_BYTES',
+    'ActivationEligibilityDecisionError',
+    'ActivationEligibilityRequestError',
+    'ApprovalDisposition',
+    'ApprovalEligibilityError',
+    'ApprovalEligibilityIntegrityError',
+    'ApprovalEvidenceError',
+    'ApprovalRequest',
+    'ApprovalRequestError',
+    'ApprovalScope',
+    'AuthorityApprovalEvidence',
+    'AuthorityReference',
+    'AuthorityReferenceError',
+    'AuthorityVerificationStatus',
+    'verify_approval_request',
+    'verify_authority_approval_evidence',
+    'verify_authority_reference',
+]
