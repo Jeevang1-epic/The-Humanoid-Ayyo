@@ -93,6 +93,21 @@
   object, with revoked/rejected/conflicting evidence unable to become eligible
   and no activation, installation, execution, persistence, model, Runtime, ROS,
   hardware, or Safety authority
+- Standalone `ayyo-software-showcase` Stage-8 package with a closed catalog of
+  15 capability claims and 19 exact imported public-contract evidence
+  references, including schema identities/versions where exposed by their
+  owners
+- Frozen bounded evidence, capability, check, manifest, and report contracts;
+  exact provenance, deterministic SHA-256 identities, strict canonical JSON,
+  authoritative live-catalog report regeneration, and fail-closed substitution
+  checks
+- Deterministic `ayyo-showcase` list/inspect/report/verify CLI with explicit
+  IMPLEMENTED, TEST, SIMULATION, DEVELOPMENT-only, INERT/EVIDENCE-only,
+  NOT-YET-IMPLEMENTED, and NOT-PHYSICALLY-VALIDATED distinctions
+- Explicit unavailable entries for production policy activation and physical
+  hardware validation, with no invocation, authentication, active-policy,
+  persistence, model, Runtime dispatch, ROS/Gazebo command, hardware, motion,
+  or Safety-bypass authority
 - Standalone Memory OS core with typed records and mandatory provenance
 - SQLite persistence with schema versioning, foreign keys, WAL journaling,
   transactional corrections, retractions, and conflict records
@@ -449,7 +464,9 @@ controlled ROS Runtime Bridge compatibility boundary, an evidence-only Teach
 Mode capture foundation, an inert offline policy-evaluation foundation, and an
 inert candidate promotion/rollback eligibility foundation, plus an immutable
 candidate-version registry/lineage foundation and an inert exact authority-
-approval/future-activation eligibility boundary with no active-policy state. The
+approval/future-activation eligibility boundary with no active-policy state,
+plus a deterministic Stage-8 software-showcase catalog that inspects those
+public contracts without executing them. The
 downstream Simulation Control Foundation can actuate one bounded simulated
 neck joint only
 through explicit development injection and can prove the result from

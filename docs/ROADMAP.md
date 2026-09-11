@@ -24,7 +24,9 @@ foundation.
    execution, production authentication/approval enforcement, activation, and
    live state changes remain separately reviewed.
 8. **Software Showcase** — An integrated, truthful demonstration of implemented
-   software capabilities.
+   software capabilities. Foundation v1 is implemented as a deterministic
+   public-contract catalog and canonical report with explicit TEST, simulation,
+   DEVELOPMENT-only, inert, unavailable, and physical-validation labels.
 9. **Physical Manipulator** — Safety-bounded manipulation on limited hardware.
 10. **Mobile / Upper-Body Prototype** — Integrated mobility and upper-body
     research platform.
@@ -228,6 +230,17 @@ rejected, or revoked-approval evidence and can otherwise return only
 `ELIGIBLE_FOR_FUTURE_ACTIVATION`. It provides no activation gate, active state,
 persistence, model loading/execution, background work, network authentication,
 Runtime, ROS/Gazebo, simulation, hardware, or Safety authority.
+
+Stage 8 now has Software Showcase Foundation v1. A standalone top-level package
+imports reviewed public contract identities into one closed 15-capability,
+19-evidence catalog. Immutable manifests and reports preserve exact provenance,
+truthful classifications, explicit non-claims, deterministic identities,
+canonical serialization, and hard bounds. A local CLI can list, inspect,
+report, or verify the catalog without invoking the represented packages. Two
+catalog entries make production policy activation and physical hardware
+validation explicitly unavailable. The showcase adds no cognition, Safety,
+Skill, Runtime, ROS/Gazebo, persistence, learning, authentication, policy-state,
+execution, or hardware authority; lower layers have no reverse dependency.
 
 Final Ayyo assets, graphical controlled-design validation, additional joints,
 trajectory/whole-body controllers, validated dynamics/contact behavior,

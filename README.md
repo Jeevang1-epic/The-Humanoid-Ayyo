@@ -7,14 +7,13 @@ can mature behind stable boundaries before physical hardware is introduced.
 
 ## Current status
 
-Ayyo has reached the Human / Authority Approval Evidence and Activation
-Eligibility Boundary Foundation v1 milestone. Stage 7 now carries explicit
-verified Teach Mode evidence through inert evaluation, promotion eligibility,
-and immutable registration into an exact approval-evidence chain. A pure final
-check may return only eligibility for a separately reviewed future activation
-stage. It does not authenticate an authority, activate a policy, or add
-deployment, training, inference, execution, persistence, Runtime, ROS/Gazebo,
-hardware, Safety, or motion authority.
+Ayyo has reached Software Showcase Foundation v1. Stage 8 now provides one
+deterministic, bounded catalog and canonical report over reviewed public
+software contracts. It exposes exact evidence/provenance and keeps implemented,
+TEST, simulation, DEVELOPMENT-only, inert, unavailable, and not-physically-
+validated claims distinct. The showcase does not execute represented contracts,
+authenticate an authority, activate a policy, dispatch Runtime, command
+ROS/Gazebo, control hardware, or bypass Safety.
 
 Implemented:
 
@@ -61,6 +60,11 @@ Implemented:
   canonical artifacts, and pure future-activation eligibility decisions;
   `UNVERIFIED` always fails closed and external verification is asserted by an
   upstream seam rather than performed or fabricated here
+- A standalone `ayyo-software-showcase` Stage-8 inspection layer with a closed
+  15-capability catalog, 19 imported public-contract evidence references,
+  immutable canonical manifests/reports, exact provenance, explicit truthful
+  classifications/non-claims, and a deterministic four-command CLI; production
+  activation and physical validation remain explicitly unavailable
 - A verified local ROS 2, Gazebo, and RViz development setup
 - A standalone, provenance-aware Memory OS core with SQLite persistence
 - A standalone deterministic validation and consolidation policy for candidate
@@ -283,6 +287,7 @@ independent of cognition and learned policies. See
 [docs/CANDIDATE_POLICY_PROMOTION_ROLLBACK_CONTROL.md](docs/CANDIDATE_POLICY_PROMOTION_ROLLBACK_CONTROL.md),
 [docs/CANDIDATE_POLICY_REGISTRY_LINEAGE.md](docs/CANDIDATE_POLICY_REGISTRY_LINEAGE.md),
 [docs/HUMAN_AUTHORITY_APPROVAL_ACTIVATION_ELIGIBILITY.md](docs/HUMAN_AUTHORITY_APPROVAL_ACTIVATION_ELIGIBILITY.md),
+[docs/SOFTWARE_SHOWCASE.md](docs/SOFTWARE_SHOWCASE.md),
 [docs/AYYO_MESH_IMPORT.md](docs/AYYO_MESH_IMPORT.md), and
 [docs/SAFETY.md](docs/SAFETY.md).
 
@@ -371,6 +376,15 @@ Run the inert authority-approval and future-activation eligibility tests:
 ```bash
 PYTHONPATH=memory/src:personal_context/src:executive/src:safety_kernel/src:skill_manager/src:runtime_bridge/src:developmental_scenarios/src:teach_mode/src:learning_evaluation/src:promotion_control/src:policy_registry/src:approval_eligibility/src \
 python3 -m pytest -q approval_eligibility/tests
+```
+
+Inspect and test the deterministic Stage-8 software showcase:
+
+```bash
+PYTHONPATH=memory/src:memory_validation/src:memory_consolidation/src:personal_context/src:executive/src:safety_kernel/src:skill_manager/src:runtime_bridge/src:simulation_control/src:developmental_scenarios/src:teach_mode/src:learning_evaluation/src:promotion_control/src:policy_registry/src:approval_eligibility/src:world_model/src:working_memory/src:perception/src:visual_evaluation/src:physical_camera/src:depth_camera/src:rgbd_fusion/src:head_audio/src:software_showcase/src \
+python3 -m ayyo_software_showcase.cli verify
+PYTHONPATH=memory/src:memory_validation/src:memory_consolidation/src:personal_context/src:executive/src:safety_kernel/src:skill_manager/src:runtime_bridge/src:simulation_control/src:developmental_scenarios/src:teach_mode/src:learning_evaluation/src:promotion_control/src:policy_registry/src:approval_eligibility/src:world_model/src:working_memory/src:perception/src:visual_evaluation/src:physical_camera/src:depth_camera/src:rgbd_fusion/src:head_audio/src:software_showcase/src \
+python3 -m pytest -q software_showcase/tests
 ```
 
 Run Memory OS tests:
@@ -589,6 +603,7 @@ learning_evaluation/  Inert candidate identity and pure offline evaluation evide
 promotion_control/  Pure candidate promotion and rollback eligibility evidence
 policy_registry/  Immutable candidate registration, snapshots, and exact lineage
 approval_eligibility/  Inert authority evidence and future-activation eligibility
+software_showcase/  Deterministic Stage-8 public-contract catalog and inspector
 world_model/  Transport-neutral embodied/environment observations and snapshots
 perception/  Deterministic sensor/provenance/time admission trust boundary
 physical_camera/  Driver-neutral physical source, calibration, lifecycle, and diagnostics
@@ -704,3 +719,9 @@ An `EXTERNALLY_VERIFIED` status carries caller-supplied provider and evidence
 identities but is not authentication performed by this package. `UNVERIFIED`
 always yields `INELIGIBLE`; an eligible result means only structurally eligible
 to proceed to a separately reviewed future activation stage.
+Software Showcase Foundation v1 now presents these and the other reviewed
+software boundaries through a closed public-contract catalog and canonical
+report. See [Software Showcase Foundation](docs/SOFTWARE_SHOWCASE.md). Its
+`SUPPORTED_BY_PUBLIC_CONTRACT` result proves only that the exact reviewed
+contract backs the classified claim; it performs no action and grants no new
+authority.

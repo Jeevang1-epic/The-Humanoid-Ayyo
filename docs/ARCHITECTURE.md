@@ -53,6 +53,25 @@ explicit caller events or immutable Stage-6 report
 → stop
 ```
 
+Stage-8 showcase inspection is a separate top-level read-only presentation
+path, not part of either authority flow:
+
+```text
+reviewed public contract identities
+→ closed truthful capability catalog
+→ immutable canonical showcase manifest/report
+→ developer inspection output
+→ stop
+```
+
+The [Software Showcase Foundation](SOFTWARE_SHOWCASE.md) depends downward on
+reviewed public interfaces across the implemented architecture. No represented
+package depends back on it. `SUPPORTED_BY_PUBLIC_CONTRACT` means only that one
+exact imported contract backs the displayed classification; it is not runtime
+execution, live validation, authentication, activation, deployment, physical
+safety, or hardware proof. The showcase calls none of the represented
+subsystems and has no persistence, network, process, ROS, or hardware surface.
+
 The standalone
 [Teach Mode Demonstration Capture Foundation](TEACH_MODE_DEMONSTRATION_CAPTURE.md)
 depends only on public immutable developmental-scenario contracts. It records
@@ -439,5 +458,12 @@ replace proxy geometry without duplicating or bypassing frame semantics.
   approval evidence object, never authenticates the referenced authority, and
   cannot activate, install, load, execute, persist, deploy, dispatch Runtime,
   call ROS, control hardware, or bypass Safety.
+- Software Showcase owns only the closed Stage-8 public-contract inventory,
+  truthful classifications/non-claims, canonical manifest/report, and local
+  inspection CLI. It may import reviewed public interfaces, but every lower
+  package remains unaware of it. It cannot invoke cognition, decide Safety,
+  bind or execute a Skill, dispatch Runtime, call ROS/Gazebo, authenticate,
+  activate a policy, persist state, control hardware, or certify physical
+  behavior.
 - Learning updates remain candidates until evaluation and controlled promotion;
   consolidation does not bypass safety or permissions.
