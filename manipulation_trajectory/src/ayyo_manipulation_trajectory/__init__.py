@@ -3,7 +3,6 @@
 from .eligibility import (
     evaluate_execution_handoff_eligibility,
     evaluate_trajectory_safety_eligibility,
-    trajectory_safety_review_parameters,
 )
 from .errors import (
     ManipulationTrajectoryError,
@@ -37,6 +36,7 @@ from .models import (
     TrajectorySafetyEligibilityResult,
     TrajectoryTimingConfiguration,
     trajectory_review_binding_fingerprint,
+    trajectory_safety_review_parameters,
     verify_handoff_decision,
     verify_safety_reference,
     verify_safety_result,

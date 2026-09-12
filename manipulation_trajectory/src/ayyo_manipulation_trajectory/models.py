@@ -16,6 +16,37 @@ from ayyo_manipulation_planning import (
     verify_joint_position,
     verify_manipulation_planning_decision,
 )
+from ayyo_executive import (
+    DecisionReason,
+    ExecutiveDecision,
+    ExecutiveDecisionType,
+    ExecutiveError,
+    ExpectedResultCategory,
+    FailurePolicy,
+    Plan,
+    PlanStep,
+)
+from ayyo_safety import (
+    HazardClass,
+    SafetyDecision,
+    SafetyKernel,
+    SafetyKernelError,
+    SafetyRevalidationStatus,
+)
+from ayyo_skill_manager import (
+    BindingStatus,
+    ConcurrencyPolicy,
+    FailureSemantics,
+    IdempotencyClass,
+    InvocationStatus,
+    SkillAvailability,
+    SkillBindingResult,
+    SkillInvocation,
+    SkillLifecycle,
+    SkillManagerError,
+    SkillManagerService,
+    SkillSelection,
+)
 
 from .canonical import (
     JSONValue,
@@ -787,6 +818,180 @@ def verify_trajectory_evidence(value: object) -> bool:
     )
 
 
+def trajectory_safety_review_parameters(
+    evidence: TrajectoryEvidence,
+) -> dict[str, str]:
+    """Return the closed parameter document binding Safety to one trajectory."""
+
+    if not verify_trajectory_evidence(evidence):
+        raise TrajectoryValidationError(
+            TrajectoryFailureCode.UPSTREAM_INTEGRITY,
+            "Safety parameters require verified trajectory evidence",
+        )
+    request = evidence.request
+    trajectory = evidence.trajectory
+    return {
+        "candidate_path_fingerprint": request.candidate_path_fingerprint,
+        "candidate_path_id": request.candidate_path_id,
+        "collision_proof_fingerprint": request.collision_proof_fingerprint,
+        "collision_proof_id": request.collision_proof_id,
+        "execution_disposition": evidence.execution_disposition.value,
+        "physical_validation": evidence.physical_validation.value,
+        "stage9a_decision_fingerprint": request.stage9a_decision_fingerprint,
+        "stage9a_decision_id": request.stage9a_decision_id,
+        "stage9a_evidence_fingerprint": request.stage9a_evidence_fingerprint,
+        "stage9a_evidence_id": request.stage9a_evidence_id,
+        "stage9a_request_fingerprint": request.stage9a_request_fingerprint,
+        "stage9a_request_id": request.stage9a_request_id,
+        "trajectory_evidence_fingerprint": evidence.trajectory_evidence_fingerprint,
+        "trajectory_evidence_id": evidence.trajectory_evidence_id,
+        "trajectory_fingerprint": trajectory.trajectory_fingerprint,
+        "trajectory_id": trajectory.trajectory_id,
+        "trajectory_request_fingerprint": request.trajectory_request_fingerprint,
+        "trajectory_request_id": request.trajectory_request_id,
+    }
+
+
+def _validate_exact_proposal(
+    evidence: TrajectoryEvidence,
+    proposal: ExecutiveDecision,
+) -> None:
+    if type(proposal) is not ExecutiveDecision:
+        raise TrajectoryValidationError(
+            TrajectoryFailureCode.SAFETY_MISMATCH,
+            "Safety review requires an immutable Executive decision",
+        )
+    try:
+        plan = proposal.proposed_plan
+    except AttributeError as error:
+        raise TrajectoryValidationError(
+            TrajectoryFailureCode.SAFETY_MISMATCH,
+            "Executive proposal failed its immutable public contract",
+        ) from error
+    if type(plan) is not Plan:
+        raise TrajectoryValidationError(
+            TrajectoryFailureCode.SAFETY_MISMATCH,
+            "Safety review proposal must contain one exact trajectory-review step",
+        )
+    try:
+        if len(plan.steps) != 1:
+            raise TrajectoryValidationError(
+                TrajectoryFailureCode.SAFETY_MISMATCH,
+                "Safety review proposal must contain one exact trajectory-review step",
+            )
+        step = plan.steps[0]
+    except (AttributeError, IndexError, TypeError) as error:
+        raise TrajectoryValidationError(
+            TrajectoryFailureCode.SAFETY_MISMATCH,
+            "Safety review proposal plan failed its immutable public contract",
+        ) from error
+    if type(step) is not PlanStep:
+        raise TrajectoryValidationError(
+            TrajectoryFailureCode.SAFETY_MISMATCH,
+            "Executive proposal is not the closed non-actuating trajectory-review contract",
+        )
+    try:
+        invalid = (
+            proposal.request_id != evidence.trajectory_evidence_id
+            or proposal.decision_type is not ExecutiveDecisionType.PROPOSE
+            or proposal.reason_codes != (DecisionReason.READY_FOR_SAFETY_REVIEW,)
+            or proposal.context_references
+            or proposal.assumptions
+            or proposal.required_capabilities != (SAFETY_REVIEW_CAPABILITY_ID,)
+            or proposal.required_approvals
+            or proposal.constraints
+            or step.step_id != SAFETY_REVIEW_STEP_ID
+            or step.capability_id != SAFETY_REVIEW_CAPABILITY_ID
+            or step.parameters != trajectory_safety_review_parameters(evidence)
+            or step.dependencies
+            or step.preconditions
+            or step.required_context
+            or step.required_approvals
+            or step.constraints
+            or step.expected_result is not ExpectedResultCategory.INFORMATION
+            or step.failure_policy is not FailurePolicy.STOP_PLAN
+        )
+    except (AttributeError, ExecutiveError, KeyError, TypeError, ValueError) as error:
+        raise TrajectoryValidationError(
+            TrajectoryFailureCode.SAFETY_MISMATCH,
+            "Executive proposal failed closed during trajectory-review reconstruction",
+        ) from error
+    if invalid:
+        raise TrajectoryValidationError(
+            TrajectoryFailureCode.SAFETY_MISMATCH,
+            "Executive proposal is not the closed non-actuating trajectory-review contract",
+        )
+
+
+def _validated_safety_context(
+    evidence: TrajectoryEvidence,
+    proposal: ExecutiveDecision,
+    safety_decision: SafetyDecision,
+    kernel: SafetyKernel,
+) -> tuple[ReviewedSafetyDisposition, ReviewedHazardClass]:
+    if not verify_trajectory_evidence(evidence):
+        raise TrajectoryValidationError(
+            TrajectoryFailureCode.UPSTREAM_INTEGRITY,
+            "Safety eligibility requires verified trajectory evidence",
+        )
+    if type(kernel) is not SafetyKernel or type(safety_decision) is not SafetyDecision:
+        raise TrajectoryValidationError(
+            TrajectoryFailureCode.SAFETY_MISMATCH,
+            "Safety eligibility requires exact public Safety contracts",
+        )
+    _validate_exact_proposal(evidence, proposal)
+    try:
+        revalidation = kernel.revalidate(safety_decision, proposal)
+        rebuilt = kernel.evaluate(proposal)
+        invalid = (
+            revalidation.status is not SafetyRevalidationStatus.CURRENT
+            or rebuilt != safety_decision
+            or safety_decision.source_decision_id != proposal.decision_id
+            or safety_decision.source_request_id != evidence.trajectory_evidence_id
+            or len(safety_decision.step_decisions) != 1
+        )
+    except (
+        AttributeError,
+        ExecutiveError,
+        IndexError,
+        KeyError,
+        SafetyKernelError,
+        TypeError,
+        ValueError,
+    ) as error:
+        raise TrajectoryValidationError(
+            TrajectoryFailureCode.SAFETY_MISMATCH,
+            "Safety evidence could not be independently revalidated",
+        ) from error
+    if invalid:
+        raise TrajectoryValidationError(
+            TrajectoryFailureCode.SAFETY_MISMATCH,
+            "Safety evidence is stale, substituted, or not reproducible",
+        )
+    step = safety_decision.step_decisions[0]
+    if (
+        step.step_id != SAFETY_REVIEW_STEP_ID
+        or step.capability_id != SAFETY_REVIEW_CAPABILITY_ID
+    ):
+        raise TrajectoryValidationError(
+            TrajectoryFailureCode.SAFETY_MISMATCH,
+            "Safety step does not bind the trajectory-review capability",
+        )
+    try:
+        disposition = ReviewedSafetyDisposition(safety_decision.disposition.value)
+    except (AttributeError, ValueError) as error:
+        raise TrajectoryValidationError(
+            TrajectoryFailureCode.SAFETY_MISMATCH,
+            "Safety disposition is not a reviewed Stage 9B classification",
+        ) from error
+    hazard = (
+        ReviewedHazardClass.INTERNAL_NON_ACTUATING
+        if step.hazard_class is HazardClass.INTERNAL_NON_ACTUATING
+        else ReviewedHazardClass.OTHER
+    )
+    return disposition, hazard
+
+
 @dataclass(frozen=True, slots=True)
 class SafetyEligibilityReference:
     source_executive_decision_id: str
@@ -901,6 +1106,9 @@ class TrajectorySafetyEligibilityResult:
     safety_reference: SafetyEligibilityReference
     status: SafetyEligibilityStatus
     reasons: tuple[SafetyEligibilityReason, ...]
+    source_proposal: ExecutiveDecision | None = field(default=None, repr=False)
+    source_safety_decision: SafetyDecision | None = field(default=None, repr=False)
+    source_safety_kernel: SafetyKernel | None = field(default=None, repr=False)
     execution_disposition: ExecutionDisposition = ExecutionDisposition.NOT_EXECUTED
     physical_validation: PhysicalValidationStatus = PhysicalValidationStatus.ABSENT
     schema_id: str = field(init=False, default=SAFETY_RESULT_SCHEMA_ID)
@@ -915,6 +1123,41 @@ class TrajectorySafetyEligibilityResult:
             raise TrajectoryValidationError(
                 TrajectoryFailureCode.UPSTREAM_INTEGRITY,
                 "Safety eligibility result contains invalid evidence",
+            )
+        disposition, hazard = _validated_safety_context(
+            self.trajectory_evidence,
+            self.source_proposal,
+            self.source_safety_decision,
+            self.source_safety_kernel,
+        )
+        expected_reference = SafetyEligibilityReference(
+            source_executive_decision_id=self.source_proposal.decision_id,
+            source_executive_decision_fingerprint=str(
+                self.source_proposal.decision_fingerprint
+            ),
+            source_safety_decision_id=self.source_safety_decision.decision_id,
+            source_safety_decision_fingerprint=str(
+                self.source_safety_decision.decision_fingerprint
+            ),
+            source_proposal_fingerprint=str(
+                self.source_safety_decision.proposal_fingerprint
+            ),
+            source_policy_version=self.source_safety_decision.policy_version,
+            source_policy_fingerprint=str(
+                self.source_safety_decision.policy_fingerprint
+            ),
+            source_step_id=SAFETY_REVIEW_STEP_ID,
+            capability_id=SAFETY_REVIEW_CAPABILITY_ID,
+            safety_disposition=disposition,
+            hazard_class=hazard,
+            trajectory_binding_fingerprint=trajectory_review_binding_fingerprint(
+                self.trajectory_evidence
+            ),
+        )
+        if self.safety_reference != expected_reference:
+            raise TrajectoryValidationError(
+                TrajectoryFailureCode.EVIDENCE_MISMATCH,
+                "Safety reference does not match its authoritative trajectory review",
             )
         _enum(self.status, SafetyEligibilityStatus, "Safety eligibility status")
         if type(self.reasons) not in {tuple, list} or any(
@@ -932,10 +1175,8 @@ class TrajectorySafetyEligibilityResult:
                 "Safety eligibility reasons must be unique and ordered",
             )
         eligible = (
-            self.safety_reference.safety_disposition
-            is ReviewedSafetyDisposition.ELIGIBLE_FOR_DOWNSTREAM
-            and self.safety_reference.hazard_class
-            is ReviewedHazardClass.INTERNAL_NON_ACTUATING
+            disposition is ReviewedSafetyDisposition.ELIGIBLE_FOR_DOWNSTREAM
+            and hazard is ReviewedHazardClass.INTERNAL_NON_ACTUATING
         )
         if self.safety_reference.trajectory_binding_fingerprint != (
             trajectory_review_binding_fingerprint(self.trajectory_evidence)
@@ -1017,6 +1258,9 @@ def verify_safety_result(value: object) -> bool:
             safety_reference=value.safety_reference,
             status=value.status,
             reasons=value.reasons,
+            source_proposal=value.source_proposal,
+            source_safety_decision=value.source_safety_decision,
+            source_safety_kernel=value.source_safety_kernel,
             execution_disposition=value.execution_disposition,
             physical_validation=value.physical_validation,
         ),
@@ -1178,12 +1422,238 @@ def verify_skill_handoff_reference(value: object) -> bool:
     )
 
 
+def _validated_skill_binding_context(
+    safety_result: TrajectorySafetyEligibilityResult,
+    binding_result: SkillBindingResult,
+    manager: SkillManagerService,
+) -> tuple[SkillBindingResult, SkillInvocation | None, bool]:
+    """Rebuild the complete inert Skill binding from authoritative inputs."""
+
+    if type(manager) is not SkillManagerService or type(binding_result) is not (
+        SkillBindingResult
+    ):
+        raise TrajectoryValidationError(
+            TrajectoryFailureCode.SKILL_MISMATCH,
+            "handoff eligibility requires exact public Skill Manager contracts",
+        )
+    try:
+        selection = binding_result.selection
+        binding_status = binding_result.status
+        proposal = safety_result.source_proposal
+        safety_decision = safety_result.source_safety_decision
+        if manager.safety_kernel != safety_result.source_safety_kernel:
+            raise TrajectoryValidationError(
+                TrajectoryFailureCode.SAFETY_MISMATCH,
+                "Skill Manager Safety policy differs from the reviewed Safety result",
+            )
+    except AttributeError as error:
+        raise TrajectoryValidationError(
+            TrajectoryFailureCode.SKILL_MISMATCH,
+            "Skill binding failed its immutable public contract",
+        ) from error
+    if type(selection) is not SkillSelection:
+        raise TrajectoryValidationError(
+            TrajectoryFailureCode.SKILL_MISMATCH,
+            "Skill binding selection failed its immutable public contract",
+        )
+    try:
+        skill = manager.registry.resolve(selection.skill_id)
+        current_selection = manager.registry.selection(
+            skill_id=selection.skill_id,
+            capability_id=selection.capability_id,
+            source_step_id=selection.source_step_id,
+        )
+    except (AttributeError, SkillManagerError, TypeError, ValueError) as error:
+        raise TrajectoryValidationError(
+            TrajectoryFailureCode.SKILL_MISMATCH,
+            "Skill binding registry evidence could not be revalidated",
+        ) from error
+    try:
+        invalid_lineage = (
+            current_selection != selection
+            or skill is None
+            or binding_result.source_safety_decision_id != safety_decision.decision_id
+            or selection.capability_id != SAFETY_REVIEW_CAPABILITY_ID
+            or selection.source_step_id != SAFETY_REVIEW_STEP_ID
+        )
+    except AttributeError as error:
+        raise TrajectoryValidationError(
+            TrajectoryFailureCode.SKILL_MISMATCH,
+            "Skill binding lineage is malformed",
+        ) from error
+    if invalid_lineage:
+        raise TrajectoryValidationError(
+            TrajectoryFailureCode.SKILL_MISMATCH,
+            "Skill binding is stale, substituted, or cross-composed",
+        )
+
+    expected_parameters = trajectory_safety_review_parameters(
+        safety_result.trajectory_evidence
+    )
+    reconstruct_positive = (
+        binding_status is BindingStatus.ELIGIBLE_FOR_RUNTIME_HANDOFF
+    )
+    try:
+        invocation = binding_result.invocation
+        rebuilt_invocation = None
+        if invocation is not None:
+            if type(invocation) is not SkillInvocation:
+                raise TrajectoryValidationError(
+                    TrajectoryFailureCode.SKILL_MISMATCH,
+                    "Skill invocation failed its immutable public contract",
+                )
+            rebuilt_invocation = SkillInvocation(
+                status=(
+                    InvocationStatus.ELIGIBLE_FOR_RUNTIME_HANDOFF
+                    if reconstruct_positive
+                    else invocation.status
+                ),
+                selection=current_selection,
+                skill_definition=skill,
+                parameters=(
+                    expected_parameters
+                    if reconstruct_positive
+                    else invocation.parameters
+                ),
+                context_references=(
+                    () if reconstruct_positive else invocation.context_references
+                ),
+                required_approvals=(
+                    () if reconstruct_positive else invocation.required_approvals
+                ),
+                source_request_id=(
+                    safety_result.trajectory_evidence.trajectory_evidence_id
+                    if reconstruct_positive
+                    else invocation.source_request_id
+                ),
+                source_executive_decision_id=(
+                    proposal.decision_id
+                    if reconstruct_positive
+                    else invocation.source_executive_decision_id
+                ),
+                source_executive_fingerprint=(
+                    proposal.decision_fingerprint
+                    if reconstruct_positive
+                    else invocation.source_executive_fingerprint
+                ),
+                source_safety_decision_id=(
+                    safety_decision.decision_id
+                    if reconstruct_positive
+                    else invocation.source_safety_decision_id
+                ),
+                source_safety_fingerprint=(
+                    safety_decision.decision_fingerprint
+                    if reconstruct_positive
+                    else invocation.source_safety_fingerprint
+                ),
+                source_proposal_fingerprint=(
+                    safety_decision.proposal_fingerprint
+                    if reconstruct_positive
+                    else invocation.source_proposal_fingerprint
+                ),
+                source_policy_fingerprint=(
+                    safety_decision.policy_fingerprint
+                    if reconstruct_positive
+                    else invocation.source_policy_fingerprint
+                ),
+                source_policy_version=(
+                    safety_decision.policy_version
+                    if reconstruct_positive
+                    else invocation.source_policy_version
+                ),
+            )
+        rebuilt_binding = SkillBindingResult(
+            status=(
+                BindingStatus.ELIGIBLE_FOR_RUNTIME_HANDOFF
+                if reconstruct_positive
+                else binding_status
+            ),
+            reasons=() if reconstruct_positive else binding_result.reasons,
+            selection=current_selection,
+            source_safety_decision_id=(
+                safety_decision.decision_id
+                if reconstruct_positive
+                else binding_result.source_safety_decision_id
+            ),
+            invocation=rebuilt_invocation,
+        )
+        if (
+            rebuilt_binding != binding_result
+            or rebuilt_invocation != invocation
+            or (
+                invocation is not None
+                and rebuilt_invocation.parameters != invocation.parameters
+            )
+        ):
+            raise TrajectoryValidationError(
+                TrajectoryFailureCode.SKILL_MISMATCH,
+                "Skill invocation content or derived identity was modified",
+            )
+    except TrajectoryValidationError:
+        raise
+    except (
+        AttributeError,
+        ExecutiveError,
+        KeyError,
+        SafetyKernelError,
+        SkillManagerError,
+        TypeError,
+        ValueError,
+    ) as error:
+        raise TrajectoryValidationError(
+            TrajectoryFailureCode.SKILL_MISMATCH,
+            "Skill invocation could not be reconstructed exactly",
+        ) from error
+
+    eligible = (
+        rebuilt_binding.status is BindingStatus.ELIGIBLE_FOR_RUNTIME_HANDOFF
+        and not rebuilt_binding.reasons
+        and rebuilt_invocation is not None
+        and rebuilt_invocation.status is InvocationStatus.ELIGIBLE_FOR_RUNTIME_HANDOFF
+        and rebuilt_invocation.skill_definition == skill
+        and rebuilt_invocation.selection == selection
+        and skill.availability is SkillAvailability.AVAILABLE
+        and skill.lifecycle is SkillLifecycle.VALIDATED
+        and not skill.required_context
+        and not skill.required_resources
+        and not skill.required_approval_classes
+        and skill.concurrency_policy is ConcurrencyPolicy.PARALLEL
+        and skill.idempotency is IdempotencyClass.IDEMPOTENT
+        and skill.failure_semantics is FailureSemantics.NON_RETRYABLE
+        and rebuilt_invocation.parameters == expected_parameters
+        and not rebuilt_invocation.context_references
+        and not rebuilt_invocation.required_resources
+        and not rebuilt_invocation.required_approvals
+        and rebuilt_invocation.backend_id == FUTURE_SKILL_BACKEND_ID
+        and rebuilt_invocation.expected_result is ExpectedResultCategory.INFORMATION
+        and rebuilt_invocation.safety_classification
+        is HazardClass.INTERNAL_NON_ACTUATING
+        and rebuilt_invocation.source_request_id
+        == safety_result.trajectory_evidence.trajectory_evidence_id
+        and rebuilt_invocation.source_executive_decision_id == proposal.decision_id
+        and rebuilt_invocation.source_safety_decision_id == safety_decision.decision_id
+        and str(rebuilt_invocation.source_executive_fingerprint)
+        == safety_result.safety_reference.source_executive_decision_fingerprint
+        and str(rebuilt_invocation.source_safety_fingerprint)
+        == safety_result.safety_reference.source_safety_decision_fingerprint
+        and str(rebuilt_invocation.source_proposal_fingerprint)
+        == safety_result.safety_reference.source_proposal_fingerprint
+        and str(rebuilt_invocation.source_policy_fingerprint)
+        == safety_result.safety_reference.source_policy_fingerprint
+        and rebuilt_invocation.source_policy_version
+        == safety_result.safety_reference.source_policy_version
+    )
+    return rebuilt_binding, rebuilt_invocation, eligible
+
+
 @dataclass(frozen=True, slots=True)
 class ExecutionHandoffEligibilityDecision:
     safety_result: TrajectorySafetyEligibilityResult
     status: HandoffEligibilityStatus
     reasons: tuple[HandoffEligibilityReason, ...]
     skill_handoff_reference: SkillRuntimeHandoffReference | None
+    source_skill_binding: SkillBindingResult | None = field(default=None, repr=False)
+    source_skill_manager: SkillManagerService | None = field(default=None, repr=False)
     runtime_endpoint_state: RuntimeEndpointState = RuntimeEndpointState.NOT_REGISTERED
     future_runtime_contract_id: str = FUTURE_RUNTIME_CONTRACT_ID
     execution_disposition: ExecutionDisposition = ExecutionDisposition.NOT_EXECUTED
@@ -1199,6 +1669,13 @@ class ExecutionHandoffEligibilityDecision:
                 TrajectoryFailureCode.UPSTREAM_INTEGRITY,
                 "handoff decision Safety result failed integrity verification",
             )
+        rebuilt_binding, rebuilt_invocation, skill_eligible = (
+            _validated_skill_binding_context(
+                self.safety_result,
+                self.source_skill_binding,
+                self.source_skill_manager,
+            )
+        )
         _enum(self.status, HandoffEligibilityStatus, "handoff eligibility status")
         _enum(self.runtime_endpoint_state, RuntimeEndpointState, "Runtime endpoint state")
         object.__setattr__(
@@ -1240,6 +1717,8 @@ class ExecutionHandoffEligibilityDecision:
                 self.safety_result.status
                 is not SafetyEligibilityStatus.TRAJECTORY_ELIGIBLE_FOR_SIMULATION_REVIEW
                 or not verify_skill_handoff_reference(self.skill_handoff_reference)
+                or not skill_eligible
+                or rebuilt_invocation is None
                 or reasons != positive_reasons
             ):
                 raise TrajectoryValidationError(
@@ -1251,26 +1730,36 @@ class ExecutionHandoffEligibilityDecision:
                     TrajectoryFailureCode.SKILL_MISMATCH,
                     "positive handoff review lacks a Skill reference",
                 )
-            if (
-                self.skill_handoff_reference.source_safety_result_id
-                != self.safety_result.safety_result_id
-                or self.skill_handoff_reference.source_safety_result_fingerprint
-                != self.safety_result.safety_result_fingerprint
-                or self.skill_handoff_reference.source_safety_decision_id
-                != self.safety_result.safety_reference.source_safety_decision_id
-                or self.skill_handoff_reference.source_safety_decision_fingerprint
-                != self.safety_result.safety_reference.source_safety_decision_fingerprint
-                or self.skill_handoff_reference.source_step_id != SAFETY_REVIEW_STEP_ID
-                or self.skill_handoff_reference.capability_id
-                != SAFETY_REVIEW_CAPABILITY_ID
-                or self.skill_handoff_reference.trajectory_binding_fingerprint
-                != trajectory_review_binding_fingerprint(
+            expected_reference = SkillRuntimeHandoffReference(
+                source_safety_result_id=self.safety_result.safety_result_id,
+                source_safety_result_fingerprint=(
+                    self.safety_result.safety_result_fingerprint
+                ),
+                source_safety_decision_id=(
+                    self.safety_result.source_safety_decision.decision_id
+                ),
+                source_safety_decision_fingerprint=str(
+                    self.safety_result.source_safety_decision.decision_fingerprint
+                ),
+                source_step_id=SAFETY_REVIEW_STEP_ID,
+                capability_id=SAFETY_REVIEW_CAPABILITY_ID,
+                skill_id=rebuilt_invocation.skill_definition.skill_id,
+                skill_version=str(rebuilt_invocation.skill_definition.version),
+                skill_fingerprint=str(rebuilt_invocation.skill_definition.fingerprint),
+                selection_fingerprint=str(rebuilt_binding.selection.fingerprint),
+                invocation_id=rebuilt_invocation.invocation_id,
+                invocation_fingerprint=str(rebuilt_invocation.fingerprint),
+                backend_id=rebuilt_invocation.backend_id,
+                trajectory_binding_fingerprint=trajectory_review_binding_fingerprint(
                     self.safety_result.trajectory_evidence
-                )
+                ),
+            )
+            if (
+                self.skill_handoff_reference != expected_reference
             ):
                 raise TrajectoryValidationError(
                     TrajectoryFailureCode.EVIDENCE_MISMATCH,
-                    "Skill handoff reference is for a different Safety result or trajectory",
+                    "Skill handoff reference differs from its authoritative binding",
                 )
         else:
             if self.skill_handoff_reference is not None or reasons not in {
@@ -1280,6 +1769,22 @@ class ExecutionHandoffEligibilityDecision:
                 raise TrajectoryValidationError(
                     TrajectoryFailureCode.SKILL_MISMATCH,
                     "ineligible handoff decision has contradictory Skill evidence",
+                )
+            if (
+                reasons == (HandoffEligibilityReason.SAFETY_INELIGIBLE,)
+                and self.safety_result.status
+                is SafetyEligibilityStatus.TRAJECTORY_ELIGIBLE_FOR_SIMULATION_REVIEW
+            ) or (
+                reasons == (HandoffEligibilityReason.SKILL_MANAGER_INELIGIBLE,)
+                and (
+                    self.safety_result.status
+                    is not SafetyEligibilityStatus.TRAJECTORY_ELIGIBLE_FOR_SIMULATION_REVIEW
+                    or skill_eligible
+                )
+            ):
+                raise TrajectoryValidationError(
+                    TrajectoryFailureCode.SKILL_MISMATCH,
+                    "ineligible handoff reason contradicts authoritative evidence",
                 )
         object.__setattr__(self, "reasons", reasons)
         document = self._semantic_dict()
@@ -1322,6 +1827,8 @@ def verify_handoff_decision(value: object) -> bool:
             status=value.status,
             reasons=value.reasons,
             skill_handoff_reference=value.skill_handoff_reference,
+            source_skill_binding=value.source_skill_binding,
+            source_skill_manager=value.source_skill_manager,
             runtime_endpoint_state=value.runtime_endpoint_state,
             future_runtime_contract_id=value.future_runtime_contract_id,
             execution_disposition=value.execution_disposition,

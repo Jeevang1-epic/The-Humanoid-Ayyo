@@ -12,6 +12,12 @@ from ayyo_manipulation_planning import (
     PlanningSerializationError,
     manipulation_planning_artifact_from_canonical_json,
 )
+from ayyo_executive import ExecutiveDecision
+from ayyo_safety import SafetyDecision, SafetyKernel
+from ayyo_skill_manager import (
+    SkillBindingResult,
+    SkillManagerService,
+)
 
 from .canonical import (
     JSONValue,
@@ -383,7 +389,13 @@ def _safety_reference(value: object) -> SafetyEligibilityReference:
     )
 
 
-def _safety_result(value: object) -> TrajectorySafetyEligibilityResult:
+def _safety_result(
+    value: object,
+    *,
+    source_proposal: ExecutiveDecision | None = None,
+    source_safety_decision: SafetyDecision | None = None,
+    source_safety_kernel: SafetyKernel | None = None,
+) -> TrajectorySafetyEligibilityResult:
     item = _mapping(value, "safety_result")
     _exact_keys(
         item,
@@ -411,6 +423,9 @@ def _safety_result(value: object) -> TrajectorySafetyEligibilityResult:
                 SafetyEligibilityReason(raw)
                 for raw in _sequence(item["reasons"], "reasons")
             ),
+            source_proposal=source_proposal,
+            source_safety_decision=source_safety_decision,
+            source_safety_kernel=source_safety_kernel,
             execution_disposition=ExecutionDisposition(item["execution_disposition"]),
             physical_validation=PhysicalValidationStatus(item["physical_validation"]),
         ),
@@ -466,7 +481,15 @@ def _skill_reference(value: object) -> SkillRuntimeHandoffReference:
     )
 
 
-def _handoff(value: object) -> ExecutionHandoffEligibilityDecision:
+def _handoff(
+    value: object,
+    *,
+    source_proposal: ExecutiveDecision | None = None,
+    source_safety_decision: SafetyDecision | None = None,
+    source_safety_kernel: SafetyKernel | None = None,
+    source_skill_binding: SkillBindingResult | None = None,
+    source_skill_manager: SkillManagerService | None = None,
+) -> ExecutionHandoffEligibilityDecision:
     item = _mapping(value, "handoff_decision")
     _exact_keys(
         item,
@@ -490,7 +513,12 @@ def _handoff(value: object) -> ExecutionHandoffEligibilityDecision:
     return _verify_recomputed(
         item,
         ExecutionHandoffEligibilityDecision(
-            safety_result=_safety_result(item["safety_result"]),
+            safety_result=_safety_result(
+                item["safety_result"],
+                source_proposal=source_proposal,
+                source_safety_decision=source_safety_decision,
+                source_safety_kernel=source_safety_kernel,
+            ),
             status=HandoffEligibilityStatus(item["status"]),
             reasons=tuple(
                 HandoffEligibilityReason(raw)
@@ -499,6 +527,8 @@ def _handoff(value: object) -> ExecutionHandoffEligibilityDecision:
             skill_handoff_reference=(
                 None if raw_reference is None else _skill_reference(raw_reference)
             ),
+            source_skill_binding=source_skill_binding,
+            source_skill_manager=source_skill_manager,
             runtime_endpoint_state=RuntimeEndpointState(
                 item["runtime_endpoint_state"]
             ),
@@ -561,8 +591,14 @@ def canonical_manipulation_trajectory_artifact_json(
 
 def manipulation_trajectory_artifact_from_canonical_json(
     payload: str,
+    *,
+    source_proposal: ExecutiveDecision | None = None,
+    source_safety_decision: SafetyDecision | None = None,
+    source_safety_kernel: SafetyKernel | None = None,
+    source_skill_binding: SkillBindingResult | None = None,
+    source_skill_manager: SkillManagerService | None = None,
 ) -> TrajectoryArtifact:
-    """Parse exact canonical bytes into a recursively verified artifact."""
+    """Parse exact canonical bytes using required authoritative provenance."""
 
     if type(payload) is not str:
         raise _error("canonical trajectory payload must be text")
@@ -587,6 +623,22 @@ def manipulation_trajectory_artifact_from_canonical_json(
         parser = _PARSERS.get(schema.get("id"))
         if parser is None:
             raise _error("unknown trajectory artifact schema")
+        if schema.get("id") == SAFETY_RESULT_SCHEMA_ID:
+            return _safety_result(
+                item,
+                source_proposal=source_proposal,
+                source_safety_decision=source_safety_decision,
+                source_safety_kernel=source_safety_kernel,
+            )
+        if schema.get("id") == HANDOFF_DECISION_SCHEMA_ID:
+            return _handoff(
+                item,
+                source_proposal=source_proposal,
+                source_safety_decision=source_safety_decision,
+                source_safety_kernel=source_safety_kernel,
+                source_skill_binding=source_skill_binding,
+                source_skill_manager=source_skill_manager,
+            )
         return parser(item)
     except TrajectorySerializationError:
         raise
