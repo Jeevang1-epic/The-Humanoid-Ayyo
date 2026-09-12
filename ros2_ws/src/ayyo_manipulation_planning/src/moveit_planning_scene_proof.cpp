@@ -1,9 +1,9 @@
+#include <algorithm>
 #include <array>
 #include <cmath>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
-#include <iterator>
 #include <memory>
 #include <stdexcept>
 #include <string>
@@ -35,10 +35,25 @@ const std::array<double, 4> kGoal = {0.3, 0.4, 0.8, 0.2};
 
 std::string read_bounded(std::istream & stream, const std::size_t maximum)
 {
-  std::string value{
-    std::istreambuf_iterator<char>(stream),
-    std::istreambuf_iterator<char>()};
-  if (value.empty() || value.size() > maximum) {
+  std::string value;
+  std::array<char, 4096> buffer{};
+  value.reserve(std::min(maximum, buffer.size()));
+  while (stream) {
+    const std::size_t remaining = maximum - value.size();
+    const std::size_t requested = std::min(buffer.size(), remaining + 1U);
+    stream.read(buffer.data(), static_cast<std::streamsize>(requested));
+    const std::streamsize count = stream.gcount();
+    if (count > 0) {
+      value.append(buffer.data(), static_cast<std::size_t>(count));
+    }
+    if (value.size() > maximum) {
+      throw std::runtime_error("input violates its planning-proof byte bound");
+    }
+  }
+  if (stream.bad()) {
+    throw std::runtime_error("input stream failed during bounded read");
+  }
+  if (value.empty()) {
     throw std::runtime_error("input violates its planning-proof byte bound");
   }
   return value;
