@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy
+from dataclasses import replace
 from unittest.mock import patch
 
 import pytest
@@ -30,6 +31,7 @@ from ayyo_manipulation_trajectory import (
 from ayyo_safety import CapabilitySafetyRule, HazardClass, SafetyKernel, SafetyPolicy
 from ayyo_skill_manager import (
     BindingReason,
+    SkillInvocation,
     SkillManagerService,
     SkillRegistry,
     SemanticVersion,
@@ -197,8 +199,54 @@ def test_safety_reference_from_trajectory_a_cannot_construct_result_for_b(
             safety_reference=source.safety_reference,
             status=source.status,
             reasons=source.reasons,
+            source_proposal=stage9b_bundle["proposal"],
+            source_safety_decision=stage9b_bundle["safety_decision"],
+            source_safety_kernel=stage9b_bundle["kernel"],
         )
-    assert caught.value.code is TrajectoryFailureCode.EVIDENCE_MISMATCH
+    assert caught.value.code is TrajectoryFailureCode.SAFETY_MISMATCH
+
+
+def test_rehashed_safety_reference_from_a_cannot_attest_trajectory_b(
+    stage9a_bundle,
+    stage9b_bundle,
+) -> None:
+    request = TrajectoryConstructionRequest(
+        stage9a_bundle["decision"],
+        TrajectoryTimingConfiguration(velocity_limit_scale=0.2),
+    )
+    evidence_b = create_trajectory_evidence(
+        request,
+        construct_deterministic_trajectory(request),
+    )
+    rebound = replace(
+        stage9b_bundle["safety_result"].safety_reference,
+        trajectory_binding_fingerprint=trajectory_review_binding_fingerprint(evidence_b),
+    )
+    with pytest.raises(TrajectoryValidationError) as caught:
+        TrajectorySafetyEligibilityResult(
+            trajectory_evidence=evidence_b,
+            safety_reference=rebound,
+            status=stage9b_bundle["safety_result"].status,
+            reasons=stage9b_bundle["safety_result"].reasons,
+            source_proposal=stage9b_bundle["proposal"],
+            source_safety_decision=stage9b_bundle["safety_decision"],
+            source_safety_kernel=stage9b_bundle["kernel"],
+        )
+    assert caught.value.code is TrajectoryFailureCode.SAFETY_MISMATCH
+
+
+def test_positive_safety_result_cannot_be_created_from_reference_only(
+    stage9b_bundle,
+) -> None:
+    source = stage9b_bundle["safety_result"]
+    with pytest.raises(TrajectoryValidationError) as caught:
+        TrajectorySafetyEligibilityResult(
+            trajectory_evidence=source.trajectory_evidence,
+            safety_reference=source.safety_reference,
+            status=source.status,
+            reasons=source.reasons,
+        )
+    assert caught.value.code is TrajectoryFailureCode.SAFETY_MISMATCH
 
 
 def test_stale_safety_policy_is_rejected(stage9b_bundle) -> None:
@@ -270,15 +318,112 @@ def test_post_construction_skill_selection_mutation_fails_with_typed_error(
 def test_contradictory_skill_binding_reasons_cannot_become_positive(stage9b_bundle) -> None:
     tampered = copy.deepcopy(stage9b_bundle["binding"])
     object.__setattr__(tampered, "reasons", (BindingReason.SKILL_UNAVAILABLE,))
-    result = evaluate_execution_handoff_eligibility(
-        stage9b_bundle["safety_result"],
-        stage9b_bundle["proposal"],
-        stage9b_bundle["safety_decision"],
-        tampered,
-        stage9b_bundle["manager"],
+    with pytest.raises(TrajectoryValidationError) as caught:
+        evaluate_execution_handoff_eligibility(
+            stage9b_bundle["safety_result"],
+            stage9b_bundle["proposal"],
+            stage9b_bundle["safety_decision"],
+            tampered,
+            stage9b_bundle["manager"],
+        )
+    assert caught.value.code is TrajectoryFailureCode.SKILL_MISMATCH
+
+
+@pytest.mark.parametrize("field", ("invocation_id", "fingerprint"))
+def test_mutated_skill_invocation_identity_fails_closed(
+    stage9b_bundle,
+    field: str,
+) -> None:
+    tampered = copy.deepcopy(stage9b_bundle["binding"])
+    invocation = tampered.invocation
+    assert invocation is not None
+    replacement = (
+        "forged-invocation"
+        if field == "invocation_id"
+        else type(invocation.fingerprint)(invocation.fingerprint.kind, "0" * 64)
     )
-    assert result.status is HandoffEligibilityStatus.INELIGIBLE
-    assert result.reasons == (HandoffEligibilityReason.SKILL_MANAGER_INELIGIBLE,)
+    object.__setattr__(invocation, field, replacement)
+    with pytest.raises(TrajectoryValidationError) as caught:
+        evaluate_execution_handoff_eligibility(
+            stage9b_bundle["safety_result"],
+            stage9b_bundle["proposal"],
+            stage9b_bundle["safety_decision"],
+            tampered,
+            stage9b_bundle["manager"],
+        )
+    assert caught.value.code is TrajectoryFailureCode.SKILL_MISMATCH
+
+
+def test_mutated_skill_invocation_parameters_fail_closed(stage9b_bundle) -> None:
+    tampered = copy.deepcopy(stage9b_bundle["binding"])
+    invocation = tampered.invocation
+    assert invocation is not None
+    changed = invocation.parameters
+    changed["trajectory_id"] = stage9b_bundle["trajectory_request"].candidate_path_id
+    object.__setattr__(invocation, "_parameters", changed)
+    with pytest.raises(TrajectoryValidationError) as caught:
+        evaluate_execution_handoff_eligibility(
+            stage9b_bundle["safety_result"],
+            stage9b_bundle["proposal"],
+            stage9b_bundle["safety_decision"],
+            tampered,
+            stage9b_bundle["manager"],
+        )
+    assert caught.value.code is TrajectoryFailureCode.SKILL_MISMATCH
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    ("selection_fingerprint", "skill_fingerprint", "source_request_id"),
+)
+def test_skill_identity_and_source_substitution_fails_closed(
+    stage9b_bundle,
+    mutation: str,
+) -> None:
+    tampered = copy.deepcopy(stage9b_bundle["binding"])
+    invocation = tampered.invocation
+    assert invocation is not None
+    if mutation == "selection_fingerprint":
+        value = tampered.selection.fingerprint
+        object.__setattr__(
+            tampered.selection,
+            "fingerprint",
+            type(value)(value.kind, "0" * 64),
+        )
+    elif mutation == "skill_fingerprint":
+        value = invocation.skill_definition.fingerprint
+        object.__setattr__(
+            invocation.skill_definition,
+            "fingerprint",
+            type(value)(value.kind, "0" * 64),
+        )
+    else:
+        object.__setattr__(invocation, "source_request_id", "forged-request")
+    with pytest.raises(TrajectoryValidationError) as caught:
+        evaluate_execution_handoff_eligibility(
+            stage9b_bundle["safety_result"],
+            stage9b_bundle["proposal"],
+            stage9b_bundle["safety_decision"],
+            tampered,
+            stage9b_bundle["manager"],
+        )
+    assert caught.value.code is TrajectoryFailureCode.SKILL_MISMATCH
+
+
+def test_rehashed_outer_handoff_cannot_hide_mutated_invocation(stage9b_bundle) -> None:
+    tampered = copy.deepcopy(stage9b_bundle["binding"])
+    assert tampered.invocation is not None
+    object.__setattr__(tampered.invocation, "invocation_id", "forged-invocation")
+    with pytest.raises(TrajectoryValidationError) as caught:
+        ExecutionHandoffEligibilityDecision(
+            safety_result=stage9b_bundle["safety_result"],
+            status=stage9b_bundle["handoff"].status,
+            reasons=stage9b_bundle["handoff"].reasons,
+            skill_handoff_reference=stage9b_bundle["handoff"].skill_handoff_reference,
+            source_skill_binding=tampered,
+            source_skill_manager=stage9b_bundle["manager"],
+        )
+    assert caught.value.code is TrajectoryFailureCode.SKILL_MISMATCH
 
 
 def test_stale_skill_selection_is_rejected(stage9b_bundle) -> None:
@@ -365,5 +510,42 @@ def test_skill_reference_from_a_cannot_construct_positive_handoff_for_b(
             skill_handoff_reference=(
                 stage9b_bundle["handoff"].skill_handoff_reference
             ),
+            source_skill_binding=stage9b_bundle["binding"],
+            source_skill_manager=stage9b_bundle["manager"],
         )
-    assert caught.value.code is TrajectoryFailureCode.EVIDENCE_MISMATCH
+    assert caught.value.code is TrajectoryFailureCode.SKILL_MISMATCH
+
+
+def test_uninitialized_exact_public_contracts_fail_with_typed_errors(
+    stage9b_bundle,
+) -> None:
+    with pytest.raises(TrajectoryValidationError) as proposal_error:
+        evaluate_trajectory_safety_eligibility(
+            stage9b_bundle["trajectory_evidence"],
+            object.__new__(ExecutiveDecision),
+            stage9b_bundle["safety_decision"],
+            stage9b_bundle["kernel"],
+        )
+    assert proposal_error.value.code is TrajectoryFailureCode.SAFETY_MISMATCH
+
+    with pytest.raises(TrajectoryValidationError) as binding_error:
+        evaluate_execution_handoff_eligibility(
+            stage9b_bundle["safety_result"],
+            stage9b_bundle["proposal"],
+            stage9b_bundle["safety_decision"],
+            object.__new__(type(stage9b_bundle["binding"])),
+            stage9b_bundle["manager"],
+        )
+    assert binding_error.value.code is TrajectoryFailureCode.SKILL_MISMATCH
+
+    malformed = copy.deepcopy(stage9b_bundle["binding"])
+    object.__setattr__(malformed, "invocation", object.__new__(SkillInvocation))
+    with pytest.raises(TrajectoryValidationError) as invocation_error:
+        evaluate_execution_handoff_eligibility(
+            stage9b_bundle["safety_result"],
+            stage9b_bundle["proposal"],
+            stage9b_bundle["safety_decision"],
+            malformed,
+            stage9b_bundle["manager"],
+        )
+    assert invocation_error.value.code is TrajectoryFailureCode.SKILL_MISMATCH

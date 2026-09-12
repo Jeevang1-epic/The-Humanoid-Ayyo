@@ -6,6 +6,8 @@ import json
 import pytest
 
 from ayyo_manipulation_trajectory import (
+    ExecutionHandoffEligibilityDecision,
+    TrajectorySafetyEligibilityResult,
     TrajectorySerializationError,
     canonical_manipulation_trajectory_artifact_json,
     manipulation_trajectory_artifact_from_canonical_json,
@@ -32,6 +34,24 @@ def _artifacts(bundle) -> tuple[object, ...]:
     )
 
 
+def _reconstruction_kwargs(artifact, bundle) -> dict[str, object]:
+    if type(artifact) is TrajectorySafetyEligibilityResult:
+        return {
+            "source_proposal": bundle["proposal"],
+            "source_safety_decision": bundle["safety_decision"],
+            "source_safety_kernel": bundle["kernel"],
+        }
+    if type(artifact) is ExecutionHandoffEligibilityDecision:
+        return {
+            "source_proposal": bundle["proposal"],
+            "source_safety_decision": bundle["safety_decision"],
+            "source_safety_kernel": bundle["kernel"],
+            "source_skill_binding": bundle["binding"],
+            "source_skill_manager": bundle["manager"],
+        }
+    return {}
+
+
 @pytest.mark.parametrize("index", range(9))
 def test_every_artifact_round_trips_to_identical_canonical_bytes(
     stage9b_bundle,
@@ -39,9 +59,22 @@ def test_every_artifact_round_trips_to_identical_canonical_bytes(
 ) -> None:
     artifact = _artifacts(stage9b_bundle)[index]
     payload = canonical_manipulation_trajectory_artifact_json(artifact)
-    rebuilt = manipulation_trajectory_artifact_from_canonical_json(payload)
+    rebuilt = manipulation_trajectory_artifact_from_canonical_json(
+        payload,
+        **_reconstruction_kwargs(artifact, stage9b_bundle),
+    )
     assert rebuilt == artifact
     assert canonical_manipulation_trajectory_artifact_json(rebuilt) == payload
+
+
+@pytest.mark.parametrize("key", ("safety_result", "handoff"))
+def test_positive_decision_reconstruction_requires_authoritative_context(
+    stage9b_bundle,
+    key: str,
+) -> None:
+    payload = canonical_manipulation_trajectory_artifact_json(stage9b_bundle[key])
+    with pytest.raises(TrajectorySerializationError):
+        manipulation_trajectory_artifact_from_canonical_json(payload)
 
 
 def test_serializer_verifies_integrity_before_publication(stage9b_bundle) -> None:
