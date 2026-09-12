@@ -32,6 +32,34 @@ def source_trees():
     )
 
 
+FORBIDDEN_DYNAMIC_CALLS = {
+    "__import__", "compile", "eval", "exec", "import_module", "open", "popen",
+    "start", "system", "write",
+}
+
+
+def forbidden_dynamic_calls(tree):
+    calls = []
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call):
+            continue
+        if isinstance(node.func, ast.Name):
+            name = node.func.id
+        elif isinstance(node.func, ast.Attribute):
+            name = node.func.attr
+            if (
+                name == "compile"
+                and isinstance(node.func.value, ast.Name)
+                and node.func.value.id == "re"
+            ):
+                continue
+        else:
+            continue
+        if name in FORBIDDEN_DYNAMIC_CALLS:
+            calls.append((node.lineno, name))
+    return calls
+
+
 def test_distribution_has_no_dependency_or_runtime_entrypoint():
     metadata = tomllib.loads((PACKAGE_ROOT / "pyproject.toml").read_text())["project"]
     assert metadata["name"] == "ayyo-manipulation-planning"
@@ -59,13 +87,9 @@ def test_core_runtime_imports_only_reviewed_standard_library_modules():
 
 def test_core_has_no_io_process_network_thread_ros_dynamic_code_or_model_loader():
     forbidden_imports = {
-        "asyncio", "concurrent", "importlib", "multiprocessing", "os", "pathlib",
-        "pickle", "requests", "rclpy", "shutil", "socket", "sqlite3", "subprocess",
-        "tensorflow", "threading", "torch", "urllib",
-    }
-    forbidden_calls = {
-        "__import__", "eval", "exec", "import_module", "open", "popen", "start",
-        "system", "write",
+        "asyncio", "builtins", "concurrent", "importlib", "multiprocessing", "os",
+        "pathlib", "pickle", "requests", "rclpy", "shutil", "socket", "sqlite3",
+        "subprocess", "tensorflow", "threading", "torch", "urllib",
     }
     imports = set()
     calls = []
@@ -75,19 +99,31 @@ def test_core_has_no_io_process_network_thread_ros_dynamic_code_or_model_loader(
                 imports.update(alias.name.split(".")[0] for alias in node.names)
             elif isinstance(node, ast.ImportFrom) and node.module:
                 imports.add(node.module.split(".")[0])
-            elif isinstance(node, ast.Call):
-                if isinstance(node.func, ast.Name):
-                    name = node.func.id
-                elif isinstance(node.func, ast.Attribute):
-                    name = node.func.attr
-                    if name == "compile" and path.name == "canonical.py":
-                        continue
-                else:
-                    continue
-                if name in forbidden_calls:
-                    calls.append((path.name, node.lineno, name))
+        calls.extend(
+            (path.name, line, name)
+            for line, name in forbidden_dynamic_calls(tree)
+        )
     assert imports.isdisjoint(forbidden_imports)
     assert calls == []
+
+
+def test_dynamic_code_guard_allows_only_reviewed_regex_compile():
+    assert forbidden_dynamic_calls(ast.parse("re.compile(r\"reviewed\")")) == []
+
+    probes = {
+        "compile('pass', '<probe>', 'exec')": "compile",
+        "builtins.compile('pass', '<probe>', 'exec')": "compile",
+        "attacker.compile('payload')": "compile",
+        "module.compile('payload')": "compile",
+        "eval('payload')": "eval",
+        "exec('payload')": "exec",
+        "builtins.eval('payload')": "eval",
+        "builtins.exec('payload')": "exec",
+    }
+    for source, expected in probes.items():
+        assert expected in {
+            name for _, name in forbidden_dynamic_calls(ast.parse(source))
+        }
 
 
 def test_public_surface_is_planning_evidence_only():
