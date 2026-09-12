@@ -77,13 +77,17 @@ misreported as a Safety block or a physical-safety result.
 
 The caller must explicitly obtain and supply both the Safety decision and Skill
 Manager binding. Stage 9B re-evaluates Safety against the supplied policy,
-checks the current pinned Skill registry selection and complete invocation
-provenance, and records an inert reference to the future review backend. It
+retains that exact proposal/decision/kernel context, reconstructs the complete
+Skill invocation from the current pinned registry, and requires exact equality
+of every semantic and derived identity field before recording an inert reference
+to the future review backend. It
 does not call `SkillManagerService.bind`, import Runtime Bridge, create a
 Runtime request or decision, register an endpoint, or dispatch anything.
 The Safety reference also carries a recomputable binding fingerprint over the
-full trajectory and Stage 9A lineage, so valid Safety evidence from trajectory
-A cannot be wrapped around trajectory B.
+full trajectory and Stage 9A lineage. A positive result is accepted only when
+its retained authoritative Safety context independently reproduces that exact
+reference, so changing the binding and rehashing a wrapper cannot reuse Safety
+evidence from trajectory A for trajectory B.
 
 ## Canonical evidence
 
@@ -98,6 +102,14 @@ when an attacker recomputes outer hashes. Accepted artifacts satisfy:
 ```text
 parse(bytes) → object → serialize(object) == bytes
 ```
+
+Safety-result reconstruction additionally requires the original Executive
+proposal, Safety decision, and current Safety kernel. Final handoff-decision
+reconstruction also requires the original Skill binding and current Skill
+Manager. These validation contexts are deliberately not invented from identity
+strings or wrapper hashes; callers must supply them, and reconstruction reruns
+the same deterministic Safety and Skill checks before accepting the payload.
+This is repository-local provenance validation, not authentication.
 
 ## Authority exclusions
 

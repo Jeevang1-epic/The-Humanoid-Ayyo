@@ -81,7 +81,9 @@ Implemented:
   explicit configuration, and emits immutable canonical trajectory evidence
 - Explicit Safety and Skill evidence seams for an information-only trajectory
   review capability; the caller supplies both decisions, Stage 9B revalidates
-  their exact lineage, creates no Runtime request or endpoint, and stops at
+  their exact lineage, reconstructs every derived Skill invocation identity,
+  and requires the authoritative contexts again when reconstructing positive
+  canonical decisions; it creates no Runtime request or endpoint and stops at
   future simulation-handoff review eligibility
 - A verified local ROS 2, Gazebo, and RViz development setup
 - A standalone, provenance-aware Memory OS core with SQLite persistence
@@ -780,7 +782,9 @@ next pre-execution seam. See
 [Manipulation Trajectory & Execution Eligibility](docs/MANIPULATION_TRAJECTORY_EXECUTION_ELIGIBILITY.md).
 It binds the complete Stage 9A decision and exact waypoint/collision lineage,
 derives deterministic conservative timestamps, and records exact external
-Safety and Skill evidence. `TRAJECTORY_ELIGIBLE_FOR_SIMULATION_REVIEW` and the
+Safety and Skill evidence. Positive decision reconstruction requires the exact
+source Safety and Skill validation contexts rather than trusting rehashed
+references. `TRAJECTORY_ELIGIBLE_FOR_SIMULATION_REVIEW` and the
 final future-handoff-review status create no Runtime request or movement
 authority; the endpoint is `NOT_REGISTERED`, execution is `NOT_EXECUTED`, and
 physical validation is `ABSENT`.
