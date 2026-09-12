@@ -1034,6 +1034,15 @@ def _deterministic_joint_positions(
         abs(goal_value - start_value)
         for start_value, goal_value in zip(start, goal, strict=True)
     )
+    maximum_segments = request.planner_configuration.max_waypoints - 1
+    if (
+        largest_delta
+        > request.planner_configuration.interpolation_step * maximum_segments
+    ):
+        raise PlanningValidationError(
+            PlanningFailureCode.RESOURCE_LIMIT,
+            "bounded interpolation would exceed max_waypoints",
+        )
     steps = max(
         1,
         ceil(largest_delta / request.planner_configuration.interpolation_step),

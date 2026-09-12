@@ -14,6 +14,7 @@ from ayyo_manipulation_planning import (
     PlanEvidenceStatus,
     PlanningDecisionReason,
     PlanningDisposition,
+    PlanningFailureCode,
     PlanningSceneEvidence,
     PlanningValidationError,
     deterministic_joint_interpolation,
@@ -43,6 +44,51 @@ def test_interpolation_is_deterministic_bounded_and_exact(planning_bundle):
     assert 2 <= len(first) <= request.planner_configuration.max_waypoints
     assert first[0] == request.start_state
     assert first[-1].positions == request.goal.positions
+
+
+@pytest.mark.parametrize("step", [5e-324, 1e-300, 1e-12])
+def test_pathological_interpolation_step_fails_with_typed_resource_error(
+    planning_bundle,
+    step,
+):
+    *_, request, _ = planning_bundle
+    configuration = replace(request.planner_configuration, interpolation_step=step)
+    candidate = replace(request, planner_configuration=configuration)
+    with pytest.raises(PlanningValidationError) as captured:
+        deterministic_joint_interpolation(candidate)
+    assert captured.value.code is PlanningFailureCode.RESOURCE_LIMIT
+
+
+def test_interpolation_exact_resource_boundary_and_next_smaller_step(planning_bundle):
+    *_, request, _ = planning_bundle
+    largest_delta = max(
+        abs(goal.position - start.position)
+        for start, goal in zip(
+            request.start_state.positions,
+            request.goal.positions,
+            strict=True,
+        )
+    )
+    boundary = largest_delta / (request.planner_configuration.max_waypoints - 1)
+    accepted = replace(
+        request,
+        planner_configuration=replace(
+            request.planner_configuration,
+            interpolation_step=boundary,
+        ),
+    )
+    assert len(deterministic_joint_interpolation(accepted)) == 129
+
+    rejected = replace(
+        request,
+        planner_configuration=replace(
+            request.planner_configuration,
+            interpolation_step=math.nextafter(boundary, 0.0),
+        ),
+    )
+    with pytest.raises(PlanningValidationError) as captured:
+        deterministic_joint_interpolation(rejected)
+    assert captured.value.code is PlanningFailureCode.RESOURCE_LIMIT
 
 
 def test_collision_free_evidence_rejects_non_planner_waypoint(planning_bundle):
