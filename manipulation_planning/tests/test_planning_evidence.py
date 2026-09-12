@@ -20,6 +20,7 @@ from ayyo_manipulation_planning import (
     evaluate_manipulation_plan,
     verify_manipulation_plan_evidence,
     verify_manipulation_planning_request,
+    verify_manipulator_joint_state,
 )
 
 
@@ -164,6 +165,48 @@ def test_recomputed_verifiers_detect_post_construction_mutation(planning_bundle)
     object.__setattr__(evidence, "request", request)
     assert not verify_manipulation_planning_request(request)
     assert not verify_manipulation_plan_evidence(evidence)
+
+
+@pytest.mark.parametrize("artifact_name", ["start", "goal", "waypoint"])
+def test_mutated_joint_position_leaf_fails_recursive_verification(
+    planning_bundle,
+    artifact_name,
+):
+    *_, request, evidence = planning_bundle
+    artifact = {
+        "start": request.start_state,
+        "goal": request.goal,
+        "waypoint": evidence.waypoints[1],
+    }[artifact_name]
+    object.__setattr__(artifact.positions[0], "position", 0)
+
+    if artifact_name == "goal":
+        with pytest.raises(PlanningValidationError):
+            replace(request, goal=artifact)
+    elif artifact_name == "waypoint":
+        assert not verify_manipulator_joint_state(artifact)
+        with pytest.raises(PlanningValidationError):
+            replace(
+                evidence,
+                waypoints=(evidence.waypoints[0], artifact, *evidence.waypoints[2:]),
+            )
+    else:
+        assert not verify_manipulator_joint_state(artifact)
+        with pytest.raises(PlanningValidationError):
+            replace(request, start_state=artifact)
+
+
+def test_outer_reconstruction_cannot_legitimize_mutated_joint_position(planning_bundle):
+    _, catalog, group, start, *_ = planning_bundle
+    object.__setattr__(start.positions[0], "position", 0)
+    with pytest.raises(PlanningValidationError):
+        type(start)(
+            group_id=group.group_id,
+            group_fingerprint=group.group_fingerprint,
+            joint_catalog_id=catalog.joint_catalog_id,
+            joint_catalog_fingerprint=catalog.joint_catalog_fingerprint,
+            positions=start.positions,
+        )
 
 
 def test_decision_rejects_contradictory_reason(planning_bundle):

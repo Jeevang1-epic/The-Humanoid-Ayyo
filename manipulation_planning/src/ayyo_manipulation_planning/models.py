@@ -667,8 +667,24 @@ class JointPosition:
         return {"joint_name": self.joint_name, "position": self.position}
 
 
+def verify_joint_position(position: object) -> bool:
+    return _verify(
+        position,
+        JointPosition,
+        lambda: JointPosition(
+            joint_name=position.joint_name,
+            position=position.position,
+        ),
+    )
+
+
 def _positions(value: object, field_name: str) -> tuple[JointPosition, ...]:
     positions = bounded_items(value, field_name, JointPosition, MAX_PLANNING_JOINTS)
+    if any(not verify_joint_position(item) for item in positions):
+        raise PlanningValidationError(
+            PlanningFailureCode.MALFORMED_ARTIFACT,
+            f"{field_name} contains invalid joint-position evidence",
+        )
     names = [item.joint_name for item in positions]
     if len(names) != len(set(names)):
         raise PlanningValidationError(

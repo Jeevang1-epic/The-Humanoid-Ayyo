@@ -63,6 +63,18 @@ def test_serializer_rejects_nested_post_construction_identity_mutation(planning_
         )
 
 
+def test_serializer_rejects_post_construction_mutated_joint_position(planning_bundle):
+    *_, request, _ = planning_bundle
+    object.__setattr__(request.start_state.positions[0], "position", 0)
+
+    with pytest.raises(PlanningSerializationError):
+        canonical_manipulation_planning_artifact_json(request)
+    with pytest.raises(PlanningSerializationError):
+        manipulation_planning_artifact_from_canonical_json(
+            canonical_json(request.as_dict())
+        )
+
+
 @pytest.mark.parametrize("artifact_name", ["request", "evidence", "decision"])
 def test_serializer_rejects_top_level_post_construction_identity_mutation(
     planning_bundle,
