@@ -1,0 +1,18 @@
+<?xml version="1.0"?>
+<robot name="ayyo">
+  <group name="left_arm">
+    <chain base_link="left_shoulder_mount_link" tip_link="left_hand_link"/>
+  </group>
+
+  <!-- Only mechanically adjacent links are excluded from self-collision. -->
+  <disable_collisions link1="chest_link" link2="left_shoulder_mount_link" reason="Adjacent"/>
+  <disable_collisions link1="left_shoulder_mount_link" link2="left_shoulder_yaw_link" reason="Adjacent"/>
+  <disable_collisions link1="left_shoulder_yaw_link" link2="left_upper_arm_link" reason="Adjacent"/>
+  <disable_collisions link1="left_shoulder_mount_link" link2="left_upper_arm_link" reason="Adjacent"/>
+  <disable_collisions link1="left_upper_arm_link" link2="left_elbow_link" reason="Adjacent"/>
+  <disable_collisions link1="left_elbow_link" link2="left_forearm_link" reason="Adjacent"/>
+  <disable_collisions link1="left_upper_arm_link" link2="left_forearm_link" reason="Adjacent"/>
+  <disable_collisions link1="left_forearm_link" link2="left_wrist_link" reason="Adjacent"/>
+  <disable_collisions link1="left_wrist_link" link2="left_hand_link" reason="Adjacent"/>
+  <disable_collisions link1="left_forearm_link" link2="left_hand_link" reason="Adjacent"/>
+</robot>

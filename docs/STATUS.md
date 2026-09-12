@@ -108,6 +108,21 @@
   hardware validation, with no invocation, authentication, active-policy,
   persistence, model, Runtime dispatch, ROS/Gazebo command, hardware, motion,
   or Safety-bypass authority
+- Standalone `ayyo-manipulation-planning` Stage-9A package with immutable exact
+  robot-model, joint-catalog, manipulator-group, state, goal, fixed-box scene,
+  planner, plan-evidence, and decision contracts plus strict canonical JSON
+- Exact authoritative left-arm chain from `left_shoulder_mount_link` through
+  four bounded revolute joints and two fixed joints to `left_hand_link`, with
+  fail-closed fixed/wrong-arm/unknown/duplicate/missing/reordered/non-finite/
+  out-of-limit rejection and exact cross-object identity binding
+- Deterministic bounded joint-space waypoint candidates whose positive evidence
+  can mean only `PLAN_AVAILABLE_FOR_REVIEW`; every evidence and decision object
+  is `NOT_EXECUTED` and explicitly lacks physical validation
+- Headless MoveIt 2 PlanningScene package proof with pinned URDF/SRDF/allowed-
+  collision semantics and model limits, exact request-scene binding, separate
+  self/environment checking of all 14 exact Python path waypoints, and a
+  positive fixed-box goal-collision probe, without MoveGroup, controllers,
+  actions, Runtime dispatch, hardware authority, or Safety bypass
 - Standalone Memory OS core with typed records and mandatory provenance
 - SQLite persistence with schema versioning, foreign keys, WAL journaling,
   transactional corrections, retractions, and conflict records
@@ -441,7 +456,8 @@
   self-contained bare-overlay import
 - Additional controlled joints, trajectory/whole-body control, friction/contact
   tuning, and validated dynamics
-- Manipulation integration
+- Grasp planning, manipulation execution, arm controller/Runtime integration,
+  force/contact safety, and physical manipulator validation
 - Navigation integration
 - Additional Teach Mode sources, recorded/physical adapters, owner/teacher
   authentication, and raw-recording lifecycle management
@@ -466,7 +482,9 @@ inert candidate promotion/rollback eligibility foundation, plus an immutable
 candidate-version registry/lineage foundation and an inert exact authority-
 approval/future-activation eligibility boundary with no active-policy state,
 plus a deterministic Stage-8 software-showcase catalog that inspects those
-public contracts without executing them. The
+public contracts without executing them. Stage 9 has begun with an exact,
+immutable, planning-only left-arm and MoveIt collision-evidence boundary that
+always stops before execution. The
 downstream Simulation Control Foundation can actuate one bounded simulated
 neck joint only
 through explicit development injection and can prove the result from
@@ -478,5 +496,5 @@ does not
 provide inferred personality, natural-language understanding, model reasoning,
 general perception, physical sensor validation, authenticated
 authorization, live backend attestation, physical-safety certification,
-production runtime motion, task execution, walking, manipulation, or physical
-execution.
+production runtime motion, task execution, walking, manipulation execution, or
+physical execution.
