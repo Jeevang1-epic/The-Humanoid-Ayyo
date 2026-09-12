@@ -399,7 +399,9 @@ python3 -m pytest -q software_showcase/tests
 Run the planning-only Stage-9A contract and package-boundary tests:
 
 ```bash
-PYTHONPATH=manipulation_planning/src python3 -m pytest -q manipulation_planning/tests
+source /opt/ros/jazzy/setup.bash
+PYTHONPATH=manipulation_planning/src${PYTHONPATH:+:$PYTHONPATH} \
+  python3 -m pytest -q manipulation_planning/tests
 ```
 
 The MoveIt proof is built and tested through the ROS workspace as package
