@@ -129,8 +129,9 @@ def test_dynamic_code_guard_allows_only_reviewed_regex_compile():
 def test_public_surface_is_planning_evidence_only():
     required = {
         "ManipulationPlanningRequest", "ManipulationPlanEvidence",
-        "ManipulationPlanningDecision", "PlanningSceneEvidence",
-        "build_left_arm_planning_model", "deterministic_joint_interpolation",
+        "ManipulationPlanningDecision", "PlanningSceneEvidence", "MoveItCollisionProof",
+        "build_left_arm_planning_model", "build_reviewed_collision_model",
+        "deterministic_joint_interpolation", "moveit_collision_proof_from_canonical_json",
         "evaluate_manipulation_plan", "canonical_manipulation_planning_artifact_json",
     }
     forbidden = {
@@ -159,7 +160,10 @@ def test_lower_architecture_layers_have_no_reverse_dependency():
 def test_moveit_package_has_no_execution_runtime_or_controller_api():
     package = ElementTree.parse(ROS_ROOT / "package.xml").getroot()
     dependencies = {item.text for item in package if item.tag in {"depend", "exec_depend"}}
-    assert dependencies == {"geometry_msgs", "moveit_core", "moveit_msgs", "shape_msgs", "srdfdom", "urdf"}
+    assert dependencies == {
+        "geometry_msgs", "moveit_core", "moveit_msgs", "openssl", "shape_msgs",
+        "srdfdom", "urdf",
+    }
     assert dependencies.isdisjoint({
         "controller_manager", "hardware_interface", "moveit_ros_move_group",
         "moveit_ros_planning_interface", "rclcpp", "rclpy", "ros2_control",

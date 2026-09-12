@@ -51,6 +51,26 @@ LEFT_ARM_FIXED_JOINT_NAMES = (
 PLANNING_FRAME = "base_link"
 PLANNER_ID = "ayyo.bounded-linear-joint-space.v1"
 COLLISION_BACKEND_ID = "moveit.planning-scene.v1"
+REVIEWED_URDF_CONTENT_FINGERPRINT = (
+    "ayyo-expanded-urdf-content-sha256-"
+    "cc736dfa37535399b739d4e51550f5f76fe63102e037e29aabbb1c2e303ce93f"
+)
+REVIEWED_SRDF_CONTENT_FINGERPRINT = (
+    "ayyo-left-arm-srdf-content-sha256-"
+    "43b8163ee53c3694ee79890340611c822b79ddd1cee209a35d5d887163e0e385"
+)
+REVIEWED_DISABLED_COLLISION_PAIRS = (
+    ("chest_link", "left_shoulder_mount_link"),
+    ("left_elbow_link", "left_forearm_link"),
+    ("left_elbow_link", "left_upper_arm_link"),
+    ("left_forearm_link", "left_hand_link"),
+    ("left_forearm_link", "left_upper_arm_link"),
+    ("left_forearm_link", "left_wrist_link"),
+    ("left_hand_link", "left_wrist_link"),
+    ("left_shoulder_mount_link", "left_shoulder_yaw_link"),
+    ("left_shoulder_mount_link", "left_upper_arm_link"),
+    ("left_shoulder_yaw_link", "left_upper_arm_link"),
+)
 REVIEWED_DESCRIPTION_FINGERPRINT = (
     "ayyo-robot-description-sha256-"
     "f743d462235b90305256d20b4668c9640263de99dfe752dffe68c9a04e582843"
@@ -92,6 +112,8 @@ PLANNING_SCENE_SCHEMA_ID = "ayyo.manipulation-planning.scene.v1"
 PLANNING_REQUEST_SCHEMA_ID = "ayyo.manipulation-planning.request.v1"
 PLAN_EVIDENCE_SCHEMA_ID = "ayyo.manipulation-planning.plan-evidence.v1"
 PLANNING_DECISION_SCHEMA_ID = "ayyo.manipulation-planning.decision.v1"
+COLLISION_MODEL_SCHEMA_ID = "ayyo.manipulation-planning.collision-model.v1"
+MOVEIT_COLLISION_PROOF_SCHEMA_ID = "ayyo.manipulation-planning.moveit-proof.v1"
 
 
 class RobotJointKind(StrEnum):
@@ -654,6 +676,125 @@ def verify_manipulator_group_identity(group: object) -> bool:
     )
 
 
+def _collision_pairs(value: object) -> tuple[tuple[str, str], ...]:
+    if type(value) not in {tuple, list} or len(value) > MAX_COLLISION_OBJECTS:
+        raise PlanningValidationError(
+            PlanningFailureCode.RESOURCE_LIMIT,
+            "disabled collision pairs violate their resource bound",
+        )
+    pairs = []
+    for raw_pair in value:
+        if type(raw_pair) not in {tuple, list} or len(raw_pair) != 2:
+            raise PlanningValidationError(
+                PlanningFailureCode.MALFORMED_ARTIFACT,
+                "disabled collision pair must contain exactly two links",
+            )
+        left = identifier(raw_pair[0], "disabled collision link")
+        right = identifier(raw_pair[1], "disabled collision link")
+        if left == right:
+            raise PlanningValidationError(
+                PlanningFailureCode.MALFORMED_ARTIFACT,
+                "disabled collision pair cannot name one link twice",
+            )
+        pairs.append(tuple(sorted((left, right))))
+    result = tuple(sorted(pairs))
+    if len(set(result)) != len(result):
+        raise PlanningValidationError(
+            PlanningFailureCode.MALFORMED_ARTIFACT,
+            "disabled collision pairs contain duplicates",
+        )
+    return result
+
+
+@dataclass(frozen=True, slots=True)
+class CollisionModelIdentity:
+    robot_model_id: str
+    robot_model_fingerprint: str
+    group_id: str
+    group_fingerprint: str
+    robot_description_content_fingerprint: str
+    srdf_content_fingerprint: str
+    disabled_collision_pairs: tuple[tuple[str, str], ...]
+    schema_id: str = field(init=False, default=COLLISION_MODEL_SCHEMA_ID)
+    schema_version: str = field(init=False, default=SCHEMA_VERSION)
+    collision_model_id: str = field(init=False)
+    collision_model_fingerprint: str = field(init=False)
+
+    def __post_init__(self) -> None:
+        for name in (
+            "robot_model_id",
+            "robot_model_fingerprint",
+            "group_id",
+            "group_fingerprint",
+            "robot_description_content_fingerprint",
+            "srdf_content_fingerprint",
+        ):
+            object.__setattr__(self, name, fingerprint(getattr(self, name), name))
+        if (
+            self.robot_model_id != REVIEWED_ROBOT_MODEL_ID
+            or self.robot_model_fingerprint != REVIEWED_ROBOT_MODEL_FINGERPRINT
+            or self.group_id != REVIEWED_GROUP_ID
+            or self.group_fingerprint != REVIEWED_GROUP_FINGERPRINT
+            or self.robot_description_content_fingerprint
+            != REVIEWED_URDF_CONTENT_FINGERPRINT
+            or self.srdf_content_fingerprint != REVIEWED_SRDF_CONTENT_FINGERPRINT
+        ):
+            raise PlanningValidationError(
+                PlanningFailureCode.MODEL_MISMATCH,
+                "collision model is not bound to the reviewed Ayyo URDF and SRDF",
+            )
+        pairs = _collision_pairs(self.disabled_collision_pairs)
+        if pairs != REVIEWED_DISABLED_COLLISION_PAIRS:
+            raise PlanningValidationError(
+                PlanningFailureCode.MODEL_MISMATCH,
+                "allowed-collision semantics differ from the reviewed Ayyo SRDF",
+            )
+        object.__setattr__(self, "disabled_collision_pairs", pairs)
+        identity, content = content_identity(
+            "manipulation-collision-model",
+            self.semantic_document(),
+        )
+        object.__setattr__(self, "collision_model_id", identity)
+        object.__setattr__(self, "collision_model_fingerprint", content)
+        assert_artifact_size(self.as_dict(), "collision model identity")
+
+    def semantic_document(self) -> dict[str, JSONValue]:
+        return {
+            "backend_id": COLLISION_BACKEND_ID,
+            "disabled_collision_pairs": [list(pair) for pair in self.disabled_collision_pairs],
+            "group_fingerprint": self.group_fingerprint,
+            "group_id": self.group_id,
+            "robot_description_content_fingerprint": self.robot_description_content_fingerprint,
+            "robot_model_fingerprint": self.robot_model_fingerprint,
+            "robot_model_id": self.robot_model_id,
+            "schema": _schema(self.schema_id),
+            "srdf_content_fingerprint": self.srdf_content_fingerprint,
+        }
+
+    def as_dict(self) -> dict[str, JSONValue]:
+        return {
+            **self.semantic_document(),
+            "collision_model_fingerprint": self.collision_model_fingerprint,
+            "collision_model_id": self.collision_model_id,
+        }
+
+
+def verify_collision_model_identity(model: object) -> bool:
+    return _verify(
+        model,
+        CollisionModelIdentity,
+        lambda: CollisionModelIdentity(
+            robot_model_id=model.robot_model_id,
+            robot_model_fingerprint=model.robot_model_fingerprint,
+            group_id=model.group_id,
+            group_fingerprint=model.group_fingerprint,
+            robot_description_content_fingerprint=model.robot_description_content_fingerprint,
+            srdf_content_fingerprint=model.srdf_content_fingerprint,
+            disabled_collision_pairs=model.disabled_collision_pairs,
+        ),
+    )
+
+
 @dataclass(frozen=True, slots=True)
 class JointPosition:
     joint_name: str
@@ -1066,6 +1207,7 @@ class ManipulationPlanningRequest:
     robot_model: RobotModelIdentity
     joint_catalog: ManipulatorJointCatalog
     group: ManipulatorGroupIdentity
+    collision_model: CollisionModelIdentity
     start_state: ManipulatorJointState
     goal: JointSpaceGoal
     scene: PlanningSceneEvidence
@@ -1082,6 +1224,17 @@ class ManipulationPlanningRequest:
             raise PlanningValidationError(PlanningFailureCode.MODEL_MISMATCH, "request joint catalog differs from its robot model")
         if not verify_manipulator_group_identity(self.group) or not _same_binding(self.group, self.joint_catalog):
             raise PlanningValidationError(PlanningFailureCode.WRONG_MANIPULATOR_GROUP, "request group differs from its joint catalog")
+        if not verify_collision_model_identity(self.collision_model) or (
+            self.collision_model.robot_model_id != self.robot_model.robot_model_id
+            or self.collision_model.robot_model_fingerprint
+            != self.robot_model.robot_model_fingerprint
+            or self.collision_model.group_id != self.group.group_id
+            or self.collision_model.group_fingerprint != self.group.group_fingerprint
+        ):
+            raise PlanningValidationError(
+                PlanningFailureCode.EVIDENCE_MISMATCH,
+                "request collision-model semantics were substituted",
+            )
         if not verify_manipulator_joint_state(self.start_state) or not verify_joint_space_goal(self.goal):
             raise PlanningValidationError(PlanningFailureCode.EVIDENCE_MISMATCH, "request state or goal is invalid")
         expected_binding = (
@@ -1123,6 +1276,7 @@ class ManipulationPlanningRequest:
 
     def semantic_document(self) -> dict[str, JSONValue]:
         return {
+            "collision_model": self.collision_model.as_dict(),
             "goal": self.goal.as_dict(),
             "group": self.group.as_dict(),
             "joint_catalog": self.joint_catalog.as_dict(),
@@ -1145,6 +1299,7 @@ def verify_manipulation_planning_request(request: object) -> bool:
             robot_model=request.robot_model,
             joint_catalog=request.joint_catalog,
             group=request.group,
+            collision_model=request.collision_model,
             start_state=request.start_state,
             goal=request.goal,
             scene=request.scene,
@@ -1153,10 +1308,230 @@ def verify_manipulation_planning_request(request: object) -> bool:
     )
 
 
+def _collision_results(
+    value: object,
+    field_name: str,
+    expected_length: int,
+) -> tuple[bool, ...]:
+    if type(value) not in {tuple, list} or len(value) != expected_length:
+        raise PlanningValidationError(
+            PlanningFailureCode.EVIDENCE_MISMATCH,
+            f"{field_name} must cover every exact candidate waypoint",
+        )
+    result = tuple(value)
+    if any(type(item) is not bool for item in result):
+        raise PlanningValidationError(
+            PlanningFailureCode.MALFORMED_ARTIFACT,
+            f"{field_name} must contain explicit booleans",
+        )
+    return result
+
+
+@dataclass(frozen=True, slots=True)
+class MoveItCollisionProof:
+    request_id: str
+    request_fingerprint: str
+    collision_model_id: str
+    collision_model_fingerprint: str
+    planner_configuration_id: str
+    planner_configuration_fingerprint: str
+    robot_description_content_fingerprint: str
+    srdf_content_fingerprint: str
+    disabled_collision_pairs: tuple[tuple[str, str], ...]
+    backend_version: str
+    joint_names: tuple[str, ...]
+    waypoints: tuple[ManipulatorJointState, ...]
+    collision_objects: tuple[CollisionBox, ...]
+    self_collision_free: tuple[bool, ...]
+    environment_collision_free: tuple[bool, ...]
+    limits_match_reviewed: bool
+    goal_obstacle_collision_reported: bool
+    execution_disposition: ExecutionDisposition
+    schema_id: str = field(init=False, default=MOVEIT_COLLISION_PROOF_SCHEMA_ID)
+    schema_version: str = field(init=False, default=SCHEMA_VERSION)
+    candidate_path_id: str = field(init=False)
+    candidate_path_fingerprint: str = field(init=False)
+    proof_id: str = field(init=False)
+    proof_fingerprint: str = field(init=False)
+
+    def __post_init__(self) -> None:
+        for name in (
+            "request_id",
+            "request_fingerprint",
+            "collision_model_id",
+            "collision_model_fingerprint",
+            "planner_configuration_id",
+            "planner_configuration_fingerprint",
+            "robot_description_content_fingerprint",
+            "srdf_content_fingerprint",
+        ):
+            object.__setattr__(self, name, fingerprint(getattr(self, name), name))
+        if (
+            self.robot_description_content_fingerprint
+            != REVIEWED_URDF_CONTENT_FINGERPRINT
+            or self.srdf_content_fingerprint != REVIEWED_SRDF_CONTENT_FINGERPRINT
+        ):
+            raise PlanningValidationError(
+                PlanningFailureCode.MODEL_MISMATCH,
+                "MoveIt proof used an unreviewed robot or semantic description",
+            )
+        pairs = _collision_pairs(self.disabled_collision_pairs)
+        if pairs != REVIEWED_DISABLED_COLLISION_PAIRS:
+            raise PlanningValidationError(
+                PlanningFailureCode.MODEL_MISMATCH,
+                "MoveIt proof used unreviewed allowed-collision semantics",
+            )
+        names = _identifier_tuple(
+            self.joint_names,
+            "MoveIt proof joint names",
+            MAX_PLANNING_JOINTS,
+        )
+        if names != LEFT_ARM_JOINT_NAMES:
+            raise PlanningValidationError(
+                PlanningFailureCode.WRONG_MANIPULATOR_GROUP,
+                "MoveIt proof joint order differs from the reviewed left arm",
+            )
+        waypoints = bounded_items(
+            self.waypoints,
+            "MoveIt proof waypoints",
+            ManipulatorJointState,
+            MAX_WAYPOINTS,
+        )
+        if any(not verify_manipulator_joint_state(item) for item in waypoints):
+            raise PlanningValidationError(
+                PlanningFailureCode.EVIDENCE_MISMATCH,
+                "MoveIt proof contains invalid candidate waypoint evidence",
+            )
+        objects = bounded_items(
+            self.collision_objects,
+            "MoveIt proof collision objects",
+            CollisionBox,
+            MAX_COLLISION_OBJECTS,
+            allow_empty=True,
+        )
+        if any(not verify_collision_box(item) for item in objects):
+            raise PlanningValidationError(
+                PlanningFailureCode.EVIDENCE_MISMATCH,
+                "MoveIt proof contains invalid collision-object evidence",
+            )
+        objects = tuple(sorted(objects, key=lambda item: item.object_id))
+        self_results = _collision_results(
+            self.self_collision_free,
+            "self-collision results",
+            len(waypoints),
+        )
+        environment_results = _collision_results(
+            self.environment_collision_free,
+            "environment-collision results",
+            len(waypoints),
+        )
+        if type(self.limits_match_reviewed) is not bool or not self.limits_match_reviewed:
+            raise PlanningValidationError(
+                PlanningFailureCode.MODEL_MISMATCH,
+                "MoveIt proof did not verify the reviewed joint limits",
+            )
+        if (
+            type(self.goal_obstacle_collision_reported) is not bool
+            or not self.goal_obstacle_collision_reported
+        ):
+            raise PlanningValidationError(
+                PlanningFailureCode.EVIDENCE_MISMATCH,
+                "MoveIt proof lacks its positive environment-collision control",
+            )
+        if self.execution_disposition is not ExecutionDisposition.NOT_EXECUTED:
+            raise PlanningValidationError(
+                PlanningFailureCode.EVIDENCE_MISMATCH,
+                "MoveIt collision proof can only be not executed",
+            )
+        object.__setattr__(self, "disabled_collision_pairs", pairs)
+        object.__setattr__(self, "backend_version", bounded_text(self.backend_version, "backend_version", 64))
+        object.__setattr__(self, "joint_names", names)
+        object.__setattr__(self, "waypoints", waypoints)
+        object.__setattr__(self, "collision_objects", objects)
+        object.__setattr__(self, "self_collision_free", self_results)
+        object.__setattr__(self, "environment_collision_free", environment_results)
+        path_identity, path_content = content_identity(
+            "manipulation-candidate-path",
+            {
+                "joint_names": list(self.joint_names),
+                "planner_configuration_fingerprint": self.planner_configuration_fingerprint,
+                "planner_configuration_id": self.planner_configuration_id,
+                "waypoints": [item.as_dict() for item in self.waypoints],
+            },
+        )
+        object.__setattr__(self, "candidate_path_id", path_identity)
+        object.__setattr__(self, "candidate_path_fingerprint", path_content)
+        identity, content = content_identity("moveit-collision-proof", self.semantic_document())
+        object.__setattr__(self, "proof_id", identity)
+        object.__setattr__(self, "proof_fingerprint", content)
+        assert_artifact_size(self.as_dict(), "MoveIt collision proof")
+
+    def semantic_document(self) -> dict[str, JSONValue]:
+        return {
+            "backend_id": COLLISION_BACKEND_ID,
+            "backend_version": self.backend_version,
+            "candidate_path_fingerprint": self.candidate_path_fingerprint,
+            "candidate_path_id": self.candidate_path_id,
+            "collision_model_fingerprint": self.collision_model_fingerprint,
+            "collision_model_id": self.collision_model_id,
+            "collision_objects": [item.as_dict() for item in self.collision_objects],
+            "disabled_collision_pairs": [list(pair) for pair in self.disabled_collision_pairs],
+            "environment_collision_free": list(self.environment_collision_free),
+            "execution_disposition": self.execution_disposition.value,
+            "goal_obstacle_collision_reported": self.goal_obstacle_collision_reported,
+            "joint_names": list(self.joint_names),
+            "limits_match_reviewed": self.limits_match_reviewed,
+            "planner_configuration_fingerprint": self.planner_configuration_fingerprint,
+            "planner_configuration_id": self.planner_configuration_id,
+            "request_fingerprint": self.request_fingerprint,
+            "request_id": self.request_id,
+            "robot_description_content_fingerprint": self.robot_description_content_fingerprint,
+            "schema": _schema(self.schema_id),
+            "self_collision_free": list(self.self_collision_free),
+            "srdf_content_fingerprint": self.srdf_content_fingerprint,
+            "waypoints": [item.as_dict() for item in self.waypoints],
+        }
+
+    def as_dict(self) -> dict[str, JSONValue]:
+        return {
+            **self.semantic_document(),
+            "proof_fingerprint": self.proof_fingerprint,
+            "proof_id": self.proof_id,
+        }
+
+
+def verify_moveit_collision_proof(proof: object) -> bool:
+    return _verify(
+        proof,
+        MoveItCollisionProof,
+        lambda: MoveItCollisionProof(
+            request_id=proof.request_id,
+            request_fingerprint=proof.request_fingerprint,
+            collision_model_id=proof.collision_model_id,
+            collision_model_fingerprint=proof.collision_model_fingerprint,
+            planner_configuration_id=proof.planner_configuration_id,
+            planner_configuration_fingerprint=proof.planner_configuration_fingerprint,
+            robot_description_content_fingerprint=proof.robot_description_content_fingerprint,
+            srdf_content_fingerprint=proof.srdf_content_fingerprint,
+            disabled_collision_pairs=proof.disabled_collision_pairs,
+            backend_version=proof.backend_version,
+            joint_names=proof.joint_names,
+            waypoints=proof.waypoints,
+            collision_objects=proof.collision_objects,
+            self_collision_free=proof.self_collision_free,
+            environment_collision_free=proof.environment_collision_free,
+            limits_match_reviewed=proof.limits_match_reviewed,
+            goal_obstacle_collision_reported=proof.goal_obstacle_collision_reported,
+            execution_disposition=proof.execution_disposition,
+        ),
+    )
+
+
 @dataclass(frozen=True, slots=True)
 class ManipulationPlanEvidence:
     request: ManipulationPlanningRequest
     status: PlanEvidenceStatus
+    collision_proof: MoveItCollisionProof | None
     backend_version: str
     planner_seed: int
     waypoints: tuple[ManipulatorJointState, ...]
@@ -1175,6 +1550,75 @@ class ManipulationPlanEvidence:
             raise PlanningValidationError(PlanningFailureCode.EVIDENCE_MISMATCH, "plan evidence request is invalid")
         _closed_enum(self.status, PlanEvidenceStatus, "plan evidence status")
         backend_version = bounded_text(self.backend_version, "backend_version", 64)
+        proof = self.collision_proof
+        if proof is not None:
+            if not verify_moveit_collision_proof(proof):
+                raise PlanningValidationError(
+                    PlanningFailureCode.EVIDENCE_MISMATCH,
+                    "plan evidence contains an invalid MoveIt collision proof",
+                )
+            expected_proof_binding = (
+                self.request.request_id,
+                self.request.request_fingerprint,
+                self.request.collision_model.collision_model_id,
+                self.request.collision_model.collision_model_fingerprint,
+                self.request.planner_configuration.configuration_id,
+                self.request.planner_configuration.configuration_fingerprint,
+            )
+            actual_proof_binding = (
+                proof.request_id,
+                proof.request_fingerprint,
+                proof.collision_model_id,
+                proof.collision_model_fingerprint,
+                proof.planner_configuration_id,
+                proof.planner_configuration_fingerprint,
+            )
+            if actual_proof_binding != expected_proof_binding:
+                raise PlanningValidationError(
+                    PlanningFailureCode.EVIDENCE_MISMATCH,
+                    "MoveIt proof is not bound to the exact planning request",
+                )
+            if (
+                proof.robot_description_content_fingerprint
+                != self.request.collision_model.robot_description_content_fingerprint
+                or proof.srdf_content_fingerprint
+                != self.request.collision_model.srdf_content_fingerprint
+                or proof.disabled_collision_pairs
+                != self.request.collision_model.disabled_collision_pairs
+                or proof.backend_version != backend_version
+            ):
+                raise PlanningValidationError(
+                    PlanningFailureCode.EVIDENCE_MISMATCH,
+                    "MoveIt proof collision semantics were substituted",
+                )
+            expected_proof_positions = _deterministic_joint_positions(self.request)
+            actual_proof_positions = tuple(
+                tuple(position.position for position in waypoint.positions)
+                for waypoint in proof.waypoints
+            )
+            if (
+                actual_proof_positions != expected_proof_positions
+                or any(
+                    (
+                        waypoint.group_id,
+                        waypoint.group_fingerprint,
+                        waypoint.joint_catalog_id,
+                        waypoint.joint_catalog_fingerprint,
+                    )
+                    != (
+                        self.request.group.group_id,
+                        self.request.group.group_fingerprint,
+                        self.request.joint_catalog.joint_catalog_id,
+                        self.request.joint_catalog.joint_catalog_fingerprint,
+                    )
+                    for waypoint in proof.waypoints
+                )
+                or proof.collision_objects != self.request.scene.collision_objects
+            ):
+                raise PlanningValidationError(
+                    PlanningFailureCode.EVIDENCE_MISMATCH,
+                    "MoveIt proof checked a different candidate path or planning scene",
+                )
         if type(self.planner_seed) is not int or self.planner_seed != self.request.planner_configuration.deterministic_seed:
             raise PlanningValidationError(PlanningFailureCode.EVIDENCE_MISMATCH, "planner seed differs from the exact request")
         waypoints = bounded_items(self.waypoints, "waypoints", ManipulatorJointState, MAX_WAYPOINTS, allow_empty=True)
@@ -1192,7 +1636,14 @@ class ManipulationPlanEvidence:
         if self.execution_disposition is not ExecutionDisposition.NOT_EXECUTED:
             raise PlanningValidationError(PlanningFailureCode.EVIDENCE_MISMATCH, "planning evidence can only be not executed")
         if self.status is PlanEvidenceStatus.COLLISION_FREE_PLAN_REPORTED:
-            if len(waypoints) < 2 or len(waypoints) > self.request.planner_configuration.max_waypoints or colliding:
+            if (
+                proof is None
+                or not all(proof.self_collision_free)
+                or not all(proof.environment_collision_free)
+                or len(waypoints) < 2
+                or len(waypoints) > self.request.planner_configuration.max_waypoints
+                or colliding
+            ):
                 raise PlanningValidationError(PlanningFailureCode.EVIDENCE_MISMATCH, "collision-free plan evidence is incomplete or contradictory")
             for waypoint in waypoints:
                 if (
@@ -1214,8 +1665,11 @@ class ManipulationPlanEvidence:
                     PlanningFailureCode.EVIDENCE_MISMATCH,
                     "plan evidence differs from the exact deterministic planner output",
                 )
-        elif waypoints:
-            raise PlanningValidationError(PlanningFailureCode.EVIDENCE_MISMATCH, "rejected planning evidence cannot carry a usable trajectory")
+        elif proof is not None or waypoints:
+            raise PlanningValidationError(
+                PlanningFailureCode.EVIDENCE_MISMATCH,
+                "rejected planning evidence cannot carry a usable proof or trajectory",
+            )
         object.__setattr__(self, "backend_version", backend_version)
         object.__setattr__(self, "waypoints", waypoints)
         object.__setattr__(self, "checked_collision_object_ids", checked)
@@ -1230,6 +1684,7 @@ class ManipulationPlanEvidence:
             "backend_id": COLLISION_BACKEND_ID,
             "backend_version": self.backend_version,
             "checked_collision_object_ids": list(self.checked_collision_object_ids),
+            "collision_proof": None if self.collision_proof is None else self.collision_proof.as_dict(),
             "colliding_object_ids": list(self.colliding_object_ids),
             "environment_collision_checked": self.environment_collision_checked,
             "execution_disposition": self.execution_disposition.value,
@@ -1252,6 +1707,7 @@ def verify_manipulation_plan_evidence(evidence: object) -> bool:
         lambda: ManipulationPlanEvidence(
             request=evidence.request,
             status=evidence.status,
+            collision_proof=evidence.collision_proof,
             backend_version=evidence.backend_version,
             planner_seed=evidence.planner_seed,
             waypoints=evidence.waypoints,

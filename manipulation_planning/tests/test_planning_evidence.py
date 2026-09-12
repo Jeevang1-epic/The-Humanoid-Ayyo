@@ -125,7 +125,7 @@ def test_group_fixed_joint_substitution_fails_closed(planning_bundle):
 )
 def test_negative_evidence_stays_rejected(planning_bundle, status, reason):
     *_, request, evidence = planning_bundle
-    rejected = replace(evidence, status=status, waypoints=())
+    rejected = replace(evidence, status=status, collision_proof=None, waypoints=())
     decision = evaluate_manipulation_plan(request, rejected)
     assert decision.disposition is PlanningDisposition.REJECTED
     assert reason in decision.reasons
@@ -195,7 +195,11 @@ def test_collision_free_status_cannot_carry_collisions(planning_bundle):
 def test_rejection_cannot_carry_usable_waypoints(planning_bundle):
     *_, evidence = planning_bundle
     with pytest.raises(PlanningValidationError):
-        replace(evidence, status=PlanEvidenceStatus.PATH_COLLISION_REPORTED)
+        replace(
+            evidence,
+            status=PlanEvidenceStatus.PATH_COLLISION_REPORTED,
+            collision_proof=None,
+        )
 
 
 def test_false_collision_check_flags_fail_closed(planning_bundle):

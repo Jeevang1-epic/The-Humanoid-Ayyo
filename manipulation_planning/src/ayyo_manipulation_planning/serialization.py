@@ -14,10 +14,12 @@ from .canonical import (
 from .errors import PlanningSerializationError, PlanningValidationError
 from .models import (
     COLLISION_BOX_SCHEMA_ID,
+    COLLISION_MODEL_SCHEMA_ID,
     JOINT_CATALOG_SCHEMA_ID,
     JOINT_GOAL_SCHEMA_ID,
     JOINT_STATE_SCHEMA_ID,
     MANIPULATOR_GROUP_SCHEMA_ID,
+    MOVEIT_COLLISION_PROOF_SCHEMA_ID,
     PLAN_EVIDENCE_SCHEMA_ID,
     PLANNER_CONFIGURATION_SCHEMA_ID,
     PLANNING_DECISION_SCHEMA_ID,
@@ -26,6 +28,7 @@ from .models import (
     ROBOT_JOINT_SCHEMA_ID,
     ROBOT_MODEL_SCHEMA_ID,
     CollisionBox,
+    CollisionModelIdentity,
     ExecutionDisposition,
     JointPosition,
     JointSpaceGoal,
@@ -35,6 +38,7 @@ from .models import (
     ManipulatorGroupIdentity,
     ManipulatorJointCatalog,
     ManipulatorJointState,
+    MoveItCollisionProof,
     PlanEvidenceStatus,
     PlannerConfiguration,
     PlanningDecisionReason,
@@ -44,6 +48,7 @@ from .models import (
     RobotJointReference,
     RobotModelIdentity,
     verify_collision_box,
+    verify_collision_model_identity,
     verify_joint_space_goal,
     verify_manipulation_plan_evidence,
     verify_manipulation_planning_decision,
@@ -51,6 +56,7 @@ from .models import (
     verify_manipulator_group_identity,
     verify_manipulator_joint_catalog,
     verify_manipulator_joint_state,
+    verify_moveit_collision_proof,
     verify_planner_configuration,
     verify_planning_scene_evidence,
     verify_robot_joint_reference,
@@ -67,9 +73,11 @@ PlanningArtifact = (
     | JointSpaceGoal
     | PlannerConfiguration
     | CollisionBox
+    | CollisionModelIdentity
     | PlanningSceneEvidence
     | ManipulationPlanningRequest
     | ManipulationPlanEvidence
+    | MoveItCollisionProof
     | ManipulationPlanningDecision
 )
 
@@ -202,6 +210,36 @@ def _group(value: object) -> ManipulatorGroupIdentity:
     ))
 
 
+def _collision_pairs(value: object) -> tuple[tuple[str, str], ...]:
+    result = []
+    for raw in _sequence(value, "disabled_collision_pairs"):
+        pair = _sequence(raw, "disabled_collision_pair")
+        if len(pair) != 2:
+            raise _error("disabled collision pair must contain exactly two links")
+        result.append((pair[0], pair[1]))
+    return tuple(result)
+
+
+def _collision_model(value: object) -> CollisionModelIdentity:
+    item = _mapping(value, "collision_model")
+    _exact_keys(item, {
+        "backend_id", "collision_model_fingerprint", "collision_model_id",
+        "disabled_collision_pairs", "group_fingerprint", "group_id",
+        "robot_description_content_fingerprint", "robot_model_fingerprint",
+        "robot_model_id", "schema", "srdf_content_fingerprint",
+    }, "collision_model")
+    _schema(item, COLLISION_MODEL_SCHEMA_ID)
+    return _verify_recomputed(item, CollisionModelIdentity(
+        robot_model_id=item["robot_model_id"],
+        robot_model_fingerprint=item["robot_model_fingerprint"],
+        group_id=item["group_id"],
+        group_fingerprint=item["group_fingerprint"],
+        robot_description_content_fingerprint=item["robot_description_content_fingerprint"],
+        srdf_content_fingerprint=item["srdf_content_fingerprint"],
+        disabled_collision_pairs=_collision_pairs(item["disabled_collision_pairs"]),
+    ))
+
+
 def _positions(value: object) -> tuple[JointPosition, ...]:
     result = []
     for raw in _sequence(value, "positions"):
@@ -295,14 +333,16 @@ def _scene(value: object) -> PlanningSceneEvidence:
 def _request(value: object) -> ManipulationPlanningRequest:
     item = _mapping(value, "planning_request")
     _exact_keys(item, {
-        "goal", "group", "joint_catalog", "planner_configuration", "request_fingerprint",
-        "request_id", "robot_model", "scene", "schema", "start_state",
+        "collision_model", "goal", "group", "joint_catalog", "planner_configuration",
+        "request_fingerprint", "request_id", "robot_model", "scene", "schema",
+        "start_state",
     }, "planning_request")
     _schema(item, PLANNING_REQUEST_SCHEMA_ID)
     return _verify_recomputed(item, ManipulationPlanningRequest(
         robot_model=_robot_model(item["robot_model"]),
         joint_catalog=_catalog(item["joint_catalog"]),
         group=_group(item["group"]),
+        collision_model=_collision_model(item["collision_model"]),
         start_state=_state(item["start_state"]),
         goal=_goal(item["goal"]),
         scene=_scene(item["scene"]),
@@ -310,18 +350,65 @@ def _request(value: object) -> ManipulationPlanningRequest:
     ))
 
 
+def _booleans(value: object, name: str) -> tuple[bool, ...]:
+    return tuple(_sequence(value, name))
+
+
+def _moveit_proof(value: object) -> MoveItCollisionProof:
+    item = _mapping(value, "moveit_collision_proof")
+    _exact_keys(item, {
+        "backend_id", "backend_version", "candidate_path_fingerprint",
+        "candidate_path_id", "collision_model_fingerprint", "collision_model_id",
+        "collision_objects", "disabled_collision_pairs", "environment_collision_free",
+        "execution_disposition", "goal_obstacle_collision_reported", "joint_names",
+        "limits_match_reviewed", "planner_configuration_fingerprint",
+        "planner_configuration_id", "proof_fingerprint", "proof_id",
+        "request_fingerprint", "request_id", "robot_description_content_fingerprint",
+        "schema", "self_collision_free", "srdf_content_fingerprint", "waypoints",
+    }, "moveit_collision_proof")
+    _schema(item, MOVEIT_COLLISION_PROOF_SCHEMA_ID)
+    return _verify_recomputed(item, MoveItCollisionProof(
+        request_id=item["request_id"],
+        request_fingerprint=item["request_fingerprint"],
+        collision_model_id=item["collision_model_id"],
+        collision_model_fingerprint=item["collision_model_fingerprint"],
+        planner_configuration_id=item["planner_configuration_id"],
+        planner_configuration_fingerprint=item["planner_configuration_fingerprint"],
+        robot_description_content_fingerprint=item["robot_description_content_fingerprint"],
+        srdf_content_fingerprint=item["srdf_content_fingerprint"],
+        disabled_collision_pairs=_collision_pairs(item["disabled_collision_pairs"]),
+        backend_version=item["backend_version"],
+        joint_names=tuple(_sequence(item["joint_names"], "joint_names")),
+        waypoints=tuple(_state(raw) for raw in _sequence(item["waypoints"], "waypoints")),
+        collision_objects=tuple(
+            _box(raw) for raw in _sequence(item["collision_objects"], "collision_objects")
+        ),
+        self_collision_free=_booleans(item["self_collision_free"], "self_collision_free"),
+        environment_collision_free=_booleans(
+            item["environment_collision_free"], "environment_collision_free"
+        ),
+        limits_match_reviewed=item["limits_match_reviewed"],
+        goal_obstacle_collision_reported=item["goal_obstacle_collision_reported"],
+        execution_disposition=ExecutionDisposition(item["execution_disposition"]),
+    ))
+
+
 def _evidence(value: object) -> ManipulationPlanEvidence:
     item = _mapping(value, "plan_evidence")
     _exact_keys(item, {
         "backend_id", "backend_version", "checked_collision_object_ids",
-        "colliding_object_ids", "environment_collision_checked", "execution_disposition",
-        "plan_evidence_fingerprint", "plan_evidence_id", "planner_seed", "request", "schema",
-        "self_collision_checked", "status", "waypoints",
+        "colliding_object_ids", "collision_proof", "environment_collision_checked",
+        "execution_disposition", "plan_evidence_fingerprint", "plan_evidence_id",
+        "planner_seed", "request", "schema", "self_collision_checked", "status",
+        "waypoints",
     }, "plan_evidence")
     _schema(item, PLAN_EVIDENCE_SCHEMA_ID)
     return _verify_recomputed(item, ManipulationPlanEvidence(
         request=_request(item["request"]),
         status=PlanEvidenceStatus(item["status"]),
+        collision_proof=(
+            None if item["collision_proof"] is None else _moveit_proof(item["collision_proof"])
+        ),
         backend_version=item["backend_version"],
         planner_seed=item["planner_seed"],
         waypoints=tuple(_state(value) for value in _sequence(item["waypoints"], "waypoints")),
@@ -354,6 +441,7 @@ _PARSERS: dict[str, Callable[[object], PlanningArtifact]] = {
     ROBOT_JOINT_SCHEMA_ID: _joint,
     JOINT_CATALOG_SCHEMA_ID: _catalog,
     MANIPULATOR_GROUP_SCHEMA_ID: _group,
+    COLLISION_MODEL_SCHEMA_ID: _collision_model,
     JOINT_STATE_SCHEMA_ID: _state,
     JOINT_GOAL_SCHEMA_ID: _goal,
     PLANNER_CONFIGURATION_SCHEMA_ID: _configuration,
@@ -361,6 +449,7 @@ _PARSERS: dict[str, Callable[[object], PlanningArtifact]] = {
     PLANNING_SCENE_SCHEMA_ID: _scene,
     PLANNING_REQUEST_SCHEMA_ID: _request,
     PLAN_EVIDENCE_SCHEMA_ID: _evidence,
+    MOVEIT_COLLISION_PROOF_SCHEMA_ID: _moveit_proof,
     PLANNING_DECISION_SCHEMA_ID: _decision,
 }
 
@@ -369,6 +458,7 @@ _VERIFIERS: dict[type, Callable[[object], bool]] = {
     RobotJointReference: verify_robot_joint_reference,
     ManipulatorJointCatalog: verify_manipulator_joint_catalog,
     ManipulatorGroupIdentity: verify_manipulator_group_identity,
+    CollisionModelIdentity: verify_collision_model_identity,
     ManipulatorJointState: verify_manipulator_joint_state,
     JointSpaceGoal: verify_joint_space_goal,
     PlannerConfiguration: verify_planner_configuration,
@@ -376,6 +466,7 @@ _VERIFIERS: dict[type, Callable[[object], bool]] = {
     PlanningSceneEvidence: verify_planning_scene_evidence,
     ManipulationPlanningRequest: verify_manipulation_planning_request,
     ManipulationPlanEvidence: verify_manipulation_plan_evidence,
+    MoveItCollisionProof: verify_moveit_collision_proof,
     ManipulationPlanningDecision: verify_manipulation_planning_decision,
 }
 

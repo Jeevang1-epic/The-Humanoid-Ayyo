@@ -35,9 +35,11 @@ def test_all_public_artifact_types_round_trip(planning_bundle):
         start,
         goal,
         request.planner_configuration,
+        request.collision_model,
         *scene.collision_objects,
         scene,
         request,
+        evidence.collision_proof,
         evidence,
         decision,
     )
