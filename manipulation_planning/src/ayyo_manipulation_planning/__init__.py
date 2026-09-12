@@ -53,6 +53,10 @@ from .planning import (
     make_joint_state,
 )
 from .robot_model import build_left_arm_planning_model
+from .serialization import (
+    canonical_manipulation_planning_artifact_json,
+    manipulation_planning_artifact_from_canonical_json,
+)
 
 __all__ = (
     "COLLISION_BACKEND_ID",
@@ -85,11 +89,13 @@ __all__ = (
     "RobotJointReference",
     "RobotModelIdentity",
     "build_left_arm_planning_model",
+    "canonical_manipulation_planning_artifact_json",
     "default_planner_configuration",
     "deterministic_joint_interpolation",
     "evaluate_manipulation_plan",
     "make_joint_goal",
     "make_joint_state",
+    "manipulation_planning_artifact_from_canonical_json",
     "verify_collision_box",
     "verify_joint_space_goal",
     "verify_manipulation_plan_evidence",
