@@ -15,12 +15,12 @@ move and is always paired with `NOT_EXECUTED` and
 
 ```text
 expanded authoritative Ayyo URDF supplied by caller
-→ immutable robot-model fingerprint
+→ immutable reviewed robot-model + URDF/SRDF/ACM fingerprints
 → exact immutable left-arm joint catalog and group
 → exact start state + bounded joint-space goal
 → bounded fixed-box planning scene in base_link
 → deterministic candidate interpolation
-→ external MoveIt PlanningScene collision check
+→ exact external MoveIt PlanningScene collision proof
 → exact immutable plan evidence
 → pure review decision
 → stop
@@ -76,11 +76,13 @@ expanded-description fingerprint
 → robot-model ID/fingerprint
 → joint-catalog ID/fingerprint
 → group ID/fingerprint
+→ collision-model ID/fingerprint (exact URDF + SRDF + disabled pairs)
 → start + goal identities
 → scene ID/fingerprint
 → planner configuration identity
 → request ID/fingerprint
-→ waypoint state identities + collision evidence
+→ exact candidate-path ID/fingerprint + per-waypoint collision results
+→ MoveIt-proof ID/fingerprint
 → plan-evidence ID/fingerprint
 → decision ID/fingerprint
 ```
@@ -91,6 +93,9 @@ nested, endpoint, waypoint, scene, planner-seed, and recomputed-outer identity
 substitutions fail closed. Canonical parsing rejects duplicate keys,
 noncanonical JSON, non-finite constants, unknown/missing fields, unknown
 schemas/versions/enums, resource excess, and malformed nesting.
+Negative-zero JSON is noncanonical and rejected rather than silently normalized.
+Finite interpolation steps that cannot fit within the waypoint ceiling fail with
+a typed resource error before division or allocation.
 
 ## Collision-scene boundary
 
@@ -108,9 +113,12 @@ frame lookup, inferred geometry, scene persistence, or background updates.
 
 Plan evidence must state that both self-collision and environment-collision
 checks occurred, bind the exact complete requested object-ID set, retain the
-deterministic planner seed, and use exact request-bound waypoints. Collision-
-free evidence needs exact start/end points and cannot name a collision. A
-rejection cannot carry a usable trajectory.
+deterministic planner seed, and use exact request-bound waypoints. The collision
+model additionally pins the comment-free expanded-URDF content, exact SRDF
+content, normalized disabled-collision pairs, group, joint order, scene, and
+planner configuration. Collision-free evidence needs exact start/end points,
+per-waypoint self/environment results, and cannot name a collision. A rejection
+cannot carry a usable proof or trajectory.
 
 ## Deterministic planner boundary
 
@@ -130,12 +138,19 @@ validator.
 
 The C++ proof constructs a MoveIt RobotModel and PlanningScene directly from
 the expanded Ayyo URDF and reviewed SRDF. The SRDF defines only `left_arm` and
-excludes a bounded set of mechanically adjacent link pairs. It verifies:
+excludes the exact reviewed set of ten mechanically adjacent link pairs. Before
+checking collision, the proof verifies content fingerprints for both input
+documents and rejects added, removed, or substituted collision exclusions. It
+then emits closed canonical JSON that the Python adapter binds to one exact
+request. It verifies:
 
 - MoveIt's group exposes exactly the four reviewed movable joints in order;
-- MoveIt's position bounds exactly match the authoritative URDF;
-- the reviewed start and goal are in bounds and self/environment collision-free;
-- all 21 deterministic path samples are in bounds and collision-free; and
+- both the loaded URDF and MoveIt bounds match the pinned reviewed joint limits;
+- the exact `review-box` request scene is installed before path checking;
+- all 14 waypoints produced by the Python planner's current 0.05-rad request are
+  separately in bounds, self-collision-free, and environment-collision-free;
+- the emitted waypoint sequence is byte-deterministic and must equal the exact
+  request path, including every intermediate sample; and
 - a fixed 0.12 m box centered at the goal hand is accepted into the scene and
   produces a collision report.
 
@@ -143,6 +158,8 @@ The proof checks the reviewed path for self-collision, but it does not claim a
 separate intentionally self-colliding posture: the current provisional proxy
 geometry does not justify fabricating one. It proves a positive environment-
 collision case and preserves MoveIt's self-collision checks for every sample.
+The positive result still means only `PLAN_AVAILABLE_FOR_REVIEW`,
+`NOT_EXECUTED`, and `PHYSICAL_VALIDATION_ABSENT`.
 
 The proof links MoveIt core only. It does not depend on
 `moveit_ros_planning_interface`, `moveit_ros_move_group`, controller manager,
@@ -194,5 +211,6 @@ dependency direction, controller invariants, and absence of execution APIs.
 The isolated ROS build compiles `ayyo_description` and
 `ayyo_manipulation_planning` against ROS 2 Jazzy and MoveIt 2 2.12.4. Its
 headless test runs the PlanningScene proof twice and requires byte-identical
-stdout plus all expected collision/bounds evidence. Gazebo and hardware are not
-started because the milestone has no related runtime or command path.
+canonical stdout plus the exact content, ACM, scene, path, and per-waypoint
+collision/bounds evidence. Gazebo and hardware are not started because the
+milestone has no related runtime or command path.

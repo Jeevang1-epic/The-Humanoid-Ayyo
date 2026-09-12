@@ -118,8 +118,9 @@
 - Deterministic bounded joint-space waypoint candidates whose positive evidence
   can mean only `PLAN_AVAILABLE_FOR_REVIEW`; every evidence and decision object
   is `NOT_EXECUTED` and explicitly lacks physical validation
-- Headless MoveIt 2 PlanningScene package proof with exact model limits,
-  self/environment collision checking, 21 collision-free path samples, and a
+- Headless MoveIt 2 PlanningScene package proof with pinned URDF/SRDF/allowed-
+  collision semantics and model limits, exact request-scene binding, separate
+  self/environment checking of all 14 exact Python path waypoints, and a
   positive fixed-box goal-collision probe, without MoveGroup, controllers,
   actions, Runtime dispatch, hardware authority, or Safety bypass
 - Standalone Memory OS core with typed records and mandatory provenance

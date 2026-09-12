@@ -406,7 +406,8 @@ PYTHONPATH=manipulation_planning/src${PYTHONPATH:+:$PYTHONPATH} \
 
 The MoveIt proof is built and tested through the ROS workspace as package
 `ayyo_manipulation_planning`; it consumes expanded URDF and the reviewed SRDF,
-checks 21 bounded samples, and never exposes an execution endpoint.
+pins their exact collision semantics, checks the exact 14-waypoint Python
+candidate path and request scene, and never exposes an execution endpoint.
 
 Run Memory OS tests:
 
@@ -750,7 +751,8 @@ authority.
 Manipulation Planning & Collision Safety Foundation v1 begins Stage 9 as a
 strictly downstream planning-only seam. See
 [Manipulation Planning & Collision Safety](docs/MANIPULATION_PLANNING_COLLISION_SAFETY.md).
-It binds exact robot, chain, state, goal, scene, planner, waypoint, and collision
-evidence identities. `PLAN_AVAILABLE_FOR_REVIEW` never means activated,
+It binds exact robot, URDF, SRDF/allowed-collision semantics, chain, state, goal,
+scene, planner, candidate-path, and per-waypoint collision-evidence identities.
+`PLAN_AVAILABLE_FOR_REVIEW` never means activated,
 dispatched, executed, physically safe, or hardware validated; every result is
 explicitly `NOT_EXECUTED`.

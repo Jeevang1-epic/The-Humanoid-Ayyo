@@ -248,7 +248,9 @@ arm (and its two fixed chain joints) from the authoritative expanded URDF,
 retains exact joint limits and content identities, represents bounded fixed-box
 collision scenes in `base_link`, and emits immutable review evidence. A
 headless MoveIt 2 PlanningScene proof checks self-collision, environment
-collision, and 21 deterministic bounded joint-space samples. It deliberately
+collision, the exact request scene, and all 14 waypoints in the current
+deterministic bounded Python candidate path under pinned URDF/SRDF/allowed-
+collision semantics. It deliberately
 stops at `PLAN_AVAILABLE_FOR_REVIEW` or `REJECTED`, always `NOT_EXECUTED`.
 
 Stage 9 is not complete. Grasp planning, end-effector semantics, trajectory
