@@ -38,6 +38,7 @@ TIMING_METHOD_ID = "ayyo.deterministic-velocity-scaled-timing.v1"
 SAFETY_REVIEW_CAPABILITY_ID = "manipulation.trajectory.simulation-review"
 SAFETY_REVIEW_STEP_ID = "trajectory-review"
 FUTURE_SKILL_BACKEND_ID = "future.manipulation.simulation-review"
+FUTURE_SKILL_ID = "manipulation.trajectory.simulation-review"
 FUTURE_RUNTIME_CONTRACT_ID = "future.stage-9c.simulation-trajectory-executor.v1"
 
 TIMING_CONFIGURATION_SCHEMA_ID = "ayyo.manipulation-trajectory.timing-config.v1"
@@ -301,10 +302,14 @@ class TrajectoryConstructionRequest:
             raise TrajectoryValidationError(
                 TrajectoryFailureCode.TIMING_CONFIGURATION,
                 "timing configuration failed integrity verification",
-            )
+        )
         planning_request = decision.request
         proof = decision.plan_evidence.collision_proof
-        assert proof is not None
+        if proof is None:
+            raise TrajectoryValidationError(
+                TrajectoryFailureCode.UPSTREAM_INTEGRITY,
+                "positive Stage 9A evidence unexpectedly lacks its collision proof",
+            )
         bindings = {
             "robot_model_id": planning_request.robot_model.robot_model_id,
             "robot_model_fingerprint": planning_request.robot_model.robot_model_fingerprint,
@@ -786,6 +791,7 @@ class SafetyEligibilityReference:
     capability_id: str
     safety_disposition: ReviewedSafetyDisposition
     hazard_class: ReviewedHazardClass
+    trajectory_binding_fingerprint: str
     schema_id: str = field(init=False, default=SAFETY_REFERENCE_SCHEMA_ID)
     schema_version: str = field(init=False, default=SCHEMA_VERSION)
     safety_reference_id: str = field(init=False)
@@ -813,6 +819,14 @@ class SafetyEligibilityReference:
         )
         _enum(self.safety_disposition, ReviewedSafetyDisposition, "safety disposition")
         _enum(self.hazard_class, ReviewedHazardClass, "hazard class")
+        object.__setattr__(
+            self,
+            "trajectory_binding_fingerprint",
+            fingerprint(
+                self.trajectory_binding_fingerprint,
+                "trajectory_binding_fingerprint",
+            ),
+        )
         if self.source_step_id != SAFETY_REVIEW_STEP_ID or self.capability_id != (
             SAFETY_REVIEW_CAPABILITY_ID
         ):
@@ -840,6 +854,7 @@ class SafetyEligibilityReference:
             "source_safety_decision_fingerprint": self.source_safety_decision_fingerprint,
             "source_safety_decision_id": self.source_safety_decision_id,
             "source_step_id": self.source_step_id,
+            "trajectory_binding_fingerprint": self.trajectory_binding_fingerprint,
         }
 
     def as_dict(self) -> dict[str, JSONValue]:
@@ -866,6 +881,7 @@ def verify_safety_reference(value: object) -> bool:
             capability_id=value.capability_id,
             safety_disposition=value.safety_disposition,
             hazard_class=value.hazard_class,
+            trajectory_binding_fingerprint=value.trajectory_binding_fingerprint,
         ),
     )
 
@@ -912,6 +928,13 @@ class TrajectorySafetyEligibilityResult:
             and self.safety_reference.hazard_class
             is ReviewedHazardClass.INTERNAL_NON_ACTUATING
         )
+        if self.safety_reference.trajectory_binding_fingerprint != (
+            trajectory_review_binding_fingerprint(self.trajectory_evidence)
+        ):
+            raise TrajectoryValidationError(
+                TrajectoryFailureCode.EVIDENCE_MISMATCH,
+                "Safety eligibility reference is bound to a different trajectory lineage",
+            )
         if eligible:
             if (
                 self.status
@@ -1022,7 +1045,12 @@ def trajectory_review_binding_fingerprint(evidence: TrajectoryEvidence) -> str:
 
 @dataclass(frozen=True, slots=True)
 class SkillRuntimeHandoffReference:
+    source_safety_result_id: str
+    source_safety_result_fingerprint: str
     source_safety_decision_id: str
+    source_safety_decision_fingerprint: str
+    source_step_id: str
+    capability_id: str
     skill_id: str
     skill_version: str
     skill_fingerprint: str
@@ -1038,7 +1066,10 @@ class SkillRuntimeHandoffReference:
 
     def __post_init__(self) -> None:
         for name in (
+            "source_safety_result_id",
             "source_safety_decision_id",
+            "source_step_id",
+            "capability_id",
             "skill_id",
             "invocation_id",
             "backend_id",
@@ -1049,7 +1080,20 @@ class SkillRuntimeHandoffReference:
             "skill_version",
             bounded_text(self.skill_version, "skill_version", 128),
         )
-        for name in ("skill_fingerprint", "selection_fingerprint", "invocation_fingerprint"):
+        object.__setattr__(
+            self,
+            "source_safety_result_fingerprint",
+            fingerprint(
+                self.source_safety_result_fingerprint,
+                "source_safety_result_fingerprint",
+            ),
+        )
+        for name in (
+            "source_safety_decision_fingerprint",
+            "skill_fingerprint",
+            "selection_fingerprint",
+            "invocation_fingerprint",
+        ):
             object.__setattr__(self, name, typed_fingerprint(getattr(self, name), name))
         object.__setattr__(
             self,
@@ -1059,10 +1103,15 @@ class SkillRuntimeHandoffReference:
                 "trajectory_binding_fingerprint",
             ),
         )
-        if self.backend_id != FUTURE_SKILL_BACKEND_ID:
+        if (
+            self.source_step_id != SAFETY_REVIEW_STEP_ID
+            or self.capability_id != SAFETY_REVIEW_CAPABILITY_ID
+            or self.skill_id != FUTURE_SKILL_ID
+            or self.backend_id != FUTURE_SKILL_BACKEND_ID
+        ):
             raise TrajectoryValidationError(
                 TrajectoryFailureCode.SKILL_MISMATCH,
-                "Skill handoff reference must target only the inert future-review backend",
+                "Skill handoff reference must target only the exact inert future-review contract",
             )
         document = self._semantic_dict()
         identity, content = content_identity("trajectory-skill-handoff-reference", document)
@@ -1073,6 +1122,7 @@ class SkillRuntimeHandoffReference:
     def _semantic_dict(self) -> dict[str, JSONValue]:
         return {
             "backend_id": self.backend_id,
+            "capability_id": self.capability_id,
             "invocation_fingerprint": self.invocation_fingerprint,
             "invocation_id": self.invocation_id,
             "schema": _schema(self.schema_id),
@@ -1080,7 +1130,11 @@ class SkillRuntimeHandoffReference:
             "skill_fingerprint": self.skill_fingerprint,
             "skill_id": self.skill_id,
             "skill_version": self.skill_version,
+            "source_safety_decision_fingerprint": self.source_safety_decision_fingerprint,
             "source_safety_decision_id": self.source_safety_decision_id,
+            "source_safety_result_fingerprint": self.source_safety_result_fingerprint,
+            "source_safety_result_id": self.source_safety_result_id,
+            "source_step_id": self.source_step_id,
             "trajectory_binding_fingerprint": self.trajectory_binding_fingerprint,
         }
 
@@ -1097,7 +1151,12 @@ def verify_skill_handoff_reference(value: object) -> bool:
         value,
         SkillRuntimeHandoffReference,
         lambda: SkillRuntimeHandoffReference(
+            source_safety_result_id=value.source_safety_result_id,
+            source_safety_result_fingerprint=value.source_safety_result_fingerprint,
             source_safety_decision_id=value.source_safety_decision_id,
+            source_safety_decision_fingerprint=value.source_safety_decision_fingerprint,
+            source_step_id=value.source_step_id,
+            capability_id=value.capability_id,
             skill_id=value.skill_id,
             skill_version=value.skill_version,
             skill_fingerprint=value.skill_fingerprint,
@@ -1178,10 +1237,23 @@ class ExecutionHandoffEligibilityDecision:
                     TrajectoryFailureCode.SKILL_MISMATCH,
                     "positive handoff review lacks exact Safety and Skill evidence",
                 )
-            assert self.skill_handoff_reference is not None
+            if self.skill_handoff_reference is None:
+                raise TrajectoryValidationError(
+                    TrajectoryFailureCode.SKILL_MISMATCH,
+                    "positive handoff review lacks a Skill reference",
+                )
             if (
-                self.skill_handoff_reference.source_safety_decision_id
+                self.skill_handoff_reference.source_safety_result_id
+                != self.safety_result.safety_result_id
+                or self.skill_handoff_reference.source_safety_result_fingerprint
+                != self.safety_result.safety_result_fingerprint
+                or self.skill_handoff_reference.source_safety_decision_id
                 != self.safety_result.safety_reference.source_safety_decision_id
+                or self.skill_handoff_reference.source_safety_decision_fingerprint
+                != self.safety_result.safety_reference.source_safety_decision_fingerprint
+                or self.skill_handoff_reference.source_step_id != SAFETY_REVIEW_STEP_ID
+                or self.skill_handoff_reference.capability_id
+                != SAFETY_REVIEW_CAPABILITY_ID
                 or self.skill_handoff_reference.trajectory_binding_fingerprint
                 != trajectory_review_binding_fingerprint(
                     self.safety_result.trajectory_evidence

@@ -19,9 +19,14 @@ from ayyo_safety import (
 )
 from ayyo_skill_manager import (
     BindingStatus,
+    ConcurrencyPolicy,
+    FailureSemantics,
+    IdempotencyClass,
     InvocationStatus,
+    SkillAvailability,
     SkillBindingResult,
     SkillInvocation,
+    SkillLifecycle,
     SkillManagerService,
     SkillManagerError,
 )
@@ -194,6 +199,7 @@ def evaluate_trajectory_safety_eligibility(
         capability_id=step.capability_id,
         safety_disposition=disposition,
         hazard_class=hazard,
+        trajectory_binding_fingerprint=trajectory_review_binding_fingerprint(evidence),
     )
     if (
         disposition is ReviewedSafetyDisposition.ELIGIBLE_FOR_DOWNSTREAM
@@ -295,11 +301,23 @@ def evaluate_execution_handoff_eligibility(
     )
     if (
         binding_result.status is not BindingStatus.ELIGIBLE_FOR_RUNTIME_HANDOFF
+        or binding_result.reasons
         or type(invocation) is not SkillInvocation
         or invocation.status is not InvocationStatus.ELIGIBLE_FOR_RUNTIME_HANDOFF
         or invocation.skill_definition != skill
         or invocation.selection != selection
+        or skill.availability is not SkillAvailability.AVAILABLE
+        or skill.lifecycle is not SkillLifecycle.VALIDATED
+        or skill.required_context
+        or skill.required_resources
+        or skill.required_approval_classes
+        or skill.concurrency_policy is not ConcurrencyPolicy.PARALLEL
+        or skill.idempotency is not IdempotencyClass.IDEMPOTENT
+        or skill.failure_semantics is not FailureSemantics.NON_RETRYABLE
         or invocation.parameters != expected_parameters
+        or invocation.context_references
+        or invocation.required_resources
+        or invocation.required_approvals
         or invocation.backend_id != FUTURE_SKILL_BACKEND_ID
         or invocation.expected_result is not ExpectedResultCategory.INFORMATION
         or invocation.safety_classification is not HazardClass.INTERNAL_NON_ACTUATING
@@ -324,7 +342,12 @@ def evaluate_execution_handoff_eligibility(
             skill_handoff_reference=None,
         )
     reference = SkillRuntimeHandoffReference(
+        source_safety_result_id=safety_result.safety_result_id,
+        source_safety_result_fingerprint=safety_result.safety_result_fingerprint,
         source_safety_decision_id=safety_decision.decision_id,
+        source_safety_decision_fingerprint=str(safety_decision.decision_fingerprint),
+        source_step_id=SAFETY_REVIEW_STEP_ID,
+        capability_id=SAFETY_REVIEW_CAPABILITY_ID,
         skill_id=invocation.skill_definition.skill_id,
         skill_version=str(invocation.skill_definition.version),
         skill_fingerprint=str(invocation.skill_definition.fingerprint),

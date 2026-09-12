@@ -353,6 +353,7 @@ def _safety_reference(value: object) -> SafetyEligibilityReference:
             "source_safety_decision_fingerprint",
             "source_safety_decision_id",
             "source_step_id",
+            "trajectory_binding_fingerprint",
         },
         "safety_reference",
     )
@@ -377,6 +378,7 @@ def _safety_reference(value: object) -> SafetyEligibilityReference:
                 item["safety_disposition"]
             ),
             hazard_class=ReviewedHazardClass(item["hazard_class"]),
+            trajectory_binding_fingerprint=item["trajectory_binding_fingerprint"],
         ),
     )
 
@@ -421,6 +423,7 @@ def _skill_reference(value: object) -> SkillRuntimeHandoffReference:
         item,
         {
             "backend_id",
+            "capability_id",
             "invocation_fingerprint",
             "invocation_id",
             "schema",
@@ -431,6 +434,10 @@ def _skill_reference(value: object) -> SkillRuntimeHandoffReference:
             "skill_id",
             "skill_version",
             "source_safety_decision_id",
+            "source_safety_decision_fingerprint",
+            "source_safety_result_fingerprint",
+            "source_safety_result_id",
+            "source_step_id",
             "trajectory_binding_fingerprint",
         },
         "skill_handoff_reference",
@@ -439,7 +446,14 @@ def _skill_reference(value: object) -> SkillRuntimeHandoffReference:
     return _verify_recomputed(
         item,
         SkillRuntimeHandoffReference(
+            source_safety_result_id=item["source_safety_result_id"],
+            source_safety_result_fingerprint=item["source_safety_result_fingerprint"],
             source_safety_decision_id=item["source_safety_decision_id"],
+            source_safety_decision_fingerprint=item[
+                "source_safety_decision_fingerprint"
+            ],
+            source_step_id=item["source_step_id"],
+            capability_id=item["capability_id"],
             skill_id=item["skill_id"],
             skill_version=item["skill_version"],
             skill_fingerprint=item["skill_fingerprint"],

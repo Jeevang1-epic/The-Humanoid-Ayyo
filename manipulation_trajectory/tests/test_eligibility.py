@@ -10,6 +10,7 @@ from ayyo_manipulation_planning import ExecutionDisposition
 from ayyo_manipulation_trajectory import (
     HandoffEligibilityReason,
     HandoffEligibilityStatus,
+    ExecutionHandoffEligibilityDecision,
     PhysicalValidationStatus,
     RuntimeEndpointState,
     SafetyEligibilityReason,
@@ -18,6 +19,7 @@ from ayyo_manipulation_trajectory import (
     TrajectoryFailureCode,
     TrajectoryTimingConfiguration,
     TrajectoryValidationError,
+    TrajectorySafetyEligibilityResult,
     construct_deterministic_trajectory,
     create_trajectory_evidence,
     evaluate_execution_handoff_eligibility,
@@ -26,7 +28,12 @@ from ayyo_manipulation_trajectory import (
     trajectory_safety_review_parameters,
 )
 from ayyo_safety import CapabilitySafetyRule, HazardClass, SafetyKernel, SafetyPolicy
-from ayyo_skill_manager import SkillManagerService, SkillRegistry, SemanticVersion
+from ayyo_skill_manager import (
+    BindingReason,
+    SkillManagerService,
+    SkillRegistry,
+    SemanticVersion,
+)
 
 from conftest import _proposal
 
@@ -156,6 +163,29 @@ def test_safety_decision_from_other_trajectory_is_rejected(stage9a_bundle, stage
         )
 
 
+def test_safety_reference_from_trajectory_a_cannot_construct_result_for_b(
+    stage9a_bundle,
+    stage9b_bundle,
+) -> None:
+    request = TrajectoryConstructionRequest(
+        stage9a_bundle["decision"],
+        TrajectoryTimingConfiguration(velocity_limit_scale=0.2),
+    )
+    other_evidence = create_trajectory_evidence(
+        request,
+        construct_deterministic_trajectory(request),
+    )
+    source = stage9b_bundle["safety_result"]
+    with pytest.raises(TrajectoryValidationError) as caught:
+        TrajectorySafetyEligibilityResult(
+            trajectory_evidence=other_evidence,
+            safety_reference=source.safety_reference,
+            status=source.status,
+            reasons=source.reasons,
+        )
+    assert caught.value.code is TrajectoryFailureCode.EVIDENCE_MISMATCH
+
+
 def test_stale_safety_policy_is_rejected(stage9b_bundle) -> None:
     changed_kernel = SafetyKernel(SafetyPolicy(capability_rules=()))
     with pytest.raises(TrajectoryValidationError) as caught:
@@ -202,6 +232,20 @@ def test_skill_binding_from_other_safety_decision_is_rejected(stage9b_bundle) ->
             stage9b_bundle["manager"],
         )
     assert caught.value.code is TrajectoryFailureCode.SKILL_MISMATCH
+
+
+def test_contradictory_skill_binding_reasons_cannot_become_positive(stage9b_bundle) -> None:
+    tampered = copy.deepcopy(stage9b_bundle["binding"])
+    object.__setattr__(tampered, "reasons", (BindingReason.SKILL_UNAVAILABLE,))
+    result = evaluate_execution_handoff_eligibility(
+        stage9b_bundle["safety_result"],
+        stage9b_bundle["proposal"],
+        stage9b_bundle["safety_decision"],
+        tampered,
+        stage9b_bundle["manager"],
+    )
+    assert result.status is HandoffEligibilityStatus.INELIGIBLE
+    assert result.reasons == (HandoffEligibilityReason.SKILL_MANAGER_INELIGIBLE,)
 
 
 def test_stale_skill_selection_is_rejected(stage9b_bundle) -> None:
@@ -252,3 +296,41 @@ def test_handoff_from_trajectory_a_cannot_be_reused_with_b(stage9a_bundle, stage
             stage9b_bundle["binding"],
             stage9b_bundle["manager"],
         )
+
+
+def test_skill_reference_from_a_cannot_construct_positive_handoff_for_b(
+    stage9a_bundle,
+    stage9b_bundle,
+) -> None:
+    request = TrajectoryConstructionRequest(
+        stage9a_bundle["decision"],
+        TrajectoryTimingConfiguration(velocity_limit_scale=0.2),
+    )
+    evidence = create_trajectory_evidence(
+        request,
+        construct_deterministic_trajectory(request),
+    )
+    proposal = _proposal(evidence)
+    safety = stage9b_bundle["kernel"].evaluate(proposal)
+    safety_result = evaluate_trajectory_safety_eligibility(
+        evidence,
+        proposal,
+        safety,
+        stage9b_bundle["kernel"],
+    )
+    with pytest.raises(TrajectoryValidationError) as caught:
+        ExecutionHandoffEligibilityDecision(
+            safety_result=safety_result,
+            status=(
+                HandoffEligibilityStatus.ELIGIBLE_FOR_FUTURE_SIMULATION_HANDOFF_REVIEW
+            ),
+            reasons=(
+                HandoffEligibilityReason.INDEPENDENT_SAFETY_ELIGIBLE,
+                HandoffEligibilityReason.SKILL_MANAGER_HANDOFF_ELIGIBLE,
+                HandoffEligibilityReason.FUTURE_RUNTIME_REVIEW_REQUIRED,
+            ),
+            skill_handoff_reference=(
+                stage9b_bundle["handoff"].skill_handoff_reference
+            ),
+        )
+    assert caught.value.code is TrajectoryFailureCode.EVIDENCE_MISMATCH

@@ -78,6 +78,9 @@ checks the current pinned Skill registry selection and complete invocation
 provenance, and records an inert reference to the future review backend. It
 does not call `SkillManagerService.bind`, import Runtime Bridge, create a
 Runtime request or decision, register an endpoint, or dispatch anything.
+The Safety reference also carries a recomputable binding fingerprint over the
+full trajectory and Stage 9A lineage, so valid Safety evidence from trajectory
+A cannot be wrapped around trajectory B.
 
 ## Canonical evidence
 

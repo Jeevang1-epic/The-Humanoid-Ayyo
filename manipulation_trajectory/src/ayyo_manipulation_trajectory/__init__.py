@@ -14,6 +14,7 @@ from .errors import (
 from .models import (
     FUTURE_RUNTIME_CONTRACT_ID,
     FUTURE_SKILL_BACKEND_ID,
+    FUTURE_SKILL_ID,
     SAFETY_REVIEW_CAPABILITY_ID,
     SAFETY_REVIEW_STEP_ID,
     TIMING_METHOD_ID,
@@ -55,6 +56,7 @@ from .trajectory import construct_deterministic_trajectory, create_trajectory_ev
 __all__ = (
     "FUTURE_RUNTIME_CONTRACT_ID",
     "FUTURE_SKILL_BACKEND_ID",
+    "FUTURE_SKILL_ID",
     "SAFETY_REVIEW_CAPABILITY_ID",
     "SAFETY_REVIEW_STEP_ID",
     "TIMING_METHOD_ID",
