@@ -143,6 +143,21 @@ def test_parameter_substitution_is_rejected_even_with_fresh_safety(stage9b_bundl
     assert caught.value.code is TrajectoryFailureCode.SAFETY_MISMATCH
 
 
+def test_post_construction_proposal_shape_mutation_fails_with_typed_error(
+    stage9b_bundle,
+) -> None:
+    proposal = copy.deepcopy(stage9b_bundle["proposal"])
+    object.__setattr__(proposal, "proposed_plan", "malformed")
+    with pytest.raises(TrajectoryValidationError) as caught:
+        evaluate_trajectory_safety_eligibility(
+            stage9b_bundle["trajectory_evidence"],
+            proposal,
+            stage9b_bundle["safety_decision"],
+            stage9b_bundle["kernel"],
+        )
+    assert caught.value.code is TrajectoryFailureCode.SAFETY_MISMATCH
+
+
 def test_safety_decision_from_other_trajectory_is_rejected(stage9a_bundle, stage9b_bundle) -> None:
     request = TrajectoryConstructionRequest(
         stage9a_bundle["decision"],
@@ -225,6 +240,22 @@ def test_other_hazard_never_becomes_positive_simulation_review(stage9b_bundle) -
 def test_skill_binding_from_other_safety_decision_is_rejected(stage9b_bundle) -> None:
     tampered = copy.deepcopy(stage9b_bundle["binding"])
     object.__setattr__(tampered, "source_safety_decision_id", "safety-decision-substitute")
+    with pytest.raises(TrajectoryValidationError) as caught:
+        evaluate_execution_handoff_eligibility(
+            stage9b_bundle["safety_result"],
+            stage9b_bundle["proposal"],
+            stage9b_bundle["safety_decision"],
+            tampered,
+            stage9b_bundle["manager"],
+        )
+    assert caught.value.code is TrajectoryFailureCode.SKILL_MISMATCH
+
+
+def test_post_construction_skill_selection_mutation_fails_with_typed_error(
+    stage9b_bundle,
+) -> None:
+    tampered = copy.deepcopy(stage9b_bundle["binding"])
+    object.__setattr__(tampered, "selection", None)
     with pytest.raises(TrajectoryValidationError) as caught:
         evaluate_execution_handoff_eligibility(
             stage9b_bundle["safety_result"],

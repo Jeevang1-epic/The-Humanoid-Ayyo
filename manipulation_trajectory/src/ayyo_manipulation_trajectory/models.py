@@ -414,7 +414,15 @@ def _schedule(
         for joint in planning_request.joint_catalog.chain_joints
         if joint.velocity is not None
     }
-    velocities = tuple(velocity_by_name[name] for name in planning_request.group.joint_names)
+    try:
+        velocities = tuple(
+            velocity_by_name[name] for name in planning_request.group.joint_names
+        )
+    except KeyError as error:
+        raise TrajectoryValidationError(
+            TrajectoryFailureCode.UPSTREAM_INTEGRITY,
+            "reviewed joint velocities do not cover the exact group",
+        ) from error
     if any(type(value) is not float or value <= 0.0 for value in velocities):
         raise TrajectoryValidationError(
             TrajectoryFailureCode.UPSTREAM_INTEGRITY,

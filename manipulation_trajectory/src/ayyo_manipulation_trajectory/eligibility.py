@@ -6,8 +6,11 @@ from ayyo_executive import (
     DecisionReason,
     ExecutiveDecision,
     ExecutiveDecisionType,
+    ExecutiveError,
     ExpectedResultCategory,
     FailurePolicy,
+    Plan,
+    PlanStep,
 )
 from ayyo_safety import (
     HazardClass,
@@ -29,6 +32,7 @@ from ayyo_skill_manager import (
     SkillLifecycle,
     SkillManagerService,
     SkillManagerError,
+    SkillSelection,
 )
 
 from .errors import TrajectoryFailureCode, TrajectoryValidationError
@@ -98,32 +102,55 @@ def _validate_exact_proposal(
             "Safety review requires an immutable Executive decision",
         )
     plan = proposal.proposed_plan
-    if plan is None or len(plan.steps) != 1:
+    if type(plan) is not Plan:
         raise TrajectoryValidationError(
             TrajectoryFailureCode.SAFETY_MISMATCH,
             "Safety review proposal must contain one exact trajectory-review step",
         )
-    step = plan.steps[0]
-    if (
-        proposal.request_id != evidence.trajectory_evidence_id
-        or proposal.decision_type is not ExecutiveDecisionType.PROPOSE
-        or proposal.reason_codes != (DecisionReason.READY_FOR_SAFETY_REVIEW,)
-        or proposal.context_references
-        or proposal.assumptions
-        or proposal.required_capabilities != (SAFETY_REVIEW_CAPABILITY_ID,)
-        or proposal.required_approvals
-        or proposal.constraints
-        or step.step_id != SAFETY_REVIEW_STEP_ID
-        or step.capability_id != SAFETY_REVIEW_CAPABILITY_ID
-        or step.parameters != trajectory_safety_review_parameters(evidence)
-        or step.dependencies
-        or step.preconditions
-        or step.required_context
-        or step.required_approvals
-        or step.constraints
-        or step.expected_result is not ExpectedResultCategory.INFORMATION
-        or step.failure_policy is not FailurePolicy.STOP_PLAN
-    ):
+    try:
+        if len(plan.steps) != 1:
+            raise TrajectoryValidationError(
+                TrajectoryFailureCode.SAFETY_MISMATCH,
+                "Safety review proposal must contain one exact trajectory-review step",
+            )
+        step = plan.steps[0]
+    except (AttributeError, TypeError) as error:
+        raise TrajectoryValidationError(
+            TrajectoryFailureCode.SAFETY_MISMATCH,
+            "Safety review proposal plan failed its immutable public contract",
+        ) from error
+    if type(step) is not PlanStep:
+        raise TrajectoryValidationError(
+            TrajectoryFailureCode.SAFETY_MISMATCH,
+            "Executive proposal is not the closed non-actuating trajectory-review contract",
+        )
+    try:
+        invalid = (
+            proposal.request_id != evidence.trajectory_evidence_id
+            or proposal.decision_type is not ExecutiveDecisionType.PROPOSE
+            or proposal.reason_codes != (DecisionReason.READY_FOR_SAFETY_REVIEW,)
+            or proposal.context_references
+            or proposal.assumptions
+            or proposal.required_capabilities != (SAFETY_REVIEW_CAPABILITY_ID,)
+            or proposal.required_approvals
+            or proposal.constraints
+            or step.step_id != SAFETY_REVIEW_STEP_ID
+            or step.capability_id != SAFETY_REVIEW_CAPABILITY_ID
+            or step.parameters != trajectory_safety_review_parameters(evidence)
+            or step.dependencies
+            or step.preconditions
+            or step.required_context
+            or step.required_approvals
+            or step.constraints
+            or step.expected_result is not ExpectedResultCategory.INFORMATION
+            or step.failure_policy is not FailurePolicy.STOP_PLAN
+        )
+    except (AttributeError, ExecutiveError, TypeError, ValueError) as error:
+        raise TrajectoryValidationError(
+            TrajectoryFailureCode.SAFETY_MISMATCH,
+            "Executive proposal failed closed during trajectory-review reconstruction",
+        ) from error
+    if invalid:
         raise TrajectoryValidationError(
             TrajectoryFailureCode.SAFETY_MISMATCH,
             "Executive proposal is not the closed non-actuating trajectory-review contract",
@@ -156,7 +183,7 @@ def evaluate_trajectory_safety_eligibility(
     try:
         revalidation = kernel.revalidate(safety_decision, proposal)
         rebuilt = kernel.evaluate(proposal)
-    except SafetyKernelError as error:
+    except (AttributeError, SafetyKernelError, TypeError, ValueError) as error:
         raise TrajectoryValidationError(
             TrajectoryFailureCode.SAFETY_MISMATCH,
             "Safety evidence could not be independently revalidated",
@@ -261,6 +288,11 @@ def evaluate_execution_handoff_eligibility(
             "Safety result does not match the supplied trajectory and policy",
         )
     selection = binding_result.selection
+    if type(selection) is not SkillSelection:
+        raise TrajectoryValidationError(
+            TrajectoryFailureCode.SKILL_MISMATCH,
+            "Skill binding selection failed its immutable public contract",
+        )
     try:
         skill = manager.registry.resolve(selection.skill_id)
         current_selection = manager.registry.selection(
@@ -268,7 +300,7 @@ def evaluate_execution_handoff_eligibility(
             capability_id=selection.capability_id,
             source_step_id=selection.source_step_id,
         )
-    except SkillManagerError as error:
+    except (AttributeError, SkillManagerError, TypeError, ValueError) as error:
         raise TrajectoryValidationError(
             TrajectoryFailureCode.SKILL_MISMATCH,
             "Skill binding registry evidence could not be revalidated",
