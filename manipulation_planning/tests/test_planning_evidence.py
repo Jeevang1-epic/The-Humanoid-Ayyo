@@ -112,12 +112,11 @@ def test_scene_robot_identity_substitution_is_rejected(planning_bundle):
 def test_joint_limit_substitution_after_request_creation_is_rejected(planning_bundle):
     _, catalog, _, _, _, _, request, _ = planning_bundle
     changed_joint = replace(catalog.chain_joints[0], lower=-1.1)
-    changed_catalog = replace(
-        catalog,
-        chain_joints=(changed_joint, *catalog.chain_joints[1:]),
-    )
     with pytest.raises(PlanningValidationError):
-        replace(request, joint_catalog=changed_catalog)
+        replace(
+            catalog,
+            chain_joints=(changed_joint, *catalog.chain_joints[1:]),
+        )
 
 
 def test_start_state_substitution_after_evidence_creation_is_rejected(planning_bundle):
@@ -189,16 +188,55 @@ def test_decision_rejects_contradictory_reason(planning_bundle):
 )
 def test_request_cross_object_substitutions_fail_closed(planning_bundle, field):
     model, catalog, group, start, goal, scene, request, _ = planning_bundle
-    replacements = {
-        "robot_model": replace(model, description_fingerprint="description-sha256-" + ("0" * 64)),
-        "joint_catalog": replace(catalog, robot_model=replace(model, description_fingerprint="description-sha256-" + ("1" * 64))),
-        "group": replace(group, joint_catalog_id="catalog-sha256-" + ("2" * 64)),
-        "start_state": replace(start, group_id="group-sha256-" + ("3" * 64)),
-        "goal": replace(goal, group_fingerprint="group-content-sha256-" + ("4" * 64)),
-        "scene": replace(scene, group_id="group-sha256-" + ("5" * 64)),
+    substitutions = {
+        "robot_model": lambda: replace(
+            request,
+            robot_model=replace(
+                model,
+                description_fingerprint="description-sha256-" + ("0" * 64),
+            ),
+        ),
+        "joint_catalog": lambda: replace(
+            request,
+            joint_catalog=replace(
+                catalog,
+                robot_model=replace(
+                    model,
+                    description_fingerprint="description-sha256-" + ("1" * 64),
+                ),
+            ),
+        ),
+        "group": lambda: replace(
+            request,
+            group=replace(
+                group,
+                joint_catalog_id="catalog-sha256-" + ("2" * 64),
+            ),
+        ),
+        "start_state": lambda: replace(
+            request,
+            start_state=replace(
+                start,
+                group_id="group-sha256-" + ("3" * 64),
+            ),
+        ),
+        "goal": lambda: replace(
+            request,
+            goal=replace(
+                goal,
+                group_fingerprint="group-content-sha256-" + ("4" * 64),
+            ),
+        ),
+        "scene": lambda: replace(
+            request,
+            scene=replace(
+                scene,
+                group_id="group-sha256-" + ("5" * 64),
+            ),
+        ),
     }
     with pytest.raises(PlanningValidationError):
-        replace(request, **{field: replacements[field]})
+        substitutions[field]()
 
 
 def test_collision_scene_is_fixed_bounded_box_only(planning_bundle):

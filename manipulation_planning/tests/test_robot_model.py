@@ -74,12 +74,26 @@ def test_disconnected_joint_cycle_fails_closed(expanded_urdf):
         ('name="left_hand_link"', 'name="removed_hand_link"'),
         ('name="left_elbow_flex_joint"', 'name="removed_elbow_joint"'),
         ('<limit effort="20.0" lower="-1.2"', '<limit effort="20.0" lower="nan"'),
+        ('<limit effort="20.0" lower="-1.2"', '<limit effort="20.0" lower="-1.1"'),
+        ('upper="1.2" velocity="1.2"', 'upper="1.1" velocity="1.2"'),
         ('<joint name="left_shoulder_yaw_joint" type="revolute">', '<joint name="left_shoulder_yaw_joint" type="continuous">'),
     ],
 )
 def test_malformed_or_substituted_robot_models_fail_closed(expanded_urdf, old, new):
     with pytest.raises(PlanningValidationError):
         build_left_arm_planning_model(expanded_urdf.replace(old, new, 1))
+
+
+def test_structurally_compatible_non_authoritative_model_fails_closed(expanded_urdf):
+    substituted = expanded_urdf.replace(
+        '<origin rpy="0 0 0" xyz="0 0 0"/>\n    <axis xyz="0 1 0"/>',
+        '<origin rpy="0 0 0" xyz="0.01 0 0"/>\n    <axis xyz="0 1 0"/>',
+        1,
+    )
+    assert substituted != expanded_urdf
+    with pytest.raises(PlanningValidationError) as captured:
+        build_left_arm_planning_model(substituted)
+    assert captured.value.code is PlanningFailureCode.MODEL_MISMATCH
 
 
 def test_xml_entity_declarations_are_rejected(expanded_urdf):

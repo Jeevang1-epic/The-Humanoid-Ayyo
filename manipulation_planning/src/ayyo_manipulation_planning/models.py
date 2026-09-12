@@ -51,6 +51,34 @@ LEFT_ARM_FIXED_JOINT_NAMES = (
 PLANNING_FRAME = "base_link"
 PLANNER_ID = "ayyo.bounded-linear-joint-space.v1"
 COLLISION_BACKEND_ID = "moveit.planning-scene.v1"
+REVIEWED_DESCRIPTION_FINGERPRINT = (
+    "ayyo-robot-description-sha256-"
+    "f743d462235b90305256d20b4668c9640263de99dfe752dffe68c9a04e582843"
+)
+REVIEWED_ROBOT_MODEL_ID = (
+    "manipulation-robot-model-sha256-"
+    "a6949007022f11e9de61cef89a6f0d2e7545ed6385c435fe3de488f8dd45e7cb"
+)
+REVIEWED_ROBOT_MODEL_FINGERPRINT = (
+    "manipulation-robot-model-content-sha256-"
+    "11fa1f6cb9598573ed7a7503e17aa87fe809ea3cc2bab93b6cf3b2c21b20dc2f"
+)
+REVIEWED_JOINT_CATALOG_ID = (
+    "manipulation-joint-catalog-sha256-"
+    "625e22e34635ccfcc9fda8f8338c909d2e6cf87f6d0def4c8731a2dc08cff654"
+)
+REVIEWED_JOINT_CATALOG_FINGERPRINT = (
+    "manipulation-joint-catalog-content-sha256-"
+    "50f4f486a8d5e45cfd74ed8675af93885798d432a8037d68adca9be5fef15ab6"
+)
+REVIEWED_GROUP_ID = (
+    "manipulator-group-sha256-"
+    "71d9f69c3e3021cf0b79f77acb758b9c539116ab258aa2195a4ee20c898a0d34"
+)
+REVIEWED_GROUP_FINGERPRINT = (
+    "manipulator-group-content-sha256-"
+    "51c4666bd671fd262a2c5d1d5c83a2b56cfa56d03a88089be09922748b62d2a8"
+)
 
 ROBOT_MODEL_SCHEMA_ID = "ayyo.manipulation-planning.robot-model.v1"
 ROBOT_JOINT_SCHEMA_ID = "ayyo.manipulation-planning.robot-joint.v1"
@@ -201,6 +229,15 @@ class RobotModelIdentity:
         object.__setattr__(self, "link_names", links)
         object.__setattr__(self, "joint_names", joints)
         identity, content = content_identity("manipulation-robot-model", self.semantic_document())
+        if (
+            self.description_fingerprint != REVIEWED_DESCRIPTION_FINGERPRINT
+            or identity != REVIEWED_ROBOT_MODEL_ID
+            or content != REVIEWED_ROBOT_MODEL_FINGERPRINT
+        ):
+            raise PlanningValidationError(
+                PlanningFailureCode.MODEL_MISMATCH,
+                "robot model does not match the reviewed authoritative Ayyo description",
+            )
         object.__setattr__(self, "robot_model_id", identity)
         object.__setattr__(self, "robot_model_fingerprint", content)
         assert_artifact_size(self.as_dict(), "robot model identity")
@@ -425,6 +462,14 @@ class ManipulatorJointCatalog:
         object.__setattr__(self, "chain_joints", joints)
         object.__setattr__(self, "planning_joint_names", planning_names)
         identity, content = content_identity("manipulation-joint-catalog", self.semantic_document())
+        if (
+            identity != REVIEWED_JOINT_CATALOG_ID
+            or content != REVIEWED_JOINT_CATALOG_FINGERPRINT
+        ):
+            raise PlanningValidationError(
+                PlanningFailureCode.MODEL_MISMATCH,
+                "joint catalog differs from the reviewed authoritative Ayyo semantics",
+            )
         object.__setattr__(self, "joint_catalog_id", identity)
         object.__setattr__(self, "joint_catalog_fingerprint", content)
         assert_artifact_size(self.as_dict(), "manipulator joint catalog")
@@ -560,6 +605,11 @@ class ManipulatorGroupIdentity:
         object.__setattr__(self, "joint_names", joints)
         object.__setattr__(self, "fixed_joint_names", fixed)
         identity, content = content_identity("manipulator-group", self.semantic_document())
+        if identity != REVIEWED_GROUP_ID or content != REVIEWED_GROUP_FINGERPRINT:
+            raise PlanningValidationError(
+                PlanningFailureCode.MODEL_MISMATCH,
+                "manipulator group differs from the reviewed authoritative Ayyo model",
+            )
         object.__setattr__(self, "group_id", identity)
         object.__setattr__(self, "group_fingerprint", content)
         assert_artifact_size(self.as_dict(), "manipulator group identity")
