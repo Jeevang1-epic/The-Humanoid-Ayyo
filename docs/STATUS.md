@@ -123,6 +123,19 @@
   self/environment checking of all 14 exact Python path waypoints, and a
   positive fixed-box goal-collision probe, without MoveGroup, controllers,
   actions, Runtime dispatch, hardware authority, or Safety bypass
+- Standalone `ayyo-manipulation-trajectory` Stage-9B package with immutable
+  bounded timing configuration, exact Stage 9A construction request, trajectory
+  points, complete trajectory, review evidence, Safety reference/result, inert
+  Skill reference, and final future-handoff-review eligibility decision
+- Deterministic conservative velocity-scaled timing over every exact reviewed
+  waypoint and joint, with finite strictly increasing timestamps, explicit
+  point/duration bounds, exact joint order and position-limit retention, and
+  rejection of stationary segments or any recursively invalid Stage 9A lineage
+- Independent Safety evaluation of a closed `INTERNAL_NON_ACTUATING`
+  information-only evidence-review proposal plus explicit caller-supplied Skill
+  binding verification; Runtime Bridge is not imported or invoked, no endpoint
+  is registered, and positive results remain `NOT_EXECUTED` with physical
+  validation absent
 - Standalone Memory OS core with typed records and mandatory provenance
 - SQLite persistence with schema versioning, foreign keys, WAL journaling,
   transactional corrections, retractions, and conflict records
@@ -456,7 +469,7 @@
   self-contained bare-overlay import
 - Additional controlled joints, trajectory/whole-body control, friction/contact
   tuning, and validated dynamics
-- Grasp planning, manipulation execution, arm controller/Runtime integration,
+- Grasp planning, Stage-9C simulation execution, arm controller/Runtime integration,
   force/contact safety, and physical manipulator validation
 - Navigation integration
 - Additional Teach Mode sources, recorded/physical adapters, owner/teacher
@@ -482,9 +495,10 @@ inert candidate promotion/rollback eligibility foundation, plus an immutable
 candidate-version registry/lineage foundation and an inert exact authority-
 approval/future-activation eligibility boundary with no active-policy state,
 plus a deterministic Stage-8 software-showcase catalog that inspects those
-public contracts without executing them. Stage 9 has begun with an exact,
-immutable, planning-only left-arm and MoveIt collision-evidence boundary that
-always stops before execution. The
+public contracts without executing them. Stage 9A provides an exact immutable
+planning-only left-arm and MoveIt collision-evidence boundary. Stage 9B adds
+exact deterministic trajectory and future simulation-handoff review evidence;
+both milestones always stop before execution. The
 downstream Simulation Control Foundation can actuate one bounded simulated
 neck joint only
 through explicit development injection and can prove the result from

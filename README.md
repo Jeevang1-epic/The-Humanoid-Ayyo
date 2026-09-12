@@ -7,13 +7,14 @@ can mature behind stable boundaries before physical hardware is introduced.
 
 ## Current status
 
-Ayyo has begun Stage 9 with Manipulation Planning & Collision Safety Foundation
-v1. The milestone derives one exact left-arm planning group and joint-limit
-catalog from the authoritative expanded robot model, adds immutable bounded
-planning/scene/evidence contracts, and proves deterministic collision checking
-with MoveIt 2 in a headless planning scene. A positive result is only a plan
-available for review: no arm command interface, controller, runtime endpoint,
-trajectory execution, hardware authority, or Safety bypass is introduced.
+Ayyo has completed the local Stage 9B Manipulation Trajectory & Execution
+Eligibility Foundation v1 above the reviewed Stage 9A planning boundary. One
+exact positive Stage 9A decision can be converted into a bounded deterministic
+joint trajectory, immutable review evidence, independently evaluated Safety
+eligibility, and an explicit inert Skill handoff reference. The final positive
+state is only eligible for a future separately reviewed simulation handoff:
+the Runtime endpoint remains unregistered and every result is `NOT_EXECUTED`
+with `PHYSICAL_VALIDATION_ABSENT`.
 
 Implemented:
 
@@ -74,6 +75,14 @@ Implemented:
   exact limits, self/environment collision checking, a collision-free bounded
   path, and positive rejection evidence for a fixed goal obstacle without any
   MoveGroup, action, controller, Runtime, ROS command, or hardware surface
+- A standalone `ayyo-manipulation-trajectory` Stage-9B pre-execution layer that
+  recursively binds one complete positive Stage 9A decision, derives finite
+  strictly increasing timestamps from reviewed velocity limits and a bounded
+  explicit configuration, and emits immutable canonical trajectory evidence
+- Explicit Safety and Skill evidence seams for an information-only trajectory
+  review capability; the caller supplies both decisions, Stage 9B revalidates
+  their exact lineage, creates no Runtime request or endpoint, and stops at
+  future simulation-handoff review eligibility
 - A verified local ROS 2, Gazebo, and RViz development setup
 - A standalone, provenance-aware Memory OS core with SQLite persistence
 - A standalone deterministic validation and consolidation policy for candidate
@@ -409,6 +418,15 @@ The MoveIt proof is built and tested through the ROS workspace as package
 pins their exact collision semantics, checks the exact 14-waypoint Python
 candidate path and request scene, and never exposes an execution endpoint.
 
+Run the transport-neutral Stage-9B trajectory, eligibility, serialization, and
+negative authority-boundary tests while preserving the sourced ROS Python path:
+
+```bash
+source /opt/ros/jazzy/setup.bash
+PYTHONPATH=memory/src:personal_context/src:executive/src:safety_kernel/src:skill_manager/src:manipulation_planning/src:manipulation_trajectory/src${PYTHONPATH:+:$PYTHONPATH} \
+  python3 -m pytest -q manipulation_trajectory/tests
+```
+
 Run Memory OS tests:
 
 ```bash
@@ -627,6 +645,7 @@ policy_registry/  Immutable candidate registration, snapshots, and exact lineage
 approval_eligibility/  Inert authority evidence and future-activation eligibility
 software_showcase/  Deterministic Stage-8 public-contract catalog and inspector
 manipulation_planning/  Immutable Stage-9A planning-only evidence contracts
+manipulation_trajectory/  Immutable Stage-9B trajectory and handoff eligibility
 world_model/  Transport-neutral embodied/environment observations and snapshots
 perception/  Deterministic sensor/provenance/time admission trust boundary
 physical_camera/  Driver-neutral physical source, calibration, lifecycle, and diagnostics
@@ -756,3 +775,12 @@ scene, planner, candidate-path, and per-waypoint collision-evidence identities.
 `PLAN_AVAILABLE_FOR_REVIEW` never means activated,
 dispatched, executed, physically safe, or hardware validated; every result is
 explicitly `NOT_EXECUTED`.
+Manipulation Trajectory & Execution Eligibility Foundation v1 adds only the
+next pre-execution seam. See
+[Manipulation Trajectory & Execution Eligibility](docs/MANIPULATION_TRAJECTORY_EXECUTION_ELIGIBILITY.md).
+It binds the complete Stage 9A decision and exact waypoint/collision lineage,
+derives deterministic conservative timestamps, and records exact external
+Safety and Skill evidence. `TRAJECTORY_ELIGIBLE_FOR_SIMULATION_REVIEW` and the
+final future-handoff-review status create no Runtime request or movement
+authority; the endpoint is `NOT_REGISTERED`, execution is `NOT_EXECUTED`, and
+physical validation is `ABSENT`.
