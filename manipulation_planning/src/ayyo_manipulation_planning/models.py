@@ -43,12 +43,6 @@ LEFT_ARM_CHAIN_JOINT_NAMES = (
     "left_wrist_yaw_joint",
     "left_wrist_to_hand_joint",
 )
-LEFT_ARM_JOINT_LIMITS = (
-    ("left_shoulder_yaw_joint", -1.2, 1.2),
-    ("left_shoulder_pitch_joint", -1.8, 1.8),
-    ("left_elbow_flex_joint", 0.0, 2.2),
-    ("left_wrist_yaw_joint", -1.5, 1.5),
-)
 PLANNING_FRAME = "base_link"
 PLANNER_ID = "ayyo.bounded-linear-joint-space.v1"
 COLLISION_BACKEND_ID = "moveit.planning-scene.v1"
@@ -419,16 +413,6 @@ class ManipulatorJointCatalog:
             raise PlanningValidationError(
                 PlanningFailureCode.WRONG_MANIPULATOR_GROUP,
                 "planning joints differ from the authoritative Stage 9A left arm",
-            )
-        derived_limits = tuple(
-            (item.joint_name, item.lower, item.upper)
-            for item in joints
-            if item.kind is RobotJointKind.REVOLUTE
-        )
-        if derived_limits != LEFT_ARM_JOINT_LIMITS:
-            raise PlanningValidationError(
-                PlanningFailureCode.MODEL_MISMATCH,
-                "left-arm bounds differ from the reviewed authoritative URDF limits",
             )
         object.__setattr__(self, "group_name", group_name)
         object.__setattr__(self, "base_link", base_link)

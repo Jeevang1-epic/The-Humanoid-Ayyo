@@ -84,6 +84,14 @@ def test_unknown_field_and_missing_field_fail_closed(planning_bundle):
             manipulation_planning_artifact_from_canonical_json(canonical_json(candidate))
 
 
+def test_unknown_schema_version_fails_closed(planning_bundle):
+    model, *_ = planning_bundle
+    document = deepcopy(model.as_dict())
+    document["schema"]["version"] = "2.0.0"
+    with pytest.raises(PlanningSerializationError):
+        manipulation_planning_artifact_from_canonical_json(canonical_json(document))
+
+
 def test_outer_rehash_cannot_hide_nested_robot_model_substitution(planning_bundle):
     *_, request, _ = planning_bundle
     document = deepcopy(request.as_dict())

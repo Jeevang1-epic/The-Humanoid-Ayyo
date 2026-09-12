@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import replace
+import math
 
 import pytest
 
@@ -85,6 +86,31 @@ def test_scene_robot_identity_substitution_is_rejected(planning_bundle):
         replace(request, scene=scene)
 
 
+def test_joint_limit_substitution_after_request_creation_is_rejected(planning_bundle):
+    _, catalog, _, _, _, _, request, _ = planning_bundle
+    changed_joint = replace(catalog.chain_joints[0], lower=-1.1)
+    changed_catalog = replace(
+        catalog,
+        chain_joints=(changed_joint, *catalog.chain_joints[1:]),
+    )
+    with pytest.raises(PlanningValidationError):
+        replace(request, joint_catalog=changed_catalog)
+
+
+def test_start_state_substitution_after_evidence_creation_is_rejected(planning_bundle):
+    *_, request, evidence = planning_bundle
+    changed_start = replace(
+        request.start_state,
+        positions=(
+            replace(request.start_state.positions[0], position=0.1),
+            *request.start_state.positions[1:],
+        ),
+    )
+    alternate = replace(request, start_state=changed_start)
+    with pytest.raises(PlanningValidationError):
+        evaluate_manipulation_plan(alternate, evidence)
+
+
 def test_collision_object_set_substitution_is_rejected(planning_bundle):
     *_, evidence = planning_bundle
     with pytest.raises(PlanningValidationError):
@@ -162,3 +188,50 @@ def test_collision_scene_is_fixed_bounded_box_only(planning_bundle):
     duplicate = CollisionBox("box", "base_link", (0.0, 0.0, 0.0), (0.0, 0.0, 0.0, 1.0), (0.1, 0.1, 0.1))
     with pytest.raises(PlanningValidationError):
         PlanningSceneEvidence(model.robot_model_id, model.robot_model_fingerprint, group.group_id, group.group_fingerprint, "base_link", (duplicate, duplicate))
+
+
+@pytest.mark.parametrize(
+    ("position", "dimensions"),
+    [
+        ((0.0, 0.0, 0.0), (0.0, 0.1, 0.1)),
+        ((0.0, 0.0, 0.0), (-0.1, 0.1, 0.1)),
+        ((0.0, 0.0, 0.0), (5.000001, 0.1, 0.1)),
+        ((math.nan, 0.0, 0.0), (0.1, 0.1, 0.1)),
+        ((math.inf, 0.0, 0.0), (0.1, 0.1, 0.1)),
+        ((0.0, 0.0, 0.0), (math.nan, 0.1, 0.1)),
+        ((0.0, 0.0, 0.0), (math.inf, 0.1, 0.1)),
+    ],
+)
+def test_malformed_collision_dimensions_and_positions_fail_closed(position, dimensions):
+    with pytest.raises(PlanningValidationError):
+        CollisionBox("box", "base_link", position, (0.0, 0.0, 0.0, 1.0), dimensions)
+
+
+def test_collision_scene_resource_and_identifier_bounds(planning_bundle):
+    model, _, group, *_ = planning_bundle
+    boxes = tuple(
+        CollisionBox(f"box-{index:02d}", "base_link", (0.0, 0.0, 0.0), (0.0, 0.0, 0.0, 1.0), (0.1, 0.1, 0.1))
+        for index in range(17)
+    )
+    with pytest.raises(PlanningValidationError):
+        PlanningSceneEvidence(model.robot_model_id, model.robot_model_fingerprint, group.group_id, group.group_fingerprint, "base_link", boxes)
+    with pytest.raises(PlanningValidationError):
+        CollisionBox("x" * 257, "base_link", (0.0, 0.0, 0.0), (0.0, 0.0, 0.0, 1.0), (0.1, 0.1, 0.1))
+
+
+def test_collision_scene_construction_canonicalizes_object_order(planning_bundle):
+    model, _, group, *_ = planning_bundle
+    first = CollisionBox("a", "base_link", (0.0, 0.0, 0.0), (0.0, 0.0, 0.0, 1.0), (0.1, 0.1, 0.1))
+    second = CollisionBox("b", "base_link", (1.0, 0.0, 0.0), (0.0, 0.0, 0.0, 1.0), (0.1, 0.1, 0.1))
+    forward = PlanningSceneEvidence(model.robot_model_id, model.robot_model_fingerprint, group.group_id, group.group_fingerprint, "base_link", (first, second))
+    reverse = PlanningSceneEvidence(model.robot_model_id, model.robot_model_fingerprint, group.group_id, group.group_fingerprint, "base_link", (second, first))
+    assert forward == reverse
+
+
+def test_obstacle_mutation_after_plan_generation_is_rejected(planning_bundle):
+    *_, request, evidence = planning_bundle
+    changed_box = replace(request.scene.collision_objects[0], position_xyz=(0.9, 0.0, 0.5))
+    changed_scene = replace(request.scene, collision_objects=(changed_box,))
+    changed_request = replace(request, scene=changed_scene)
+    with pytest.raises(PlanningValidationError):
+        evaluate_manipulation_plan(changed_request, evidence)

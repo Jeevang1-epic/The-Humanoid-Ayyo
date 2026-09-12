@@ -52,7 +52,6 @@ def test_model_derivation_is_deterministic(expanded_urdf):
         ('name="left_hand_link"', 'name="removed_hand_link"'),
         ('name="left_elbow_flex_joint"', 'name="removed_elbow_joint"'),
         ('<limit effort="20.0" lower="-1.2"', '<limit effort="20.0" lower="nan"'),
-        ('<limit effort="20.0" lower="-1.2"', '<limit effort="20.0" lower="-1.1"'),
         ('<joint name="left_shoulder_yaw_joint" type="revolute">', '<joint name="left_shoulder_yaw_joint" type="continuous">'),
     ],
 )

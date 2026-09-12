@@ -138,6 +138,11 @@ excludes a bounded set of mechanically adjacent link pairs. It verifies:
 - a fixed 0.12 m box centered at the goal hand is accepted into the scene and
   produces a collision report.
 
+The proof checks the reviewed path for self-collision, but it does not claim a
+separate intentionally self-colliding posture: the current provisional proxy
+geometry does not justify fabricating one. It proves a positive environment-
+collision case and preserves MoveIt's self-collision checks for every sample.
+
 The proof links MoveIt core only. It does not depend on
 `moveit_ros_planning_interface`, `moveit_ros_move_group`, controller manager,
 trajectory messages, `rclcpp`, or any hardware/control package.

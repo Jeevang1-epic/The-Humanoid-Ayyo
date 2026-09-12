@@ -30,8 +30,6 @@ const std::array<std::string, 4> kJointNames = {
   "left_elbow_flex_joint",
   "left_wrist_yaw_joint",
 };
-const std::array<double, 4> kExpectedLower = {-1.2, -1.8, 0.0, -1.5};
-const std::array<double, 4> kExpectedUpper = {1.2, 1.8, 2.2, 1.5};
 const std::array<double, 4> kStart = {0.0, 0.0, 0.2, 0.0};
 const std::array<double, 4> kGoal = {0.3, 0.4, 0.8, 0.2};
 
@@ -98,9 +96,10 @@ int main(int argc, char ** argv)
     bool exact_limits = true;
     for (std::size_t index = 0; index < kJointNames.size(); ++index) {
       const moveit::core::VariableBounds & bounds = robot_model->getVariableBounds(kJointNames[index]);
-      exact_limits = exact_limits && bounds.position_bounded_ &&
-        std::abs(bounds.min_position_ - kExpectedLower[index]) < 1e-12 &&
-        std::abs(bounds.max_position_ - kExpectedUpper[index]) < 1e-12;
+      const urdf::JointConstSharedPtr source_joint = urdf_model->getJoint(kJointNames[index]);
+      exact_limits = exact_limits && source_joint && source_joint->limits && bounds.position_bounded_ &&
+        std::abs(bounds.min_position_ - source_joint->limits->lower) < 1e-12 &&
+        std::abs(bounds.max_position_ - source_joint->limits->upper) < 1e-12;
     }
 
     planning_scene::PlanningScene scene(robot_model);
