@@ -7,13 +7,13 @@ can mature behind stable boundaries before physical hardware is introduced.
 
 ## Current status
 
-Ayyo has reached Software Showcase Foundation v1. Stage 8 now provides one
-deterministic, bounded catalog and canonical report over reviewed public
-software contracts. It exposes exact evidence/provenance and keeps implemented,
-TEST, simulation, DEVELOPMENT-only, inert, unavailable, and not-physically-
-validated claims distinct. The showcase does not execute represented contracts,
-authenticate an authority, activate a policy, dispatch Runtime, command
-ROS/Gazebo, control hardware, or bypass Safety.
+Ayyo has begun Stage 9 with Manipulation Planning & Collision Safety Foundation
+v1. The milestone derives one exact left-arm planning group and joint-limit
+catalog from the authoritative expanded robot model, adds immutable bounded
+planning/scene/evidence contracts, and proves deterministic collision checking
+with MoveIt 2 in a headless planning scene. A positive result is only a plan
+available for review: no arm command interface, controller, runtime endpoint,
+trajectory execution, hardware authority, or Safety bypass is introduced.
 
 Implemented:
 
@@ -65,6 +65,15 @@ Implemented:
   immutable canonical manifests/reports, exact provenance, explicit truthful
   classifications/non-claims, and a deterministic four-command CLI; production
   activation and physical validation remain explicitly unavailable
+- A standalone `ayyo-manipulation-planning` Stage-9A planning-only layer with
+  an exact URDF-derived left-arm chain, immutable content-addressed requests,
+  fixed-box `base_link` collision scenes, exact evidence-chain binding,
+  deterministic bounded joint interpolation, and decisions that remain
+  `NOT_EXECUTED`
+- A headless `ayyo_manipulation_planning` MoveIt 2 PlanningScene proof covering
+  exact limits, self/environment collision checking, a collision-free bounded
+  path, and positive rejection evidence for a fixed goal obstacle without any
+  MoveGroup, action, controller, Runtime, ROS command, or hardware surface
 - A verified local ROS 2, Gazebo, and RViz development setup
 - A standalone, provenance-aware Memory OS core with SQLite persistence
 - A standalone deterministic validation and consolidation policy for candidate
@@ -245,7 +254,7 @@ Planned, but not implemented:
   aggregation
 - Natural-language/model integration and a production authority-authentication
   provider, permissions, and external verification enforcement
-- Runtime skill implementations, manipulation, and navigation
+- Runtime skill implementations, manipulation execution, and navigation
 - Production-authorized typed ROS services, runtime scheduling, and resource
   enforcement; Safety v1 still defers all physical movement
 - Additional Teach Mode sources, authenticated teacher identity, physical
@@ -386,6 +395,16 @@ python3 -m ayyo_software_showcase.cli verify
 PYTHONPATH=memory/src:memory_validation/src:memory_consolidation/src:personal_context/src:executive/src:safety_kernel/src:skill_manager/src:runtime_bridge/src:simulation_control/src:developmental_scenarios/src:teach_mode/src:learning_evaluation/src:promotion_control/src:policy_registry/src:approval_eligibility/src:world_model/src:working_memory/src:perception/src:visual_evaluation/src:physical_camera/src:depth_camera/src:rgbd_fusion/src:head_audio/src:software_showcase/src \
 python3 -m pytest -q software_showcase/tests
 ```
+
+Run the planning-only Stage-9A contract and package-boundary tests:
+
+```bash
+PYTHONPATH=manipulation_planning/src python3 -m pytest -q manipulation_planning/tests
+```
+
+The MoveIt proof is built and tested through the ROS workspace as package
+`ayyo_manipulation_planning`; it consumes expanded URDF and the reviewed SRDF,
+checks 21 bounded samples, and never exposes an execution endpoint.
 
 Run Memory OS tests:
 
@@ -604,6 +623,7 @@ promotion_control/  Pure candidate promotion and rollback eligibility evidence
 policy_registry/  Immutable candidate registration, snapshots, and exact lineage
 approval_eligibility/  Inert authority evidence and future-activation eligibility
 software_showcase/  Deterministic Stage-8 public-contract catalog and inspector
+manipulation_planning/  Immutable Stage-9A planning-only evidence contracts
 world_model/  Transport-neutral embodied/environment observations and snapshots
 perception/  Deterministic sensor/provenance/time admission trust boundary
 physical_camera/  Driver-neutral physical source, calibration, lifecycle, and diagnostics
@@ -725,3 +745,10 @@ report. See [Software Showcase Foundation](docs/SOFTWARE_SHOWCASE.md). Its
 `SUPPORTED_BY_PUBLIC_CONTRACT` result proves only that the exact reviewed
 contract backs the classified claim; it performs no action and grants no new
 authority.
+Manipulation Planning & Collision Safety Foundation v1 begins Stage 9 as a
+strictly downstream planning-only seam. See
+[Manipulation Planning & Collision Safety](docs/MANIPULATION_PLANNING_COLLISION_SAFETY.md).
+It binds exact robot, chain, state, goal, scene, planner, waypoint, and collision
+evidence identities. `PLAN_AVAILABLE_FOR_REVIEW` never means activated,
+dispatched, executed, physically safe, or hardware validated; every result is
+explicitly `NOT_EXECUTED`.

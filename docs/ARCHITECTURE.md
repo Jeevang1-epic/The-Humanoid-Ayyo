@@ -72,6 +72,25 @@ execution, live validation, authentication, activation, deployment, physical
 safety, or hardware proof. The showcase calls none of the represented
 subsystems and has no persistence, network, process, ROS, or hardware surface.
 
+Stage-9A manipulation planning is a separate downstream planning-only path:
+
+```text
+authoritative expanded Ayyo URDF
+→ exact immutable left-arm model/group/joint-limit evidence
+→ bounded start + joint-space goal + fixed-box base_link scene
+→ deterministic bounded waypoint candidates
+→ MoveIt 2 PlanningScene self/environment collision evidence
+→ immutable plan decision available for human review or rejected
+→ stop (NOT_EXECUTED)
+```
+
+The [Manipulation Planning & Collision Safety Foundation](MANIPULATION_PLANNING_COLLISION_SAFETY.md)
+does not feed an invocation into Skill Manager or Runtime Bridge. It adds no
+arm command interface, controller, publisher, action, service, MoveGroup,
+trajectory execution, physical-safety certification, or hardware path. Safety
+v1 continues to defer physical movement, and all existing arm command interfaces
+remain disabled.
+
 The standalone
 [Teach Mode Demonstration Capture Foundation](TEACH_MODE_DEMONSTRATION_CAPTURE.md)
 depends only on public immutable developmental-scenario contracts. It records
@@ -465,5 +484,11 @@ replace proxy geometry without duplicating or bypassing frame semantics.
   bind or execute a Skill, dispatch Runtime, call ROS/Gazebo, authenticate,
   activate a policy, persist state, control hardware, or certify physical
   behavior.
+- Manipulation Planning owns only immutable left-arm model/request/scene/plan
+  evidence, deterministic bounded candidate interpolation, and the headless
+  MoveIt PlanningScene proof. Its positive disposition means available for
+  review and is always `NOT_EXECUTED`. No lower architecture layer imports it;
+  it cannot bind a Skill, dispatch Runtime, command ROS/Gazebo, activate a
+  controller, control hardware, or override independent Safety.
 - Learning updates remain candidates until evaluation and controlled promotion;
   consolidation does not bypass safety or permissions.

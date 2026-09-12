@@ -242,6 +242,21 @@ validation explicitly unavailable. The showcase adds no cognition, Safety,
 Skill, Runtime, ROS/Gazebo, persistence, learning, authentication, policy-state,
 execution, or hardware authority; lower layers have no reverse dependency.
 
+Stage 9 has now begun with Manipulation Planning & Collision Safety Foundation
+v1. This first planning-only slice derives the exact four-revolute-joint left
+arm (and its two fixed chain joints) from the authoritative expanded URDF,
+retains exact joint limits and content identities, represents bounded fixed-box
+collision scenes in `base_link`, and emits immutable review evidence. A
+headless MoveIt 2 PlanningScene proof checks self-collision, environment
+collision, and 21 deterministic bounded joint-space samples. It deliberately
+stops at `PLAN_AVAILABLE_FOR_REVIEW` or `REJECTED`, always `NOT_EXECUTED`.
+
+Stage 9 is not complete. Grasp planning, end-effector semantics, trajectory
+time-parameterization, force/contact reasoning, controller integration,
+production Runtime/Skill bindings, independent motion/contact Safety policy,
+emergency-stop integration, physical calibration, and any simulated or
+physical arm execution remain separately reviewed future milestones.
+
 Final Ayyo assets, graphical controlled-design validation, additional joints,
 trajectory/whole-body controllers, validated dynamics/contact behavior,
 production authenticated identity, permissions, external approval enforcement,
