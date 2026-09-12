@@ -41,4 +41,3 @@ class PlanningValidationError(ManipulationPlanningError, ValueError):
 
 class PlanningSerializationError(ManipulationPlanningError, ValueError):
     """Canonical planning serialization or reconstruction failed closed."""
-
