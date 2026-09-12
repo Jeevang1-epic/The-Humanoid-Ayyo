@@ -50,6 +50,15 @@ def canonical_json(value: JSONValue) -> str:
                 PlanningFailureCode.MALFORMED_ARTIFACT,
                 "canonical planning document contains a non-finite number",
             )
+        if (
+            type(current) is float
+            and current == 0.0
+            and math.copysign(1.0, current) < 0.0
+        ):
+            raise PlanningValidationError(
+                PlanningFailureCode.MALFORMED_ARTIFACT,
+                "canonical planning document contains negative zero",
+            )
         if type(current) is list:
             stack.extend(reversed(current))
         elif type(current) is dict:

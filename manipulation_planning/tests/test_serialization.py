@@ -136,6 +136,52 @@ def test_whitespace_and_key_order_variants_are_not_canonical(planning_bundle):
             manipulation_planning_artifact_from_canonical_json(variant)
 
 
+def test_negative_zero_is_rejected_at_every_nested_position_boundary(planning_bundle):
+    _, _, _, start, goal, _, request, evidence = planning_bundle
+    documents = []
+
+    state_document = deepcopy(start.as_dict())
+    state_document["positions"][0]["position"] = -0.0
+    documents.append(state_document)
+
+    goal_document = deepcopy(goal.as_dict())
+    goal_document["positions"][0]["position"] = -0.0
+    documents.append(goal_document)
+
+    request_document = deepcopy(request.as_dict())
+    request_document["start_state"]["positions"][0]["position"] = -0.0
+    documents.append(request_document)
+
+    evidence_document = deepcopy(evidence.as_dict())
+    evidence_document["waypoints"][1]["positions"][0]["position"] = -0.0
+    documents.append(evidence_document)
+
+    nested_document = deepcopy(evidence.as_dict())
+    nested_document["request"]["goal"]["positions"][1]["position"] = -0.0
+    documents.append(nested_document)
+
+    for document in documents:
+        payload = json.dumps(
+            document,
+            allow_nan=False,
+            ensure_ascii=False,
+            separators=(",", ":"),
+            sort_keys=True,
+        )
+        assert "-0.0" in payload
+        with pytest.raises(PlanningSerializationError):
+            manipulation_planning_artifact_from_canonical_json(payload)
+
+
+def test_positive_zero_has_one_stable_canonical_identity(planning_bundle):
+    *_, request, _ = planning_bundle
+    payload = canonical_manipulation_planning_artifact_json(request)
+    assert '"position":-0.0' not in payload
+    reconstructed = manipulation_planning_artifact_from_canonical_json(payload)
+    assert reconstructed.request_id == request.request_id
+    assert canonical_manipulation_planning_artifact_json(reconstructed) == payload
+
+
 def test_unknown_field_and_missing_field_fail_closed(planning_bundle):
     model, *_ = planning_bundle
     document = model.as_dict()
