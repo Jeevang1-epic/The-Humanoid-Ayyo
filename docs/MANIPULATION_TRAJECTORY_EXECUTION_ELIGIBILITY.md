@@ -71,6 +71,9 @@ state. The expected result is information, and the reviewed Safety
 classification required for a positive result is `INTERNAL_NON_ACTUATING`.
 This classifies inspection of immutable evidence; it does not classify the
 future physical movement as safe.
+An otherwise eligible Safety decision carrying any other hazard classification
+is explicitly ineligible with `SAFETY_CLASSIFICATION_MISMATCH`; it is not
+misreported as a Safety block or a physical-safety result.
 
 The caller must explicitly obtain and supply both the Safety decision and Skill
 Manager binding. Stage 9B re-evaluates Safety against the supplied policy,

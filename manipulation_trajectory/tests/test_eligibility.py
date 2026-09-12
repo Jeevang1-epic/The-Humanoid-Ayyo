@@ -217,7 +217,9 @@ def test_other_hazard_never_becomes_positive_simulation_review(stage9b_bundle) -
         kernel,
     )
     assert result.status is SafetyEligibilityStatus.INELIGIBLE
-    assert result.reasons == (SafetyEligibilityReason.SAFETY_BLOCKED,)
+    assert result.reasons == (
+        SafetyEligibilityReason.SAFETY_CLASSIFICATION_MISMATCH,
+    )
 
 
 def test_skill_binding_from_other_safety_decision_is_rejected(stage9b_bundle) -> None:

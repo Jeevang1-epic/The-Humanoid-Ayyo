@@ -71,6 +71,7 @@ class SafetyEligibilityStatus(StrEnum):
 
 class SafetyEligibilityReason(StrEnum):
     INDEPENDENT_SAFETY_ELIGIBLE = "independent_safety_eligible"
+    SAFETY_CLASSIFICATION_MISMATCH = "safety_classification_mismatch"
     SAFETY_APPROVAL_REQUIRED = "safety_approval_required"
     SAFETY_DEFERRED = "safety_deferred"
     SAFETY_BLOCKED = "safety_blocked"
@@ -954,7 +955,7 @@ class TrajectorySafetyEligibilityResult:
                 ReviewedSafetyDisposition.BLOCKED:
                     SafetyEligibilityReason.SAFETY_BLOCKED,
                 ReviewedSafetyDisposition.ELIGIBLE_FOR_DOWNSTREAM:
-                    SafetyEligibilityReason.SAFETY_BLOCKED,
+                    SafetyEligibilityReason.SAFETY_CLASSIFICATION_MISMATCH,
             }
             if (
                 self.status is not SafetyEligibilityStatus.INELIGIBLE

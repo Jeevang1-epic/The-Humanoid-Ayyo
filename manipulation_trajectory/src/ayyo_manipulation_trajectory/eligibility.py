@@ -216,7 +216,7 @@ def evaluate_trajectory_safety_eligibility(
             ReviewedSafetyDisposition.DEFERRED: SafetyEligibilityReason.SAFETY_DEFERRED,
             ReviewedSafetyDisposition.BLOCKED: SafetyEligibilityReason.SAFETY_BLOCKED,
             ReviewedSafetyDisposition.ELIGIBLE_FOR_DOWNSTREAM: (
-                SafetyEligibilityReason.SAFETY_BLOCKED
+                SafetyEligibilityReason.SAFETY_CLASSIFICATION_MISMATCH
             ),
         }
         reasons = (reason_by_disposition[disposition],)
