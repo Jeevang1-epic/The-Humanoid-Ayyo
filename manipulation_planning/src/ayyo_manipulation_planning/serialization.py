@@ -43,6 +43,18 @@ from .models import (
     RobotJointKind,
     RobotJointReference,
     RobotModelIdentity,
+    verify_collision_box,
+    verify_joint_space_goal,
+    verify_manipulation_plan_evidence,
+    verify_manipulation_planning_decision,
+    verify_manipulation_planning_request,
+    verify_manipulator_group_identity,
+    verify_manipulator_joint_catalog,
+    verify_manipulator_joint_state,
+    verify_planner_configuration,
+    verify_planning_scene_evidence,
+    verify_robot_joint_reference,
+    verify_robot_model_identity,
 )
 
 
@@ -352,16 +364,26 @@ _PARSERS: dict[str, Callable[[object], PlanningArtifact]] = {
     PLANNING_DECISION_SCHEMA_ID: _decision,
 }
 
+_VERIFIERS: dict[type, Callable[[object], bool]] = {
+    RobotModelIdentity: verify_robot_model_identity,
+    RobotJointReference: verify_robot_joint_reference,
+    ManipulatorJointCatalog: verify_manipulator_joint_catalog,
+    ManipulatorGroupIdentity: verify_manipulator_group_identity,
+    ManipulatorJointState: verify_manipulator_joint_state,
+    JointSpaceGoal: verify_joint_space_goal,
+    PlannerConfiguration: verify_planner_configuration,
+    CollisionBox: verify_collision_box,
+    PlanningSceneEvidence: verify_planning_scene_evidence,
+    ManipulationPlanningRequest: verify_manipulation_planning_request,
+    ManipulationPlanEvidence: verify_manipulation_plan_evidence,
+    ManipulationPlanningDecision: verify_manipulation_planning_decision,
+}
+
 
 def canonical_manipulation_planning_artifact_json(artifact: PlanningArtifact) -> str:
-    if type(artifact) not in {
-        RobotModelIdentity, RobotJointReference, ManipulatorJointCatalog,
-        ManipulatorGroupIdentity, ManipulatorJointState, JointSpaceGoal,
-        PlannerConfiguration, CollisionBox, PlanningSceneEvidence,
-        ManipulationPlanningRequest, ManipulationPlanEvidence,
-        ManipulationPlanningDecision,
-    }:
-        raise _error("unsupported manipulation-planning artifact type")
+    verifier = _VERIFIERS.get(type(artifact))
+    if verifier is None or not verifier(artifact):
+        raise _error("planning artifact type or content failed integrity verification")
     try:
         return canonical_json(artifact.as_dict())
     except (PlanningValidationError, TypeError, ValueError, UnicodeError, RecursionError) as error:

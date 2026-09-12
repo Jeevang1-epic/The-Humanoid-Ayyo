@@ -47,6 +47,56 @@ def test_all_public_artifact_types_round_trip(planning_bundle):
         assert canonical_manipulation_planning_artifact_json(artifact) == payload
 
 
+def test_serializer_rejects_nested_post_construction_identity_mutation(planning_bundle):
+    _, catalog, *_ = planning_bundle
+    object.__setattr__(
+        catalog.robot_model,
+        "robot_model_id",
+        "manipulation-robot-model-sha256-" + ("0" * 64),
+    )
+
+    with pytest.raises(PlanningSerializationError):
+        canonical_manipulation_planning_artifact_json(catalog)
+    with pytest.raises(PlanningSerializationError):
+        manipulation_planning_artifact_from_canonical_json(
+            canonical_json(catalog.as_dict())
+        )
+
+
+@pytest.mark.parametrize("artifact_name", ["request", "evidence", "decision"])
+def test_serializer_rejects_top_level_post_construction_identity_mutation(
+    planning_bundle,
+    artifact_name,
+):
+    *_, request, evidence = planning_bundle
+    decision = evaluate_manipulation_plan(request, evidence)
+    artifact, identity_field, replacement = {
+        "request": (
+            request,
+            "request_id",
+            "manipulation-planning-request-sha256-" + ("1" * 64),
+        ),
+        "evidence": (
+            evidence,
+            "plan_evidence_id",
+            "manipulation-plan-evidence-sha256-" + ("2" * 64),
+        ),
+        "decision": (
+            decision,
+            "decision_id",
+            "manipulation-planning-decision-sha256-" + ("3" * 64),
+        ),
+    }[artifact_name]
+    object.__setattr__(artifact, identity_field, replacement)
+
+    with pytest.raises(PlanningSerializationError):
+        canonical_manipulation_planning_artifact_json(artifact)
+    with pytest.raises(PlanningSerializationError):
+        manipulation_planning_artifact_from_canonical_json(
+            canonical_json(artifact.as_dict())
+        )
+
+
 @pytest.mark.parametrize(
     "payload",
     [
