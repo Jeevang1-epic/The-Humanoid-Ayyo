@@ -115,11 +115,12 @@ rejection cannot carry a usable trajectory.
 ## Deterministic planner boundary
 
 The pure helper uses planner identity
-`ayyo.bounded-linear-joint-space.v1`, a maximum per-joint interpolation step of
-0.05 rad, a maximum of 129 waypoints, and deterministic seed 0. It produces
-candidate samples only. Samples acquire no plan status until an external
-collision checker returns separately supplied evidence bound to the exact
-request.
+`ayyo.bounded-linear-joint-space.v1`, a default per-joint interpolation step of
+0.05 rad (hard ceiling 0.25 rad), a maximum of 129 waypoints, and deterministic
+seed 0. It produces candidate samples only. Samples acquire no plan status
+until an external collision checker returns separately supplied evidence bound
+to the exact request. Positive plan evidence must reproduce the exact owned
+interpolation; endpoints alone are insufficient.
 
 This simple interpolation is deliberately not a general motion planner,
 optimal planner, Cartesian planner, IK solver, grasp planner, or dynamics

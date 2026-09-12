@@ -45,6 +45,28 @@ def test_model_derivation_is_deterministic(expanded_urdf):
     assert build_left_arm_planning_model(expanded_urdf) == build_left_arm_planning_model(expanded_urdf)
 
 
+def test_semantically_equivalent_xml_formatting_has_one_model_identity(expanded_urdf):
+    with_comment = expanded_urdf.replace(
+        '<robot name="ayyo">',
+        '<robot name="ayyo"><!-- non-semantic formatting comment -->',
+        1,
+    )
+    plain = build_left_arm_planning_model(expanded_urdf)[0]
+    commented = build_left_arm_planning_model(with_comment)[0]
+    assert commented == plain
+
+
+def test_disconnected_joint_cycle_fails_closed(expanded_urdf):
+    cycle = """
+  <link name="cycle_a"/>
+  <link name="cycle_b"/>
+  <joint name="cycle_a_to_b" type="fixed"><parent link="cycle_a"/><child link="cycle_b"/></joint>
+  <joint name="cycle_b_to_a" type="fixed"><parent link="cycle_b"/><child link="cycle_a"/></joint>
+"""
+    with pytest.raises(PlanningValidationError):
+        build_left_arm_planning_model(expanded_urdf.replace("</robot>", cycle + "</robot>"))
+
+
 @pytest.mark.parametrize(
     ("old", "new"),
     [
@@ -127,3 +149,11 @@ def test_duplicate_missing_and_reordered_joint_lists_fail_closed(planning_bundle
 def test_joint_position_rejects_implicit_integer(planning_bundle):
     with pytest.raises(PlanningValidationError):
         JointPosition(LEFT_ARM_JOINT_NAMES[0], 0)
+
+
+def test_negative_zero_is_canonicalized(planning_bundle):
+    _, catalog, group, *_ = planning_bundle
+    state = make_joint_state(group, catalog, (-0.0, 0.0, 0.2, -0.0))
+    assert state.positions[0].position == 0.0
+    assert math.copysign(1.0, state.positions[0].position) == 1.0
+    assert math.copysign(1.0, state.positions[3].position) == 1.0

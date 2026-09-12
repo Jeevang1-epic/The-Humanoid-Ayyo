@@ -141,7 +141,7 @@ def finite_float(value: object, field_name: str) -> float:
             PlanningFailureCode.NONFINITE_POSITION,
             f"{field_name} must be an explicit finite float",
         )
-    return value
+    return 0.0 if value == 0.0 else value
 
 
 def finite_vector(value: object, field_name: str, length: int) -> tuple[float, ...]:

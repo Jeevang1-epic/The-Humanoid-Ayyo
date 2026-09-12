@@ -124,6 +124,14 @@ def build_left_arm_planning_model(
         raise _fail("robot description is malformed XML") from error
     if root.tag != "robot" or root.get("name") != "ayyo":
         raise _fail("expanded model must be the Ayyo robot")
+    try:
+        canonical_description = ElementTree.canonicalize(
+            robot_description,
+            with_comments=False,
+            strip_text=True,
+        )
+    except (ElementTree.ParseError, TypeError, ValueError) as error:
+        raise _fail("robot description cannot be canonicalized") from error
 
     links = root.findall("link")
     joints = root.findall("joint")
@@ -150,6 +158,14 @@ def build_left_arm_planning_model(
     roots = set(link_names) - child_links
     if roots != {"base_link"}:
         raise _fail("expanded model must have base_link as its single root")
+    for candidate in link_names:
+        link = candidate
+        seen_ancestors = set()
+        while link != "base_link":
+            if link in seen_ancestors or link not in children:
+                raise _fail("robot joint tree is disconnected or cyclic")
+            seen_ancestors.add(link)
+            link = _required_child_attribute(children[link], "parent", "link")
 
     chain_reversed: list[ElementTree.Element] = []
     seen = set()
@@ -169,7 +185,7 @@ def build_left_arm_planning_model(
         description_source=DESCRIPTION_SOURCE,
         description_fingerprint=semantic_sha256(
             "ayyo-robot-description",
-            {"expanded_urdf": robot_description},
+            {"canonical_expanded_urdf": canonical_description},
         ),
         link_names=tuple(link_names),
         joint_names=tuple(joint_names),

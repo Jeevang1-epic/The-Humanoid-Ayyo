@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import StrEnum
+from math import ceil
 
 from .canonical import (
     JSONValue,
@@ -41,6 +42,10 @@ LEFT_ARM_CHAIN_JOINT_NAMES = (
     "left_upper_arm_to_elbow_joint",
     "left_elbow_flex_joint",
     "left_wrist_yaw_joint",
+    "left_wrist_to_hand_joint",
+)
+LEFT_ARM_FIXED_JOINT_NAMES = (
+    "left_upper_arm_to_elbow_joint",
     "left_wrist_to_hand_joint",
 )
 PLANNING_FRAME = "base_link"
@@ -546,6 +551,7 @@ class ManipulatorGroupIdentity:
             or self.base_link != LEFT_ARM_BASE_LINK
             or self.tip_link != LEFT_ARM_TIP_LINK
             or joints != LEFT_ARM_JOINT_NAMES
+            or fixed != LEFT_ARM_FIXED_JOINT_NAMES
         ):
             raise PlanningValidationError(
                 PlanningFailureCode.WRONG_MANIPULATOR_GROUP,
@@ -953,6 +959,33 @@ def _same_binding(group: ManipulatorGroupIdentity, catalog: ManipulatorJointCata
     )
 
 
+def _deterministic_joint_positions(
+    request: "ManipulationPlanningRequest",
+) -> tuple[tuple[float, ...], ...]:
+    start = tuple(item.position for item in request.start_state.positions)
+    goal = tuple(item.position for item in request.goal.positions)
+    largest_delta = max(
+        abs(goal_value - start_value)
+        for start_value, goal_value in zip(start, goal, strict=True)
+    )
+    steps = max(
+        1,
+        ceil(largest_delta / request.planner_configuration.interpolation_step),
+    )
+    if steps + 1 > request.planner_configuration.max_waypoints:
+        raise PlanningValidationError(
+            PlanningFailureCode.RESOURCE_LIMIT,
+            "bounded interpolation would exceed max_waypoints",
+        )
+    return tuple(
+        tuple(
+            float(start_value + ((goal_value - start_value) * (index / steps)))
+            for start_value, goal_value in zip(start, goal, strict=True)
+        )
+        for index in range(steps + 1)
+    )
+
+
 @dataclass(frozen=True, slots=True)
 class ManipulationPlanningRequest:
     robot_model: RobotModelIdentity
@@ -1097,6 +1130,15 @@ class ManipulationPlanEvidence:
                 self.request.joint_catalog.validate_positions(waypoint.positions)
             if waypoints[0] != self.request.start_state or waypoints[-1].positions != self.request.goal.positions:
                 raise PlanningValidationError(PlanningFailureCode.EVIDENCE_MISMATCH, "plan endpoints differ from the exact request")
+            actual_positions = tuple(
+                tuple(item.position for item in waypoint.positions)
+                for waypoint in waypoints
+            )
+            if actual_positions != _deterministic_joint_positions(self.request):
+                raise PlanningValidationError(
+                    PlanningFailureCode.EVIDENCE_MISMATCH,
+                    "plan evidence differs from the exact deterministic planner output",
+                )
         elif waypoints:
             raise PlanningValidationError(PlanningFailureCode.EVIDENCE_MISMATCH, "rejected planning evidence cannot carry a usable trajectory")
         object.__setattr__(self, "backend_version", backend_version)

@@ -44,6 +44,29 @@ def test_interpolation_is_deterministic_bounded_and_exact(planning_bundle):
     assert first[-1].positions == request.goal.positions
 
 
+def test_collision_free_evidence_rejects_non_planner_waypoint(planning_bundle):
+    *_, evidence = planning_bundle
+    middle_index = len(evidence.waypoints) // 2
+    middle = evidence.waypoints[middle_index]
+    changed = replace(
+        middle,
+        positions=(
+            replace(middle.positions[0], position=middle.positions[0].position + 0.001),
+            *middle.positions[1:],
+        ),
+    )
+    waypoints = list(evidence.waypoints)
+    waypoints[middle_index] = changed
+    with pytest.raises(PlanningValidationError):
+        replace(evidence, waypoints=tuple(waypoints))
+
+
+def test_group_fixed_joint_substitution_fails_closed(planning_bundle):
+    _, _, group, *_ = planning_bundle
+    with pytest.raises(PlanningValidationError):
+        replace(group, fixed_joint_names=("left_wrist_to_hand_joint",))
+
+
 @pytest.mark.parametrize(
     ("status", "reason"),
     [

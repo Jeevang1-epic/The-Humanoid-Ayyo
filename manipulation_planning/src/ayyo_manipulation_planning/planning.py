@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from math import ceil
-
 from .errors import PlanningFailureCode, PlanningValidationError
 from .models import (
     COLLISION_BACKEND_ID,
@@ -21,6 +19,7 @@ from .models import (
     PlannerConfiguration,
     PlanningDecisionReason,
     PlanningDisposition,
+    _deterministic_joint_positions,
 )
 
 
@@ -83,30 +82,10 @@ def deterministic_joint_interpolation(
     ``PLAN_AVAILABLE_FOR_REVIEW`` decision.
     """
 
-    start = tuple(item.position for item in request.start_state.positions)
-    goal = tuple(item.position for item in request.goal.positions)
-    largest_delta = max(
-        abs(goal_value - start_value)
-        for start_value, goal_value in zip(start, goal, strict=True)
+    return tuple(
+        make_joint_state(request.group, request.joint_catalog, values)
+        for values in _deterministic_joint_positions(request)
     )
-    steps = max(
-        1,
-        ceil(largest_delta / request.planner_configuration.interpolation_step),
-    )
-    if steps + 1 > request.planner_configuration.max_waypoints:
-        raise PlanningValidationError(
-            PlanningFailureCode.RESOURCE_LIMIT,
-            "bounded interpolation would exceed max_waypoints",
-        )
-    waypoints = []
-    for index in range(steps + 1):
-        fraction = index / steps
-        values = tuple(
-            float(start_value + ((goal_value - start_value) * fraction))
-            for start_value, goal_value in zip(start, goal, strict=True)
-        )
-        waypoints.append(make_joint_state(request.group, request.joint_catalog, values))
-    return tuple(waypoints)
 
 
 def evaluate_manipulation_plan(
