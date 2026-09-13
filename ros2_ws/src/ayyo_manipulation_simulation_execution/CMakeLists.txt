@@ -76,7 +76,20 @@ install(
 install(DIRECTORY launch DESTINATION share/${PROJECT_NAME})
 
 if(BUILD_TESTING)
+  find_package(ament_lint_auto REQUIRED)
   find_package(ament_cmake_pytest REQUIRED)
+  set(AMENT_LINT_AUTO_EXCLUDE ament_cmake_copyright)
+  ament_lint_auto_find_test_dependencies()
+  find_package(ament_cmake_copyright REQUIRED)
+  ament_copyright(
+    EXCLUDE
+      launch/stage9c_simulation.launch.py
+      scripts/stage9c_execution.py
+      scripts/stage9c_reviewed_fixture.py
+      src/stage9c_moveit_preflight.cpp
+      test/test_stage9c_action_adapter.py
+      test/test_stage9c_moveit_preflight.py
+  )
   ament_add_pytest_test(
     test_stage9c_moveit_preflight
     test/test_stage9c_moveit_preflight.py

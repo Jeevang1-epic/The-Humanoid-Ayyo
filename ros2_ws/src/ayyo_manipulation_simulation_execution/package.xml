@@ -30,6 +30,8 @@
   <exec_depend>trajectory_msgs</exec_depend>
 
   <test_depend>ament_cmake_pytest</test_depend>
+  <test_depend>ament_lint_auto</test_depend>
+  <test_depend>ament_lint_common</test_depend>
   <test_depend>ament_index_python</test_depend>
   <test_depend>ayyo_description</test_depend>
   <test_depend>ayyo_manipulation_planning</test_depend>

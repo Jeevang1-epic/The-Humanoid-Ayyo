@@ -1,3 +1,9 @@
+// Copyright 2026 P. Jeevan Kumar
+
+#include <openssl/evp.h>
+#include <srdfdom/model.h>
+#include <urdf_parser/urdf_parser.h>
+
 #include <algorithm>
 #include <array>
 #include <cmath>
@@ -17,10 +23,7 @@
 #include <moveit/robot_state/robot_state.hpp>
 #include <moveit_msgs/msg/collision_object.hpp>
 #include <nlohmann/json.hpp>
-#include <openssl/evp.h>
 #include <shape_msgs/msg/solid_primitive.hpp>
-#include <srdfdom/model.h>
-#include <urdf_parser/urdf_parser.h>
 
 namespace
 {
@@ -94,7 +97,7 @@ std::string without_xml_comments(const std::string & document)
 
 std::string sha256_hex(const std::string & value)
 {
-  std::unique_ptr<EVP_MD_CTX, decltype(&EVP_MD_CTX_free)> context(
+  std::unique_ptr<EVP_MD_CTX, decltype(& EVP_MD_CTX_free)> context(
     EVP_MD_CTX_new(), &EVP_MD_CTX_free);
   if (!context || EVP_DigestInit_ex(context.get(), EVP_sha256(), nullptr) != 1 ||
     EVP_DigestUpdate(context.get(), value.data(), value.size()) != 1)
@@ -291,7 +294,7 @@ int main(int argc, char ** argv)
         "trajectory_fingerprint", "trajectory_id"},
       "preflight input");
     if (input.at("schema") != json{
-        {"id", "ayyo.stage9c.moveit-preflight-input.v1"}, {"version", "1.0.0"}} ||
+      {"id", "ayyo.stage9c.moveit-preflight-input.v1"}, {"version", "1.0.0"}} ||
       input.at("joint_names") != json(kJointNames))
     {
       throw std::runtime_error("preflight identity differs from Stage 9C");
@@ -369,7 +372,7 @@ int main(int argc, char ** argv)
       {"samples", reports},
       {"samples_checked", reports.size()},
       {"schema", {
-        {"id", "ayyo.stage9c.moveit-preflight-report.v1"}, {"version", "1.0.0"}}},
+          {"id", "ayyo.stage9c.moveit-preflight-report.v1"}, {"version", "1.0.0"}}},
     };
     std::cout << output.dump();
     return 0;
