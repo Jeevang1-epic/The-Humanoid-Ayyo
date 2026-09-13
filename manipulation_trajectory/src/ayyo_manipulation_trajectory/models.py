@@ -43,10 +43,12 @@ from ayyo_skill_manager import (
     InvocationStatus,
     SkillAvailability,
     SkillBindingResult,
+    SkillDefinition,
     SkillInvocation,
     SkillLifecycle,
     SkillManagerError,
     SkillManagerService,
+    SkillRegistry,
     SkillSelection,
 )
 
@@ -1484,6 +1486,100 @@ def verify_skill_handoff_reference(value: object) -> bool:
     )
 
 
+def _rebuilt_skill_definition(skill: object) -> SkillDefinition:
+    if type(skill) is not SkillDefinition:
+        raise TrajectoryValidationError(
+            TrajectoryFailureCode.SKILL_MISMATCH,
+            "authoritative Skill definition failed its public contract",
+        )
+    try:
+        rebuilt = SkillDefinition(
+            skill_id=skill.skill_id,
+            version=skill.version,
+            name=skill.name,
+            description=skill.description,
+            capability_ids=skill.capability_ids,
+            backend_id=skill.backend_id,
+            input_schema=skill.input_schema,
+            output_schema=skill.output_schema,
+            required_context=skill.required_context,
+            required_resources=skill.required_resources,
+            required_approval_classes=skill.required_approval_classes,
+            safety_classification=skill.safety_classification,
+            expected_result=skill.expected_result,
+            timeout_ms=skill.timeout_ms,
+            concurrency_policy=skill.concurrency_policy,
+            idempotency=skill.idempotency,
+            failure_semantics=skill.failure_semantics,
+            availability=skill.availability,
+            lifecycle=skill.lifecycle,
+            metadata=skill.metadata,
+        )
+        if rebuilt != skill or rebuilt.fingerprint != skill.fingerprint:
+            raise TrajectoryValidationError(
+                TrajectoryFailureCode.SKILL_MISMATCH,
+                "authoritative Skill declaration does not match its derived identity",
+            )
+    except TrajectoryValidationError:
+        raise
+    except (
+        AssertionError,
+        AttributeError,
+        SkillManagerError,
+        TypeError,
+        ValueError,
+    ) as error:
+        raise TrajectoryValidationError(
+            TrajectoryFailureCode.SKILL_MISMATCH,
+            "authoritative Skill declaration could not be reconstructed exactly",
+        ) from error
+    return rebuilt
+
+
+def _validated_skill_manager(manager: object) -> SkillManagerService:
+    """Reconstruct the complete registry before trusting selections from it."""
+
+    if type(manager) is not SkillManagerService:
+        raise TrajectoryValidationError(
+            TrajectoryFailureCode.SKILL_MISMATCH,
+            "handoff eligibility requires the exact public Skill Manager service",
+        )
+    try:
+        registry = manager.registry
+        if type(registry) is not SkillRegistry or type(registry.skills) is not tuple:
+            raise TrajectoryValidationError(
+                TrajectoryFailureCode.SKILL_MISMATCH,
+                "authoritative Skill registry failed its public contract",
+            )
+        rebuilt_registry = SkillRegistry(
+            version=registry.version,
+            skills=tuple(_rebuilt_skill_definition(skill) for skill in registry.skills),
+        )
+        rebuilt_manager = SkillManagerService(
+            registry=rebuilt_registry,
+            safety_kernel=_validated_safety_kernel(manager.safety_kernel),
+        )
+        if rebuilt_manager != manager:
+            raise TrajectoryValidationError(
+                TrajectoryFailureCode.SKILL_MISMATCH,
+                "authoritative Skill registry content does not match its derived identity",
+            )
+    except TrajectoryValidationError:
+        raise
+    except (
+        AssertionError,
+        AttributeError,
+        SkillManagerError,
+        TypeError,
+        ValueError,
+    ) as error:
+        raise TrajectoryValidationError(
+            TrajectoryFailureCode.SKILL_MISMATCH,
+            "authoritative Skill registry could not be reconstructed exactly",
+        ) from error
+    return rebuilt_manager
+
+
 def _validated_skill_binding_context(
     safety_result: TrajectorySafetyEligibilityResult,
     binding_result: SkillBindingResult,
@@ -1491,19 +1587,18 @@ def _validated_skill_binding_context(
 ) -> tuple[SkillBindingResult, SkillInvocation | None, bool]:
     """Rebuild the complete inert Skill binding from authoritative inputs."""
 
-    if type(manager) is not SkillManagerService or type(binding_result) is not (
-        SkillBindingResult
-    ):
+    if type(binding_result) is not SkillBindingResult:
         raise TrajectoryValidationError(
             TrajectoryFailureCode.SKILL_MISMATCH,
             "handoff eligibility requires exact public Skill Manager contracts",
         )
+    rebuilt_manager = _validated_skill_manager(manager)
     try:
         selection = binding_result.selection
         binding_status = binding_result.status
         proposal = safety_result.source_proposal
         safety_decision = safety_result.source_safety_decision
-        if manager.safety_kernel != safety_result.source_safety_kernel:
+        if rebuilt_manager.safety_kernel != safety_result.source_safety_kernel:
             raise TrajectoryValidationError(
                 TrajectoryFailureCode.SAFETY_MISMATCH,
                 "Skill Manager Safety policy differs from the reviewed Safety result",
@@ -1519,8 +1614,8 @@ def _validated_skill_binding_context(
             "Skill binding selection failed its immutable public contract",
         )
     try:
-        skill = manager.registry.resolve(selection.skill_id)
-        current_selection = manager.registry.selection(
+        skill = rebuilt_manager.registry.resolve(selection.skill_id)
+        current_selection = rebuilt_manager.registry.selection(
             skill_id=selection.skill_id,
             capability_id=selection.capability_id,
             source_step_id=selection.source_step_id,

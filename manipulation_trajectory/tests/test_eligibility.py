@@ -509,6 +509,51 @@ def test_stale_skill_selection_is_rejected(stage9b_bundle) -> None:
     assert caught.value.code is TrajectoryFailureCode.SKILL_MISMATCH
 
 
+def test_nested_skill_schema_mutation_with_stale_identity_is_rejected(
+    stage9b_bundle,
+) -> None:
+    manager = stage9b_bundle["manager"]
+    skill = manager.registry.skills[0]
+    skill_fingerprint = skill.fingerprint
+    registry_fingerprint = manager.registry.fingerprint
+    object.__setattr__(skill.input_schema, "allow_additional_properties", True)
+    assert skill.fingerprint == skill_fingerprint
+    assert manager.registry.fingerprint == registry_fingerprint
+
+    with pytest.raises(TrajectoryValidationError) as caught:
+        evaluate_execution_handoff_eligibility(
+            stage9b_bundle["safety_result"],
+            stage9b_bundle["proposal"],
+            stage9b_bundle["safety_decision"],
+            stage9b_bundle["binding"],
+            manager,
+        )
+    assert caught.value.code is TrajectoryFailureCode.SKILL_MISMATCH
+
+
+def test_handoff_construction_rejects_mutated_skill_declaration(
+    stage9b_bundle,
+) -> None:
+    handoff = stage9b_bundle["handoff"]
+    manager = stage9b_bundle["manager"]
+    object.__setattr__(
+        manager.registry.skills[0].input_schema,
+        "allow_additional_properties",
+        True,
+    )
+
+    with pytest.raises(TrajectoryValidationError) as caught:
+        ExecutionHandoffEligibilityDecision(
+            safety_result=handoff.safety_result,
+            status=handoff.status,
+            reasons=handoff.reasons,
+            skill_handoff_reference=handoff.skill_handoff_reference,
+            source_skill_binding=stage9b_bundle["binding"],
+            source_skill_manager=manager,
+        )
+    assert caught.value.code is TrajectoryFailureCode.SKILL_MISMATCH
+
+
 def test_skill_manager_is_not_automatically_invoked(stage9b_bundle) -> None:
     with patch.object(
         SkillManagerService,
