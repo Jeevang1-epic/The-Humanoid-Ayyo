@@ -1,35 +1,36 @@
 <?xml version="1.0"?>
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro">
-  <xacro:macro name="ayyo_ros2_control_joint" params="name command_position">
+  <xacro:macro name="ayyo_ros2_control_joint" params="name command_position initial_value:=0.0">
     <joint name="${name}">
       <xacro:if value="${command_position}">
         <!-- Limits remain single-owned by the corresponding URDF joint. -->
         <command_interface name="position"/>
       </xacro:if>
       <state_interface name="position">
-        <param name="initial_value">0.0</param>
+        <param name="initial_value">${initial_value}</param>
       </state_interface>
       <state_interface name="velocity"/>
       <state_interface name="effort"/>
     </joint>
   </xacro:macro>
 
-  <xacro:macro name="ayyo_ros2_control_system" params="hardware_plugin">
+  <xacro:macro name="ayyo_ros2_control_system" params="hardware_plugin manipulation_control:=false">
     <ros2_control name="AyyoSystem" type="system">
       <hardware>
         <plugin>${hardware_plugin}</plugin>
       </hardware>
 
-      <!-- V1 intentionally exposes one and only one command interface. -->
+      <!-- The normal profile retains only the neck command. Stage 9C replaces
+           it with exactly four left-arm position commands when explicitly set. -->
       <xacro:ayyo_ros2_control_joint
-        name="neck_yaw_joint" command_position="true"/>
+        name="neck_yaw_joint" command_position="${not manipulation_control}"/>
       <xacro:ayyo_ros2_control_joint
         name="head_pitch_joint" command_position="false"/>
 
-      <xacro:ayyo_ros2_control_joint name="left_shoulder_yaw_joint" command_position="false"/>
-      <xacro:ayyo_ros2_control_joint name="left_shoulder_pitch_joint" command_position="false"/>
-      <xacro:ayyo_ros2_control_joint name="left_elbow_flex_joint" command_position="false"/>
-      <xacro:ayyo_ros2_control_joint name="left_wrist_yaw_joint" command_position="false"/>
+      <xacro:ayyo_ros2_control_joint name="left_shoulder_yaw_joint" command_position="${manipulation_control}"/>
+      <xacro:ayyo_ros2_control_joint name="left_shoulder_pitch_joint" command_position="${manipulation_control}"/>
+      <xacro:ayyo_ros2_control_joint name="left_elbow_flex_joint" command_position="${manipulation_control}" initial_value="${0.2 if manipulation_control else 0.0}"/>
+      <xacro:ayyo_ros2_control_joint name="left_wrist_yaw_joint" command_position="${manipulation_control}"/>
       <xacro:ayyo_ros2_control_joint name="right_shoulder_yaw_joint" command_position="false"/>
       <xacro:ayyo_ros2_control_joint name="right_shoulder_pitch_joint" command_position="false"/>
       <xacro:ayyo_ros2_control_joint name="right_elbow_flex_joint" command_position="false"/>

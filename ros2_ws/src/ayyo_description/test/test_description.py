@@ -317,6 +317,40 @@ def test_control_mode_uses_harmonic_hardware_and_one_command_joint() -> None:
     assert len(control.findall('joint')) == 18
 
 
+def test_stage9c_control_mode_exposes_only_reviewed_left_arm() -> None:
+    robot = parse_robot(
+        expand_xacro(
+            PACKAGE_ROOT / 'urdf' / 'ayyo.urdf.xacro',
+            'simulation_mode:=true',
+            'simulation_control:=true',
+            'simulation_manipulation_control:=true',
+            'simulation_controller_config:=/tmp/ayyo-stage9c-test.yaml',
+        )
+    )
+    control = robot.find("./ros2_control[@name='AyyoSystem']")
+    controlled = [
+        joint.get('name')
+        for joint in control.findall('joint')
+        if joint.find("command_interface[@name='position']") is not None
+    ]
+    assert controlled == [
+        'left_shoulder_yaw_joint',
+        'left_shoulder_pitch_joint',
+        'left_elbow_flex_joint',
+        'left_wrist_yaw_joint',
+    ]
+    initial = {
+        joint.get('name'): joint.findtext(
+            "state_interface[@name='position']/param[@name='initial_value']"
+        )
+        for joint in control.findall('joint')
+    }
+    assert initial['left_elbow_flex_joint'] == '0.2'
+    assert initial['left_shoulder_yaw_joint'] == '0.0'
+    assert initial['left_shoulder_pitch_joint'] == '0.0'
+    assert initial['left_wrist_yaw_joint'] == '0.0'
+
+
 def test_left_and_right_contracts_are_name_symmetric(proxy_robot: ET.Element) -> None:
     link_names = {link.get('name') for link in proxy_robot.findall('link')}
     joint_names = {joint.get('name') for joint in proxy_robot.findall('joint')}

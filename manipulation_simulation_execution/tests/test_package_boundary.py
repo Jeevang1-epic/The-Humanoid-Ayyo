@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import ast
+from hashlib import sha256
 from pathlib import Path
 import tomllib
 
@@ -85,3 +86,31 @@ def test_public_surface_is_contract_and_evidence_only() -> None:
     }
     assert required <= set(public_api.__all__)
     assert not ({"activate", "dispatch", "execute", "publish"} & set(public_api.__all__))
+
+
+def test_reviewed_simulation_profile_fingerprints_exact_source_bytes() -> None:
+    description_root = REPOSITORY_ROOT / "ros2_ws/src/ayyo_description/urdf"
+    names = (
+        "ayyo.urdf.xacro",
+        "ayyo_body.xacro",
+        "ayyo_gazebo.xacro",
+        "ayyo_geometry.xacro",
+        "ayyo_materials.xacro",
+        "ayyo_ros2_control.xacro",
+    )
+    description = b"".join(
+        name.encode() + b"\0" + (description_root / name).read_bytes() + b"\0"
+        for name in names
+    )
+    assert public_api.STAGE9C_REVIEWED_SIMULATION_DESCRIPTION_FINGERPRINT == (
+        "ayyo-stage9c-simulation-description-sha256-"
+        + sha256(description).hexdigest()
+    )
+    controller = (
+        REPOSITORY_ROOT
+        / "ros2_ws/src/ayyo_simulation/config/manipulation_controllers.yaml"
+    ).read_bytes()
+    assert public_api.STAGE9C_REVIEWED_CONTROLLER_CONFIGURATION_FINGERPRINT == (
+        "ayyo-stage9c-controller-configuration-sha256-"
+        + sha256(controller).hexdigest()
+    )
