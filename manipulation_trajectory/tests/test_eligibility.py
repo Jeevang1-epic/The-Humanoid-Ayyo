@@ -261,6 +261,73 @@ def test_stale_safety_policy_is_rejected(stage9b_bundle) -> None:
     assert caught.value.code is TrajectoryFailureCode.SAFETY_MISMATCH
 
 
+def test_nested_safety_rule_mutation_with_stale_identity_is_rejected(
+    stage9b_bundle,
+) -> None:
+    kernel = SafetyKernel(
+        SafetyPolicy(
+            capability_rules=(
+                CapabilitySafetyRule(
+                    capability_id="manipulation.trajectory.simulation-review",
+                    hazard_class=HazardClass.PHYSICAL_MOVEMENT,
+                ),
+            )
+        )
+    )
+    policy_fingerprint = kernel.policy.fingerprint
+    object.__setattr__(
+        kernel.policy.capability_rules[0],
+        "hazard_class",
+        HazardClass.INTERNAL_NON_ACTUATING,
+    )
+    safety = kernel.evaluate(stage9b_bundle["proposal"])
+    assert safety.disposition.value == "eligible_for_downstream"
+    assert kernel.policy.fingerprint == policy_fingerprint
+
+    with pytest.raises(TrajectoryValidationError) as caught:
+        evaluate_trajectory_safety_eligibility(
+            stage9b_bundle["trajectory_evidence"],
+            stage9b_bundle["proposal"],
+            safety,
+            kernel,
+        )
+    assert caught.value.code is TrajectoryFailureCode.SAFETY_MISMATCH
+
+
+def test_positive_safety_result_construction_rejects_mutated_authority(
+    stage9b_bundle,
+) -> None:
+    kernel = SafetyKernel(
+        SafetyPolicy(
+            capability_rules=(
+                CapabilitySafetyRule(
+                    capability_id="manipulation.trajectory.simulation-review",
+                    hazard_class=HazardClass.INTERNAL_NON_ACTUATING,
+                ),
+            )
+        )
+    )
+    safety = kernel.evaluate(stage9b_bundle["proposal"])
+    source = stage9b_bundle["safety_result"]
+    object.__setattr__(
+        kernel.policy.capability_rules[0],
+        "hazard_class",
+        HazardClass.PHYSICAL_MOVEMENT,
+    )
+
+    with pytest.raises(TrajectoryValidationError) as caught:
+        TrajectorySafetyEligibilityResult(
+            trajectory_evidence=source.trajectory_evidence,
+            safety_reference=source.safety_reference,
+            status=source.status,
+            reasons=source.reasons,
+            source_proposal=stage9b_bundle["proposal"],
+            source_safety_decision=safety,
+            source_safety_kernel=kernel,
+        )
+    assert caught.value.code is TrajectoryFailureCode.SAFETY_MISMATCH
+
+
 def test_other_hazard_never_becomes_positive_simulation_review(stage9b_bundle) -> None:
     kernel = SafetyKernel(
         SafetyPolicy(

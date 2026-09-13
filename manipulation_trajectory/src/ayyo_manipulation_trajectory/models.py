@@ -27,10 +27,12 @@ from ayyo_executive import (
     PlanStep,
 )
 from ayyo_safety import (
+    CapabilitySafetyRule,
     HazardClass,
     SafetyDecision,
     SafetyKernel,
     SafetyKernelError,
+    SafetyPolicy,
     SafetyRevalidationStatus,
 )
 from ayyo_skill_manager import (
@@ -923,6 +925,65 @@ def _validate_exact_proposal(
         )
 
 
+def _validated_safety_kernel(kernel: object) -> SafetyKernel:
+    """Reconstruct the complete Safety policy before trusting its identity."""
+
+    if type(kernel) is not SafetyKernel:
+        raise TrajectoryValidationError(
+            TrajectoryFailureCode.SAFETY_MISMATCH,
+            "Safety eligibility requires the exact public Safety kernel",
+        )
+    try:
+        policy = kernel.policy
+        if (
+            type(policy) is not SafetyPolicy
+            or type(policy.capability_rules) is not tuple
+        ):
+            raise TrajectoryValidationError(
+                TrajectoryFailureCode.SAFETY_MISMATCH,
+                "authoritative Safety policy failed its public contract",
+            )
+        if any(
+            type(rule) is not CapabilitySafetyRule
+            for rule in policy.capability_rules
+        ):
+            raise TrajectoryValidationError(
+                TrajectoryFailureCode.SAFETY_MISMATCH,
+                "authoritative Safety capability rules failed their public contracts",
+            )
+        rebuilt_policy = SafetyPolicy(
+            capability_rules=tuple(
+                CapabilitySafetyRule(
+                    capability_id=rule.capability_id,
+                    hazard_class=rule.hazard_class,
+                    required_precondition_ids=rule.required_precondition_ids,
+                    required_constraint_ids=rule.required_constraint_ids,
+                )
+                for rule in policy.capability_rules
+            )
+        )
+        rebuilt_kernel = SafetyKernel(rebuilt_policy)
+        if rebuilt_kernel != kernel:
+            raise TrajectoryValidationError(
+                TrajectoryFailureCode.SAFETY_MISMATCH,
+                "authoritative Safety policy content does not match its derived identity",
+            )
+    except TrajectoryValidationError:
+        raise
+    except (
+        AssertionError,
+        AttributeError,
+        SafetyKernelError,
+        TypeError,
+        ValueError,
+    ) as error:
+        raise TrajectoryValidationError(
+            TrajectoryFailureCode.SAFETY_MISMATCH,
+            "authoritative Safety policy could not be reconstructed exactly",
+        ) from error
+    return rebuilt_kernel
+
+
 def _validated_safety_context(
     evidence: TrajectoryEvidence,
     proposal: ExecutiveDecision,
@@ -934,15 +995,16 @@ def _validated_safety_context(
             TrajectoryFailureCode.UPSTREAM_INTEGRITY,
             "Safety eligibility requires verified trajectory evidence",
         )
-    if type(kernel) is not SafetyKernel or type(safety_decision) is not SafetyDecision:
+    if type(safety_decision) is not SafetyDecision:
         raise TrajectoryValidationError(
             TrajectoryFailureCode.SAFETY_MISMATCH,
             "Safety eligibility requires exact public Safety contracts",
         )
+    rebuilt_kernel = _validated_safety_kernel(kernel)
     _validate_exact_proposal(evidence, proposal)
     try:
-        revalidation = kernel.revalidate(safety_decision, proposal)
-        rebuilt = kernel.evaluate(proposal)
+        revalidation = rebuilt_kernel.revalidate(safety_decision, proposal)
+        rebuilt = rebuilt_kernel.evaluate(proposal)
         invalid = (
             revalidation.status is not SafetyRevalidationStatus.CURRENT
             or rebuilt != safety_decision
