@@ -204,9 +204,7 @@ def generate_launch_description() -> LaunchDescription:
             '--switch-timeout',
             '30',
         ],
-        condition=IfCondition(
-            AndSubstitution(enable_control, NotSubstitution(enable_manipulation_control))
-        ),
+        condition=IfCondition(enable_control),
     )
     manipulation_controller_spawner = Node(
         package='controller_manager',
@@ -240,7 +238,9 @@ def generate_launch_description() -> LaunchDescription:
             '--switch-timeout',
             '30',
         ],
-        condition=IfCondition(enable_control),
+        condition=IfCondition(
+            AndSubstitution(enable_control, NotSubstitution(enable_manipulation_control))
+        ),
     )
     development_control_node = Node(
         package='ayyo_simulation_control',

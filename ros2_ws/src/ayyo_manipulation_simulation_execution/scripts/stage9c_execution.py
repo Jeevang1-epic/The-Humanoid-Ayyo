@@ -62,6 +62,7 @@ DESCRIPTION_FILES = (
     "ayyo_ros2_control.xacro",
 )
 MAX_WAIT_SECONDS = 10.0
+FINAL_STATE_WAIT_SECONDS = 1.0
 
 
 def _wait_future(node: Node, future, timeout_seconds: float) -> bool:
@@ -247,6 +248,15 @@ class Stage9CClient(Node):
                 return self._state
         return None
 
+    def wait_for_state_after(self, sequence: int) -> SimulatedJointState | None:
+        """Require an observed state sample delivered after an action result."""
+        deadline = time.monotonic() + FINAL_STATE_WAIT_SECONDS
+        while rclpy.ok() and time.monotonic() < deadline:
+            rclpy.spin_once(self, timeout_sec=0.05)
+            if self._state is not None and self._state.sequence > sequence:
+                return self._state
+        return None
+
     def controller_state(self, contract) -> SimulationControllerState:
         controller_active = False
         broadcaster_active = False
@@ -367,6 +377,10 @@ class Stage9CClient(Node):
             )
         wrapped = result_future.result()
         code = int(wrapped.result.error_code)
+        result_sequence = self._sequence
+        final_state = self.wait_for_state_after(result_sequence)
+        if final_state is not None:
+            self._feedback_positions = final_state.positions
         if self._feedback_malformed:
             outcome = SimulationExecutionOutcome.MALFORMED_FEEDBACK
         elif wrapped.status == GoalStatus.STATUS_CANCELED:
@@ -482,6 +496,15 @@ def main() -> int:
             observation = node.execute(goal)
             result = create_simulation_execution_result(goal, observation)
             print(canonical_simulation_execution_artifact_json(result))
+            if observation.outcome is not (
+                SimulationExecutionOutcome.SIMULATION_EXECUTION_COMPLETED
+            ):
+                print(
+                    "FAIL: observed action outcome "
+                    f"{observation.outcome.value}; final errors "
+                    f"{observation.final_joint_errors}",
+                    file=sys.stderr,
+                )
             return (
                 0
                 if observation.outcome
