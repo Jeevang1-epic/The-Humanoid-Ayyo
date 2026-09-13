@@ -84,6 +84,36 @@ def test_serializer_verifies_integrity_before_publication(stage9b_bundle) -> Non
         canonical_manipulation_trajectory_artifact_json(artifact)
 
 
+def test_serializer_normalizes_nested_upstream_assertion(stage9b_bundle) -> None:
+    result = stage9b_bundle["safety_result"]
+    object.__setattr__(
+        result.source_proposal.proposed_plan.steps[0],
+        "_parameters",
+        [],
+    )
+    with pytest.raises(TrajectorySerializationError):
+        canonical_manipulation_trajectory_artifact_json(result)
+
+
+def test_reconstruction_normalizes_malformed_authoritative_context(
+    stage9b_bundle,
+) -> None:
+    result = stage9b_bundle["safety_result"]
+    payload = canonical_manipulation_trajectory_artifact_json(result)
+    object.__setattr__(
+        result.source_proposal.proposed_plan.steps[0],
+        "_parameters",
+        [],
+    )
+    with pytest.raises(TrajectorySerializationError):
+        manipulation_trajectory_artifact_from_canonical_json(
+            payload,
+            source_proposal=result.source_proposal,
+            source_safety_decision=result.source_safety_decision,
+            source_safety_kernel=result.source_safety_kernel,
+        )
+
+
 def test_duplicate_key_fails_closed(stage9b_bundle) -> None:
     payload = canonical_manipulation_trajectory_artifact_json(stage9b_bundle["timing"])
     schema = json.dumps(stage9b_bundle["timing"].as_dict()["schema"], separators=(",", ":"), sort_keys=True)

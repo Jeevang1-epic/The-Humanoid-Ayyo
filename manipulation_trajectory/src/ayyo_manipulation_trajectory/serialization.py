@@ -141,6 +141,7 @@ def _stage9a_decision(value: object) -> ManipulationPlanningDecision:
             canonical_json(item)
         )
     except (
+        AssertionError,
         PlanningSerializationError,
         TrajectoryValidationError,
         TypeError,
@@ -569,10 +570,12 @@ def canonical_manipulation_trajectory_artifact_json(
 ) -> str:
     """Serialize only recursively verified Stage 9B artifacts."""
 
-    verifier = _VERIFIERS.get(type(artifact))
-    if verifier is None or not verifier(artifact):
-        raise _error("trajectory artifact type or content failed integrity verification")
     try:
+        verifier = _VERIFIERS.get(type(artifact))
+        if verifier is None or not verifier(artifact):
+            raise _error(
+                "trajectory artifact type or content failed integrity verification"
+            )
         payload = canonical_json(artifact.as_dict())
         if len(payload.encode("utf-8")) > MAX_SERIALIZED_ARTIFACT_BYTES:
             raise _error("trajectory artifact violates its byte bound")
@@ -580,6 +583,7 @@ def canonical_manipulation_trajectory_artifact_json(
     except TrajectorySerializationError:
         raise
     except (
+        AssertionError,
         TrajectoryValidationError,
         TypeError,
         ValueError,
@@ -643,6 +647,7 @@ def manipulation_trajectory_artifact_from_canonical_json(
     except TrajectorySerializationError:
         raise
     except (
+        AssertionError,
         json.JSONDecodeError,
         TrajectoryValidationError,
         KeyError,

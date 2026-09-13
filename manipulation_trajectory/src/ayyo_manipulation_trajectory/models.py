@@ -162,6 +162,7 @@ def _verify(instance: object, expected_type: type, builder) -> bool:
     try:
         return builder() == instance
     except (
+        AssertionError,
         AttributeError,
         ArithmeticError,
         TypeError,
@@ -915,7 +916,14 @@ def _validate_exact_proposal(
             or step.expected_result is not ExpectedResultCategory.INFORMATION
             or step.failure_policy is not FailurePolicy.STOP_PLAN
         )
-    except (AttributeError, ExecutiveError, KeyError, TypeError, ValueError) as error:
+    except (
+        AssertionError,
+        AttributeError,
+        ExecutiveError,
+        KeyError,
+        TypeError,
+        ValueError,
+    ) as error:
         raise TrajectoryValidationError(
             TrajectoryFailureCode.SAFETY_MISMATCH,
             "Executive proposal failed closed during trajectory-review reconstruction",
@@ -1015,6 +1023,7 @@ def _validated_safety_context(
             or len(safety_decision.step_decisions) != 1
         )
     except (
+        AssertionError,
         AttributeError,
         ExecutiveError,
         IndexError,
@@ -1620,7 +1629,13 @@ def _validated_skill_binding_context(
             capability_id=selection.capability_id,
             source_step_id=selection.source_step_id,
         )
-    except (AttributeError, SkillManagerError, TypeError, ValueError) as error:
+    except (
+        AssertionError,
+        AttributeError,
+        SkillManagerError,
+        TypeError,
+        ValueError,
+    ) as error:
         raise TrajectoryValidationError(
             TrajectoryFailureCode.SKILL_MISMATCH,
             "Skill binding registry evidence could not be revalidated",
@@ -1749,6 +1764,7 @@ def _validated_skill_binding_context(
     except TrajectoryValidationError:
         raise
     except (
+        AssertionError,
         AttributeError,
         ExecutiveError,
         KeyError,

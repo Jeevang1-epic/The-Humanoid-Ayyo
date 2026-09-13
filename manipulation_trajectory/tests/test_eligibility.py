@@ -27,6 +27,7 @@ from ayyo_manipulation_trajectory import (
     evaluate_trajectory_safety_eligibility,
     trajectory_review_binding_fingerprint,
     trajectory_safety_review_parameters,
+    verify_safety_result,
 )
 from ayyo_safety import CapabilitySafetyRule, HazardClass, SafetyKernel, SafetyPolicy
 from ayyo_skill_manager import (
@@ -661,3 +662,39 @@ def test_uninitialized_exact_public_contracts_fail_with_typed_errors(
             stage9b_bundle["manager"],
         )
     assert invocation_error.value.code is TrajectoryFailureCode.SKILL_MISMATCH
+
+
+def test_malformed_executive_parameter_storage_uses_typed_errors(
+    stage9b_bundle,
+) -> None:
+    result = stage9b_bundle["safety_result"]
+    proposal = result.source_proposal
+    object.__setattr__(proposal.proposed_plan.steps[0], "_parameters", [])
+
+    assert not verify_safety_result(result)
+    with pytest.raises(TrajectoryValidationError) as caught:
+        evaluate_trajectory_safety_eligibility(
+            result.trajectory_evidence,
+            proposal,
+            result.source_safety_decision,
+            result.source_safety_kernel,
+        )
+    assert caught.value.code is TrajectoryFailureCode.SAFETY_MISMATCH
+
+
+def test_malformed_skill_parameter_storage_uses_typed_error(
+    stage9b_bundle,
+) -> None:
+    binding = stage9b_bundle["binding"]
+    assert binding.invocation is not None
+    object.__setattr__(binding.invocation, "_parameters", [])
+
+    with pytest.raises(TrajectoryValidationError) as caught:
+        evaluate_execution_handoff_eligibility(
+            stage9b_bundle["safety_result"],
+            stage9b_bundle["proposal"],
+            stage9b_bundle["safety_decision"],
+            binding,
+            stage9b_bundle["manager"],
+        )
+    assert caught.value.code is TrajectoryFailureCode.SKILL_MISMATCH
