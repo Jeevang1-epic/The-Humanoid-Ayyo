@@ -77,10 +77,15 @@ misreported as a Safety block or a physical-safety result.
 
 The caller must explicitly obtain and supply both the Safety decision and Skill
 Manager binding. Stage 9B re-evaluates Safety against the supplied policy,
-retains that exact proposal/decision/kernel context, reconstructs the complete
-Skill invocation from the current pinned registry, and requires exact equality
-of every semantic and derived identity field before recording an inert reference
-to the future review backend. It
+first reconstructs every capability rule and the complete Safety policy/kernel,
+and rejects any mismatch between current policy content, indexes, and derived
+fingerprint. It retains that exact proposal/decision/kernel context. Stage 9B
+also reconstructs every Skill definition in the current registry through the
+public constructors, including nested value schemas, context/resource
+requirements, backend and lifecycle semantics, then reconstructs the registry,
+selection, binding, and complete invocation. Exact equality of every semantic
+and derived identity field is required before recording an inert reference to
+the future review backend. It
 does not call `SkillManagerService.bind`, import Runtime Bridge, create a
 Runtime request or decision, register an endpoint, or dispatch anything.
 The Safety reference also carries a recomputable binding fingerprint over the
@@ -109,6 +114,10 @@ reconstruction also requires the original Skill binding and current Skill
 Manager. These validation contexts are deliberately not invented from identity
 strings or wrapper hashes; callers must supply them, and reconstruction reruns
 the same deterministic Safety and Skill checks before accepting the payload.
+Expected malformed upstream immutable-contract state is converted to
+`TrajectoryValidationError` at evaluation/verification boundaries and
+`TrajectorySerializationError` at canonical publication/reconstruction
+boundaries rather than leaking incidental upstream implementation exceptions.
 This is repository-local provenance validation, not authentication.
 
 ## Authority exclusions

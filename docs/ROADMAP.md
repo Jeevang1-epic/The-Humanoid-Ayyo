@@ -261,9 +261,12 @@ from reviewed velocity limits and an explicit bounded configuration. Immutable
 trajectory evidence can be reviewed by independent Safety through an
 information-only capability and matched to explicit caller-supplied inert Skill
 binding evidence. Positive reconstruction requires those authoritative Safety
-and Skill contexts again and rejects rehashed cross-trajectory references. The
-final state means only eligible for future simulation handoff review; Runtime
-remains unregistered and execution/physical validation remain absent.
+and Skill contexts again, recursively reconstructs their policy, registry,
+definition, and nested-schema content before trusting derived fingerprints, and
+rejects rehashed cross-trajectory references. Malformed authoritative contracts
+fail through typed Stage 9B errors. The final state means only eligible for
+future simulation handoff review; Runtime remains unregistered and
+execution/physical validation remain absent.
 
 Stage 9 is not complete. Grasp planning, end-effector semantics, trajectory
 dynamics, force/contact reasoning, Stage 9C simulation-only controller

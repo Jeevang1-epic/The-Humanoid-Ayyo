@@ -81,10 +81,13 @@ Implemented:
   explicit configuration, and emits immutable canonical trajectory evidence
 - Explicit Safety and Skill evidence seams for an information-only trajectory
   review capability; the caller supplies both decisions, Stage 9B revalidates
-  their exact lineage, reconstructs every derived Skill invocation identity,
-  and requires the authoritative contexts again when reconstructing positive
-  canonical decisions; it creates no Runtime request or endpoint and stops at
-  future simulation-handoff review eligibility
+  their exact lineage, recursively reconstructs the authoritative Safety policy
+  and complete Skill registry/definitions (including nested value schemas),
+  reconstructs every derived Skill invocation identity, and requires those
+  authoritative contexts again when reconstructing positive canonical
+  decisions; malformed upstream contracts fail through typed Stage 9B errors,
+  and the package creates no Runtime request or endpoint and stops at future
+  simulation-handoff review eligibility
 - A verified local ROS 2, Gazebo, and RViz development setup
 - A standalone, provenance-aware Memory OS core with SQLite persistence
 - A standalone deterministic validation and consolidation policy for candidate

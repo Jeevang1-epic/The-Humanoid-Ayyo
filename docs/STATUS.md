@@ -134,10 +134,12 @@
 - Independent Safety evaluation of a closed `INTERNAL_NON_ACTUATING`
   information-only evidence-review proposal plus explicit caller-supplied Skill
   binding verification; positive canonical decisions require their exact source
-  validation contexts and the complete Skill invocation is reconstructed before
-  acceptance. Runtime Bridge is not imported or invoked, no endpoint is
-  registered, and positive results remain `NOT_EXECUTED` with physical validation
-  absent
+  validation contexts, the authoritative Safety policy and complete Skill
+  registry/definitions are recursively reconstructed, and the complete Skill
+  invocation is rebuilt before acceptance. Malformed authoritative contracts
+  produce typed Stage 9B failures. Runtime Bridge is not imported or invoked, no
+  endpoint is registered, and positive results remain `NOT_EXECUTED` with
+  physical validation absent
 - Standalone Memory OS core with typed records and mandatory provenance
 - SQLite persistence with schema versioning, foreign keys, WAL journaling,
   transactional corrections, retractions, and conflict records

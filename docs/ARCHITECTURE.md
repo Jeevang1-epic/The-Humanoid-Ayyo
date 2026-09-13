@@ -109,11 +109,14 @@ The [Manipulation Trajectory & Execution Eligibility Foundation](MANIPULATION_TR
 retains the full Stage 9A decision rather than trusting IDs alone. Safety
 classifies review of the evidence as `INTERNAL_NON_ACTUATING`; this is not a
 physical-movement Safety decision. Positive Safety and handoff reconstruction
-requires the exact source validation contexts, and the complete Skill invocation
-is rebuilt before its derived identity is accepted. Stage 9B does not call Skill
-Manager binding automatically, import Runtime Bridge, construct a Runtime
-request, register an endpoint, use ROS/MoveIt execution, activate a controller,
-or command Gazebo or hardware. No lower layer depends back on it.
+requires the exact source validation contexts. Stage 9B recursively reconstructs
+the Safety policy and complete Skill registry/definitions, including nested
+schemas, before rebuilding the Skill invocation or trusting any derived
+identity. Malformed upstream contracts are normalized at the typed Stage 9B
+boundary. Stage 9B does not call Skill Manager binding automatically, import
+Runtime Bridge, construct a Runtime request, register an endpoint, use ROS/MoveIt
+execution, activate a controller, or command Gazebo or hardware. No lower layer
+depends back on it.
 
 The standalone
 [Teach Mode Demonstration Capture Foundation](TEACH_MODE_DEMONSTRATION_CAPTURE.md)
