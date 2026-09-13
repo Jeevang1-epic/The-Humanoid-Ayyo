@@ -17,6 +17,7 @@ from ayyo_manipulation_planning import (
     verify_manipulation_planning_decision,
 )
 from ayyo_executive import (
+    ContextRequirement,
     DecisionReason,
     ExecutiveDecision,
     ExecutiveDecisionType,
@@ -41,6 +42,9 @@ from ayyo_skill_manager import (
     FailureSemantics,
     IdempotencyClass,
     InvocationStatus,
+    ResourceRequirement,
+    SchemaProperty,
+    SemanticVersion,
     SkillAvailability,
     SkillBindingResult,
     SkillDefinition,
@@ -50,6 +54,7 @@ from ayyo_skill_manager import (
     SkillManagerService,
     SkillRegistry,
     SkillSelection,
+    ValueSchema,
 )
 
 from .canonical import (
@@ -1495,6 +1500,72 @@ def verify_skill_handoff_reference(value: object) -> bool:
     )
 
 
+def _rebuilt_value_schema(schema: object) -> ValueSchema:
+    if type(schema) is not ValueSchema:
+        raise TrajectoryValidationError(
+            TrajectoryFailureCode.SKILL_MISMATCH,
+            "authoritative Skill schema failed its public contract",
+        )
+    try:
+        properties = []
+        if type(schema.properties) is not tuple:
+            raise TrajectoryValidationError(
+                TrajectoryFailureCode.SKILL_MISMATCH,
+                "authoritative Skill schema properties are malformed",
+            )
+        for item in schema.properties:
+            if type(item) is not SchemaProperty:
+                raise TrajectoryValidationError(
+                    TrajectoryFailureCode.SKILL_MISMATCH,
+                    "authoritative Skill schema property failed its public contract",
+                )
+            properties.append(
+                SchemaProperty(
+                    name=item.name,
+                    schema=_rebuilt_value_schema(item.schema),
+                    required=item.required,
+                )
+            )
+        rebuilt = ValueSchema(
+            schema.value_type,
+            nullable=schema.nullable,
+            properties=tuple(properties),
+            item_schema=(
+                None
+                if schema.item_schema is None
+                else _rebuilt_value_schema(schema.item_schema)
+            ),
+            allow_additional_properties=schema.allow_additional_properties,
+            allowed_values=schema.allowed_values,
+            minimum=schema.minimum,
+            maximum=schema.maximum,
+            min_length=schema.min_length,
+            max_length=schema.max_length,
+            min_items=schema.min_items,
+            max_items=schema.max_items,
+        )
+        if rebuilt != schema:
+            raise TrajectoryValidationError(
+                TrajectoryFailureCode.SKILL_MISMATCH,
+                "authoritative Skill schema is internally inconsistent",
+            )
+    except TrajectoryValidationError:
+        raise
+    except (
+        AssertionError,
+        AttributeError,
+        RecursionError,
+        SkillManagerError,
+        TypeError,
+        ValueError,
+    ) as error:
+        raise TrajectoryValidationError(
+            TrajectoryFailureCode.SKILL_MISMATCH,
+            "authoritative Skill schema could not be reconstructed exactly",
+        ) from error
+    return rebuilt
+
+
 def _rebuilt_skill_definition(skill: object) -> SkillDefinition:
     if type(skill) is not SkillDefinition:
         raise TrajectoryValidationError(
@@ -1504,15 +1575,27 @@ def _rebuilt_skill_definition(skill: object) -> SkillDefinition:
     try:
         rebuilt = SkillDefinition(
             skill_id=skill.skill_id,
-            version=skill.version,
+            version=SemanticVersion(str(skill.version)),
             name=skill.name,
             description=skill.description,
             capability_ids=skill.capability_ids,
             backend_id=skill.backend_id,
-            input_schema=skill.input_schema,
-            output_schema=skill.output_schema,
-            required_context=skill.required_context,
-            required_resources=skill.required_resources,
+            input_schema=_rebuilt_value_schema(skill.input_schema),
+            output_schema=_rebuilt_value_schema(skill.output_schema),
+            required_context=tuple(
+                ContextRequirement(
+                    domain=requirement.domain,
+                    predicate=requirement.predicate,
+                )
+                for requirement in skill.required_context
+            ),
+            required_resources=tuple(
+                ResourceRequirement(
+                    resource_id=requirement.resource_id,
+                    access=requirement.access,
+                )
+                for requirement in skill.required_resources
+            ),
             required_approval_classes=skill.required_approval_classes,
             safety_classification=skill.safety_classification,
             expected_result=skill.expected_result,
@@ -1534,6 +1617,8 @@ def _rebuilt_skill_definition(skill: object) -> SkillDefinition:
     except (
         AssertionError,
         AttributeError,
+        ExecutiveError,
+        RecursionError,
         SkillManagerError,
         TypeError,
         ValueError,
@@ -1561,7 +1646,7 @@ def _validated_skill_manager(manager: object) -> SkillManagerService:
                 "authoritative Skill registry failed its public contract",
             )
         rebuilt_registry = SkillRegistry(
-            version=registry.version,
+            version=SemanticVersion(str(registry.version)),
             skills=tuple(_rebuilt_skill_definition(skill) for skill in registry.skills),
         )
         rebuilt_manager = SkillManagerService(

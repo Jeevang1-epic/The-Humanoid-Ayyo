@@ -5,6 +5,7 @@ import json
 
 import pytest
 
+from ayyo_safety import HazardClass
 from ayyo_manipulation_trajectory import (
     ExecutionHandoffEligibilityDecision,
     TrajectorySafetyEligibilityResult,
@@ -105,6 +106,26 @@ def test_reconstruction_normalizes_malformed_authoritative_context(
         "_parameters",
         [],
     )
+    with pytest.raises(TrajectorySerializationError):
+        manipulation_trajectory_artifact_from_canonical_json(
+            payload,
+            source_proposal=result.source_proposal,
+            source_safety_decision=result.source_safety_decision,
+            source_safety_kernel=result.source_safety_kernel,
+        )
+
+
+def test_reconstruction_rejects_inconsistent_safety_policy_context(
+    stage9b_bundle,
+) -> None:
+    result = stage9b_bundle["safety_result"]
+    payload = canonical_manipulation_trajectory_artifact_json(result)
+    object.__setattr__(
+        result.source_safety_kernel.policy.capability_rules[0],
+        "hazard_class",
+        HazardClass.PHYSICAL_MOVEMENT,
+    )
+
     with pytest.raises(TrajectorySerializationError):
         manipulation_trajectory_artifact_from_canonical_json(
             payload,
