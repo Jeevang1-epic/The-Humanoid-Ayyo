@@ -68,6 +68,11 @@ from .serialization import (
     canonical_simulation_execution_artifact_json,
     simulation_execution_artifact_from_canonical_json,
 )
+from .proof import (
+    RAW_MOVEIT_PREFLIGHT_SCHEMA_ID,
+    moveit_collision_proof_from_canonical_json,
+    moveit_preflight_report_from_collision_proof,
+)
 
 __all__ = (
     "DEFAULT_FINAL_TOLERANCE",
@@ -91,6 +96,7 @@ __all__ = (
     "PreflightReason",
     "PreflightStatus",
     "ProductionRuntimeAuthority",
+    "RAW_MOVEIT_PREFLIGHT_SCHEMA_ID",
     "SimulatedJointState",
     "SimulationAuthority",
     "SimulationCollisionProof",
@@ -116,6 +122,8 @@ __all__ = (
     "evaluate_simulation_preflight",
     "expected_dense_samples",
     "expected_goal_points",
+    "moveit_collision_proof_from_canonical_json",
+    "moveit_preflight_report_from_collision_proof",
     "observed_final_errors",
     "preflight_input_document",
     "preflight_input_fingerprint",
