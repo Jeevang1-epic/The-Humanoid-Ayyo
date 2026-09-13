@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+from .errors import (
+    SimulationExecutionFailureCode,
+    SimulationExecutionValidationError,
+)
 from .models import (
     DEFAULT_EXECUTION_TIMEOUT_MARGIN_NS,
     DEFAULT_START_TOLERANCE,
@@ -21,6 +25,13 @@ from .models import (
     SimulationPreflightEvidence,
     SimulatedJointState,
     expected_goal_points,
+    verify_collision_proof,
+    verify_controller_state,
+    verify_execution_goal,
+    verify_execution_observation,
+    verify_joint_state,
+    verify_preflight_evidence,
+    _position_tuple,
     _motion_status,
     _preflight_reasons,
 )
@@ -56,31 +67,61 @@ def evaluate_simulation_preflight(
 ) -> SimulationPreflightEvidence:
     """Evaluate collision, lifecycle, freshness, and exact-start evidence."""
 
-    provisional = _preflight_reasons(
-        collision_proof,
-        start_state,
-        controller_state,
-        evaluated_at_ns,
-        start_tolerance=DEFAULT_START_TOLERANCE,
-        state_freshness_ns=DEFAULT_STATE_FRESHNESS_NS,
-    )
-    positive = provisional == (
-        PreflightReason.COLLISION_FREE_DENSE_PATH,
-        PreflightReason.CONTROLLER_READY,
-        PreflightReason.START_STATE_MATCHED,
-    )
-    return SimulationPreflightEvidence(
-        collision_proof=collision_proof,
-        start_state=start_state,
-        controller_state=controller_state,
-        evaluated_at_ns=evaluated_at_ns,
-        status=(
-            PreflightStatus.READY_FOR_SIMULATION_EXECUTION
-            if positive
-            else PreflightStatus.REJECTED
-        ),
-        reasons=provisional,
-    )
+    if not verify_collision_proof(collision_proof):
+        raise SimulationExecutionValidationError(
+            SimulationExecutionFailureCode.COLLISION_PREFLIGHT,
+            "preflight evaluation requires a verified dense collision proof",
+        )
+    if not verify_joint_state(start_state):
+        raise SimulationExecutionValidationError(
+            SimulationExecutionFailureCode.START_STATE_MISMATCH,
+            "preflight evaluation requires a verified simulated joint state",
+        )
+    if not verify_controller_state(controller_state):
+        raise SimulationExecutionValidationError(
+            SimulationExecutionFailureCode.CONTROLLER_MISMATCH,
+            "preflight evaluation requires verified controller evidence",
+        )
+    try:
+        provisional = _preflight_reasons(
+            collision_proof,
+            start_state,
+            controller_state,
+            evaluated_at_ns,
+            start_tolerance=DEFAULT_START_TOLERANCE,
+            state_freshness_ns=DEFAULT_STATE_FRESHNESS_NS,
+        )
+        positive = provisional == (
+            PreflightReason.COLLISION_FREE_DENSE_PATH,
+            PreflightReason.CONTROLLER_READY,
+            PreflightReason.START_STATE_MATCHED,
+        )
+        return SimulationPreflightEvidence(
+            collision_proof=collision_proof,
+            start_state=start_state,
+            controller_state=controller_state,
+            evaluated_at_ns=evaluated_at_ns,
+            status=(
+                PreflightStatus.READY_FOR_SIMULATION_EXECUTION
+                if positive
+                else PreflightStatus.REJECTED
+            ),
+            reasons=provisional,
+        )
+    except SimulationExecutionValidationError:
+        raise
+    except (
+        AssertionError,
+        AttributeError,
+        ArithmeticError,
+        KeyError,
+        TypeError,
+        ValueError,
+    ) as error:
+        raise SimulationExecutionValidationError(
+            SimulationExecutionFailureCode.MALFORMED_ARTIFACT,
+            "preflight evaluation received malformed evidence",
+        ) from error
 
 
 def create_simulation_execution_goal(
@@ -88,6 +129,11 @@ def create_simulation_execution_goal(
 ) -> SimulationExecutionGoal:
     """Create the exact position-only action goal after positive preflight."""
 
+    if not verify_preflight_evidence(preflight_evidence):
+        raise SimulationExecutionValidationError(
+            SimulationExecutionFailureCode.COLLISION_PREFLIGHT,
+            "execution goal requires recursively verified preflight evidence",
+        )
     request = preflight_evidence.execution_request
     points = expected_goal_points(request)
     timeout_ns = round(points[-1].time_from_start * 1_000_000_000) + (
@@ -108,6 +154,16 @@ def create_simulation_execution_result(
 ) -> SimulationExecutionResult:
     """Bind one observed action outcome without escalating its authority."""
 
+    if not verify_execution_goal(execution_goal):
+        raise SimulationExecutionValidationError(
+            SimulationExecutionFailureCode.UPSTREAM_INTEGRITY,
+            "execution result requires a recursively verified goal",
+        )
+    if not verify_execution_observation(observation):
+        raise SimulationExecutionValidationError(
+            SimulationExecutionFailureCode.FEEDBACK_INVALID,
+            "execution result requires a verified observation",
+        )
     completed = (
         observation.outcome
         is SimulationExecutionOutcome.SIMULATION_EXECUTION_COMPLETED
@@ -130,11 +186,13 @@ def observed_final_errors(
 ) -> tuple[float, ...]:
     """Derive bounded final absolute error without fabricating feedback."""
 
+    ending = _position_tuple(ending_positions, "ending_positions")
+    target = _position_tuple(target_positions, "target_positions")
     return tuple(
         abs(actual - target)
         for actual, target in zip(
-            ending_positions,
-            target_positions,
+            ending,
+            target,
             strict=True,
         )
     )

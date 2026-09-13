@@ -229,6 +229,7 @@ def test_no_existing_authority_or_runtime_implementation_was_modified():
     ).stdout.splitlines()
     allowed_prefixes = (
         "manipulation_planning/", "ros2_ws/src/ayyo_manipulation_planning/",
+        "manipulation_trajectory/tests/test_package_boundary.py",
         "manipulation_simulation_execution/",
         "ros2_ws/src/ayyo_manipulation_simulation_execution/",
         "ros2_ws/src/ayyo_description/",
