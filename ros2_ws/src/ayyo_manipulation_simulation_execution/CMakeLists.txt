@@ -6,6 +6,7 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
 endif()
 
 find_package(ament_cmake REQUIRED)
+find_package(ament_cmake_python REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(moveit_core REQUIRED)
 find_package(moveit_msgs REQUIRED)
@@ -32,13 +33,58 @@ ament_target_dependencies(
   urdf
 )
 
+ament_python_install_package(
+  ayyo_memory
+  PACKAGE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../../memory/src/ayyo_memory"
+)
+ament_python_install_package(
+  ayyo_personal_context
+  PACKAGE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../../personal_context/src/ayyo_personal_context"
+)
+ament_python_install_package(
+  ayyo_executive
+  PACKAGE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../../executive/src/ayyo_executive"
+)
+ament_python_install_package(
+  ayyo_safety
+  PACKAGE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../../safety_kernel/src/ayyo_safety"
+)
+ament_python_install_package(
+  ayyo_skill_manager
+  PACKAGE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../../skill_manager/src/ayyo_skill_manager"
+)
+ament_python_install_package(
+  ayyo_manipulation_planning
+  PACKAGE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../../manipulation_planning/src/ayyo_manipulation_planning"
+)
+ament_python_install_package(
+  ayyo_manipulation_trajectory
+  PACKAGE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../../manipulation_trajectory/src/ayyo_manipulation_trajectory"
+)
+ament_python_install_package(
+  ayyo_manipulation_simulation_execution
+  PACKAGE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../../manipulation_simulation_execution/src/ayyo_manipulation_simulation_execution"
+)
+
 install(TARGETS stage9c_moveit_preflight DESTINATION lib/${PROJECT_NAME})
+install(
+  PROGRAMS
+    scripts/stage9c_execution.py
+    scripts/stage9c_reviewed_fixture.py
+  DESTINATION lib/${PROJECT_NAME}
+)
+install(DIRECTORY launch DESTINATION share/${PROJECT_NAME})
 
 if(BUILD_TESTING)
   find_package(ament_cmake_pytest REQUIRED)
   ament_add_pytest_test(
     test_stage9c_moveit_preflight
     test/test_stage9c_moveit_preflight.py
+    TIMEOUT 90
+  )
+  ament_add_pytest_test(
+    test_stage9c_action_adapter
+    test/test_stage9c_action_adapter.py
     TIMEOUT 90
   )
 endif()
