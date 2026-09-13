@@ -242,8 +242,8 @@ validation explicitly unavailable. The showcase adds no cognition, Safety,
 Skill, Runtime, ROS/Gazebo, persistence, learning, authentication, policy-state,
 execution, or hardware authority; lower layers have no reverse dependency.
 
-Stage 9 has now begun with Manipulation Planning & Collision Safety Foundation
-v1. This first planning-only slice derives the exact four-revolute-joint left
+Stage 9 began with Manipulation Planning & Collision Safety Foundation v1.
+That planning-only slice derives the exact four-revolute-joint left
 arm (and its two fixed chain joints) from the authoritative expanded URDF,
 retains exact joint limits and content identities, represents bounded fixed-box
 collision scenes in `base_link`, and emits immutable review evidence. A
@@ -253,10 +253,25 @@ deterministic bounded Python candidate path under pinned URDF/SRDF/allowed-
 collision semantics. It deliberately
 stops at `PLAN_AVAILABLE_FOR_REVIEW` or `REJECTED`, always `NOT_EXECUTED`.
 
+Stage 9B now adds Manipulation Trajectory & Execution Eligibility Foundation
+v1 as a local pre-execution milestone. It accepts only a recursively verified
+positive Stage 9A decision, retains its exact robot/group/catalog/path/
+collision-proof lineage, and derives strictly increasing deterministic times
+from reviewed velocity limits and an explicit bounded configuration. Immutable
+trajectory evidence can be reviewed by independent Safety through an
+information-only capability and matched to explicit caller-supplied inert Skill
+binding evidence. Positive reconstruction requires those authoritative Safety
+and Skill contexts again, recursively reconstructs their policy, registry,
+definition, and nested-schema content before trusting derived fingerprints, and
+rejects rehashed cross-trajectory references. Malformed authoritative contracts
+fail through typed Stage 9B errors. The final state means only eligible for
+future simulation handoff review; Runtime remains unregistered and
+execution/physical validation remain absent.
+
 Stage 9 is not complete. Grasp planning, end-effector semantics, trajectory
-time-parameterization, force/contact reasoning, controller integration,
-production Runtime/Skill bindings, independent motion/contact Safety policy,
-emergency-stop integration, physical calibration, and any simulated or
+dynamics, force/contact reasoning, Stage 9C simulation-only controller
+execution, production Runtime/Skill implementations, independent motion/contact
+Safety policy, emergency-stop integration, physical calibration, and any
 physical arm execution remain separately reviewed future milestones.
 
 Final Ayyo assets, graphical controlled-design validation, additional joints,

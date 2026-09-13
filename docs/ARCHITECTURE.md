@@ -91,6 +91,33 @@ trajectory execution, physical-safety certification, or hardware path. Safety
 v1 continues to defer physical movement, and all existing arm command interfaces
 remain disabled.
 
+Stage-9B manipulation trajectory eligibility is a separate downstream,
+transport-neutral pre-execution path:
+
+```text
+complete positive Stage-9A decision and collision evidence
+→ exact content-addressed trajectory construction request
+→ bounded deterministic velocity-scaled timing
+→ immutable trajectory evidence
+→ independent Safety eligibility for information-only simulation review
+→ explicit caller-supplied inert Skill Manager binding evidence
+→ future simulation Runtime handoff review eligibility
+→ stop (Runtime endpoint NOT_REGISTERED, NOT_EXECUTED)
+```
+
+The [Manipulation Trajectory & Execution Eligibility Foundation](MANIPULATION_TRAJECTORY_EXECUTION_ELIGIBILITY.md)
+retains the full Stage 9A decision rather than trusting IDs alone. Safety
+classifies review of the evidence as `INTERNAL_NON_ACTUATING`; this is not a
+physical-movement Safety decision. Positive Safety and handoff reconstruction
+requires the exact source validation contexts. Stage 9B recursively reconstructs
+the Safety policy and complete Skill registry/definitions, including nested
+schemas, before rebuilding the Skill invocation or trusting any derived
+identity. Malformed upstream contracts are normalized at the typed Stage 9B
+boundary. Stage 9B does not call Skill Manager binding automatically, import
+Runtime Bridge, construct a Runtime request, register an endpoint, use ROS/MoveIt
+execution, activate a controller, or command Gazebo or hardware. No lower layer
+depends back on it.
+
 The standalone
 [Teach Mode Demonstration Capture Foundation](TEACH_MODE_DEMONSTRATION_CAPTURE.md)
 depends only on public immutable developmental-scenario contracts. It records
@@ -490,5 +517,12 @@ replace proxy geometry without duplicating or bypassing frame semantics.
   review and is always `NOT_EXECUTED`. No lower architecture layer imports it;
   it cannot bind a Skill, dispatch Runtime, command ROS/Gazebo, activate a
   controller, control hardware, or override independent Safety.
+- Manipulation Trajectory owns only an exact Stage 9A request binding,
+  deterministic bounded time parameterization, immutable trajectory/Safety/
+  handoff evidence, and strict context-required canonical reconstruction for
+  positive decisions. Its positive states mean review eligibility only. It
+  cannot invoke Skill binding automatically,
+  create or dispatch a Runtime request, call ROS/MoveIt execution, activate a
+  controller, command simulation or hardware, or claim physical safety.
 - Learning updates remain candidates until evaluation and controlled promotion;
   consolidation does not bypass safety or permissions.
