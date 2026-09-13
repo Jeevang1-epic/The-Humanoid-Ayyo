@@ -268,11 +268,23 @@ fail through typed Stage 9B errors. The final state means only eligible for
 future simulation handoff review; Runtime remains unregistered and
 execution/physical validation remain absent.
 
+Stage 9C now adds Simulation-Only Manipulation Controller Execution & Observed
+Outcome Foundation v1. It is the first milestone allowed to move the left arm,
+but only behind a default-false dedicated Gazebo Harmonic profile and explicit
+development invocation. It recursively verifies the full Stage 9B lineage,
+densely checks the exact position-only interpolation with the same reviewed
+MoveIt PlanningScene semantics, requires fresh matching simulated start state
+and exact controller availability, sends one fixed `FollowJointTrajectory`
+goal, and binds the observed result/final state into immutable canonical
+evidence. Success means only simulation execution completed; it explicitly
+retains no physical validation, hardware authority, or production Runtime
+authority.
+
 Stage 9 is not complete. Grasp planning, end-effector semantics, trajectory
-dynamics, force/contact reasoning, Stage 9C simulation-only controller
-execution, production Runtime/Skill implementations, independent motion/contact
-Safety policy, emergency-stop integration, physical calibration, and any
-physical arm execution remain separately reviewed future milestones.
+dynamics, force/contact reasoning, production Runtime/Skill implementations,
+independent physical motion/contact Safety policy, emergency-stop integration,
+physical calibration, and any physical arm execution remain separately
+reviewed future milestones.
 
 Final Ayyo assets, graphical controlled-design validation, additional joints,
 trajectory/whole-body controllers, validated dynamics/contact behavior,

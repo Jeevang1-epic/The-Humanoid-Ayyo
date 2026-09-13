@@ -88,8 +88,8 @@ The [Manipulation Planning & Collision Safety Foundation](MANIPULATION_PLANNING_
 does not feed an invocation into Skill Manager or Runtime Bridge. It adds no
 arm command interface, controller, publisher, action, service, MoveGroup,
 trajectory execution, physical-safety certification, or hardware path. Safety
-v1 continues to defer physical movement, and all existing arm command interfaces
-remain disabled.
+v1 continues to defer physical movement, and arm command interfaces remain
+absent from the default description and all pre-Stage-9C profiles.
 
 Stage-9B manipulation trajectory eligibility is a separate downstream,
 transport-neutral pre-execution path:
@@ -117,6 +117,36 @@ boundary. Stage 9B does not call Skill Manager binding automatically, import
 Runtime Bridge, construct a Runtime request, register an endpoint, use ROS/MoveIt
 execution, activate a controller, or command Gazebo or hardware. No lower layer
 depends back on it.
+
+Stage-9C simulation manipulation execution is a separate explicit development
+path downstream of the complete Stage-9B trust boundary:
+
+```text
+recursively verified positive Stage-9B handoff and exact timed trajectory
+→ fixed Gazebo Harmonic controller/description contract
+→ bounded dense position-only interpolation samples
+→ authoritative MoveIt PlanningScene self/environment/limit preflight
+→ active fixed controller + action availability + fresh exact simulated start
+→ one explicit FollowJointTrajectory goal (no retry or replanning)
+→ bounded controller result and fresh simulated joint-state observation
+→ immutable canonical Stage-9C result
+→ stop (NOT_PHYSICALLY_VALIDATED, NO_HARDWARE_AUTHORITY,
+        NO_PRODUCTION_RUNTIME_AUTHORITY)
+```
+
+The [Manipulation Simulation Execution Foundation](MANIPULATION_SIMULATION_EXECUTION.md)
+does not reinterpret Stage 9B as real-robot safety. Normal descriptions and
+ordinary simulation launches retain no arm command interfaces because
+`simulation_manipulation_control` and `enable_manipulation_control` default to
+false. The dedicated Stage-9C launch enables exactly the four reviewed
+left-arm position interfaces and the fixed
+`ayyo_left_arm_trajectory_controller`; it sends nothing on startup. Only a
+separate explicit client invocation may send the exact reviewed goal after
+preflight. The adapter has no arbitrary endpoint, publisher, MoveGroup,
+automatic Skill invocation, Runtime Bridge integration, physical driver,
+persistence, network API, daemon, retry, or planning loop. Dense sampling is
+bounded sample evidence, not continuous swept-volume or physical collision
+certification.
 
 The standalone
 [Teach Mode Demonstration Capture Foundation](TEACH_MODE_DEMONSTRATION_CAPTURE.md)
@@ -524,5 +554,11 @@ replace proxy geometry without duplicating or bypassing frame semantics.
   cannot invoke Skill binding automatically,
   create or dispatch a Runtime request, call ROS/MoveIt execution, activate a
   controller, command simulation or hardware, or claim physical safety.
+- Manipulation Simulation Execution is the only Stage-9C owner of explicit
+  Gazebo left-arm motion. Its transport-neutral core depends downward on Stage
+  9A/9B public contracts; the ROS adapter depends on that core and the reviewed
+  simulation/MoveIt packages. Lower cognition, Safety, Skill, Runtime, Stage-9A,
+  and Stage-9B packages remain unaware of Stage 9C. Its result cannot grant
+  physical, hardware, or production Runtime authority.
 - Learning updates remain candidates until evaluation and controlled promotion;
   consolidation does not bypass safety or permissions.

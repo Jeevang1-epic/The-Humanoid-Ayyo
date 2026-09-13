@@ -7,14 +7,15 @@ can mature behind stable boundaries before physical hardware is introduced.
 
 ## Current status
 
-Ayyo has completed the local Stage 9B Manipulation Trajectory & Execution
-Eligibility Foundation v1 above the reviewed Stage 9A planning boundary. One
-exact positive Stage 9A decision can be converted into a bounded deterministic
-joint trajectory, immutable review evidence, independently evaluated Safety
-eligibility, and an explicit inert Skill handoff reference. The final positive
-state is only eligible for a future separately reviewed simulation handoff:
-the Runtime endpoint remains unregistered and every result is `NOT_EXECUTED`
-with `PHYSICAL_VALIDATION_ABSENT`.
+Ayyo has completed the local Stage 9C Simulation-Only Manipulation Controller
+Execution & Observed Outcome Foundation v1. An explicit development invocation
+may consume one recursively verified positive Stage 9B handoff, run a dense
+MoveIt PlanningScene preflight, require a fresh matching Gazebo joint state,
+and submit the exact position-only left-arm trajectory to one fixed
+`FollowJointTrajectory` action. The dedicated controller profile is default-off
+and exists only in Gazebo Harmonic. A successful result means only
+`SIMULATION_EXECUTION_COMPLETED`, `NOT_PHYSICALLY_VALIDATED`,
+`NO_HARDWARE_AUTHORITY`, and `NO_PRODUCTION_RUNTIME_AUTHORITY`.
 
 Implemented:
 
@@ -88,6 +89,19 @@ Implemented:
   decisions; malformed upstream contracts fail through typed Stage 9B errors,
   and the package creates no Runtime request or endpoint and stops at future
   simulation-handoff review eligibility
+- A standalone `ayyo-manipulation-simulation-execution` Stage-9C core with
+  immutable bounded request, dense collision-proof, preflight, exact goal,
+  observed outcome, and result contracts; strict canonical reconstruction;
+  recursive Stage 9A/9B lineage verification; and typed fail-closed errors
+- A dedicated default-off Gazebo Harmonic manipulation profile exposing only
+  position command interfaces for the four reviewed left-arm revolute joints,
+  with one fixed `ayyo_left_arm_trajectory_controller` and
+  `/ayyo_left_arm_trajectory_controller/follow_joint_trajectory` action
+- A headless Stage-9C proof that reconstructs the exact public Stage 9A → 9B
+  chain, checks every bounded dense linear-interpolation sample through the
+  authoritative MoveIt PlanningScene, verifies the simulated start state,
+  sends exactly one goal, correlates the controller result with fresh joint
+  feedback, emits bounded canonical evidence, and tears down owned processes
 - A verified local ROS 2, Gazebo, and RViz development setup
 - A standalone, provenance-aware Memory OS core with SQLite persistence
 - A standalone deterministic validation and consolidation policy for candidate
@@ -268,7 +282,8 @@ Planned, but not implemented:
   aggregation
 - Natural-language/model integration and a production authority-authentication
   provider, permissions, and external verification enforcement
-- Runtime skill implementations, manipulation execution, and navigation
+- Production Runtime skill implementations, physical manipulation execution,
+  and navigation
 - Production-authorized typed ROS services, runtime scheduling, and resource
   enforcement; Safety v1 still defers all physical movement
 - Additional Teach Mode sources, authenticated teacher identity, physical
@@ -430,6 +445,23 @@ negative authority-boundary tests while preserving the sourced ROS Python path:
 source /opt/ros/jazzy/setup.bash
 PYTHONPATH=memory/src:personal_context/src:executive/src:safety_kernel/src:skill_manager/src:manipulation_planning/src:manipulation_trajectory/src${PYTHONPATH:+:$PYTHONPATH} \
   python3 -m pytest -q manipulation_trajectory/tests
+```
+
+Run the Stage-9C contracts, serialization/integrity, collision preflight,
+authority-boundary, and adversarial tests:
+
+```bash
+source /opt/ros/jazzy/setup.bash
+PYTHONPATH=memory/src:personal_context/src:executive/src:safety_kernel/src:skill_manager/src:manipulation_planning/src:manipulation_trajectory/src:manipulation_simulation_execution/src${PYTHONPATH:+:$PYTHONPATH} \
+  python3 -m pytest -q manipulation_simulation_execution/tests
+```
+
+After building the relevant ROS workspace packages, run the explicit headless
+Gazebo proof. This command is the only documented Stage-9C movement invocation;
+launching the dedicated profile alone sends no trajectory.
+
+```bash
+scripts/smoke_manipulation_simulation_execution.sh
 ```
 
 Run Memory OS tests:
@@ -651,6 +683,7 @@ approval_eligibility/  Inert authority evidence and future-activation eligibilit
 software_showcase/  Deterministic Stage-8 public-contract catalog and inspector
 manipulation_planning/  Immutable Stage-9A planning-only evidence contracts
 manipulation_trajectory/  Immutable Stage-9B trajectory and handoff eligibility
+manipulation_simulation_execution/  Stage-9C simulation-only execution evidence
 world_model/  Transport-neutral embodied/environment observations and snapshots
 perception/  Deterministic sensor/provenance/time admission trust boundary
 physical_camera/  Driver-neutral physical source, calibration, lifecycle, and diagnostics
@@ -791,3 +824,15 @@ references. `TRAJECTORY_ELIGIBLE_FOR_SIMULATION_REVIEW` and the
 final future-handoff-review status create no Runtime request or movement
 authority; the endpoint is `NOT_REGISTERED`, execution is `NOT_EXECUTED`, and
 physical validation is `ABSENT`.
+
+Manipulation Simulation Execution & Observed Outcome Foundation v1 is the
+first downstream manipulation boundary permitted to move the left arm, and
+only in an explicitly enabled Gazebo Harmonic development profile. See
+[Manipulation Simulation Execution](docs/MANIPULATION_SIMULATION_EXECUTION.md).
+It recursively verifies the exact Stage 9B handoff, binds the reviewed
+description/controller configuration, densely rechecks the position-only path
+with MoveIt PlanningScene semantics, requires fresh matching simulated start
+feedback, and sends one exact goal to the fixed left-arm
+`FollowJointTrajectory` action. It does not add a Runtime Bridge endpoint,
+production Skill, physical driver, persistence, network API, background worker,
+automatic invocation, replanning, retry, or physical-safety claim.
