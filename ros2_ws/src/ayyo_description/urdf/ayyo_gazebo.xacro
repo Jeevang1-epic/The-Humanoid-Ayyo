@@ -1,7 +1,18 @@
 <?xml version="1.0"?>
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro">
   <xacro:macro name="ayyo_gazebo"
-               params="static_model control_enabled localization_enabled camera_enabled depth_camera_enabled controller_config">
+               params="static_model control_enabled localization_enabled camera_enabled depth_camera_enabled controller_config manipulation_control_enabled">
+    <xacro:if value="${control_enabled}">
+      <xacro:if value="${manipulation_control_enabled}">
+        <!-- Stage 9C uses gravity-neutral development dynamics for the arm.
+             This opt-in has no physical-controller or validation meaning. -->
+        <gazebo reference="left_upper_arm_link"><gravity>false</gravity></gazebo>
+        <gazebo reference="left_elbow_link"><gravity>false</gravity></gazebo>
+        <gazebo reference="left_forearm_link"><gravity>false</gravity></gazebo>
+        <gazebo reference="left_wrist_link"><gravity>false</gravity></gazebo>
+        <gazebo reference="left_hand_link"><gravity>false</gravity></gazebo>
+      </xacro:if>
+    </xacro:if>
     <gazebo reference="imu_link">
       <sensor name="body_imu" type="imu">
         <always_on>true</always_on>

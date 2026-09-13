@@ -25,7 +25,8 @@
       localization_enabled="$(arg simulation_localization)"
       camera_enabled="$(arg simulation_camera)"
       depth_camera_enabled="$(arg simulation_depth_camera)"
-      controller_config="$(arg simulation_controller_config)"/>
+      controller_config="$(arg simulation_controller_config)"
+      manipulation_control_enabled="$(arg simulation_manipulation_control)"/>
     <xacro:if value="$(arg simulation_control)">
       <xacro:ayyo_ros2_control_system
         hardware_plugin="gz_ros2_control/GazeboSimSystem"

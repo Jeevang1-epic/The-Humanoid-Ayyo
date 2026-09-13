@@ -147,4 +147,4 @@ def test_reviewed_fixture_binds_observed_stage9a_proof() -> None:
     assert request.trajectory.points[0].positions[2].position == 0.2
     assert tuple(
         item.position for item in request.trajectory.points[-1].positions
-    ) == (0.3, 0.0, 0.8, 0.2)
+    ) == (0.3, 0.4, 0.8, 0.2)

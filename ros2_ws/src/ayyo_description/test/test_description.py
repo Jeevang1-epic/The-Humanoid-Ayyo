@@ -349,6 +349,18 @@ def test_stage9c_control_mode_exposes_only_reviewed_left_arm() -> None:
     assert initial['left_shoulder_yaw_joint'] == '0.0'
     assert initial['left_shoulder_pitch_joint'] == '0.0'
     assert initial['left_wrist_yaw_joint'] == '0.0'
+    gravity_neutral = {
+        item.get('reference')
+        for item in robot.findall('gazebo')
+        if item.findtext('gravity') == 'false'
+    }
+    assert gravity_neutral == {
+        'left_upper_arm_link',
+        'left_elbow_link',
+        'left_forearm_link',
+        'left_wrist_link',
+        'left_hand_link',
+    }
 
 
 def test_left_and_right_contracts_are_name_symmetric(proxy_robot: ET.Element) -> None:

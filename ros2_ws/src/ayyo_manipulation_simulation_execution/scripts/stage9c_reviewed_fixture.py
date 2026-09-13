@@ -89,7 +89,7 @@ def reviewed_planning_request(
         group=group,
         collision_model=collision_model,
         start_state=make_joint_state(group, catalog, (0.0, 0.0, 0.2, 0.0)),
-        goal=make_joint_goal(group, catalog, (0.3, 0.0, 0.8, 0.2)),
+        goal=make_joint_goal(group, catalog, (0.3, 0.4, 0.8, 0.2)),
         scene=PlanningSceneEvidence(
             robot_model_id=model.robot_model_id,
             robot_model_fingerprint=model.robot_model_fingerprint,

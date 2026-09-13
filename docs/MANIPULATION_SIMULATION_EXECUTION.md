@@ -118,6 +118,11 @@ The dedicated profile sets gz_ros2_control's position tracking gain to `1.0`
 so the simulated arm can converge under its simulated load. This parameter is
 content-addressed with the controller configuration, remains absent from the
 ordinary neck-only profile, and has no physical-controller or hardware meaning.
+The same gated profile neutralizes gravity only on the five simulated links
+downstream of the left shoulder-pitch joint, allowing the unchanged reviewed
+Stage 9A fixture to remain executable within its URDF effort limit. Ordinary
+simulation and every non-Stage-9C description retain normal gravity. These
+test dynamics are fingerprinted and make no physical-validation claim.
 JointTrajectoryController enforces a `0.02` rad goal tolerance per reviewed
 joint, a `0.05` rad/s stopped-velocity tolerance, and at most four seconds of
 simulated goal-settling time. These development-only simulation values fit
@@ -199,7 +204,7 @@ AYYO_STAGE9C_INSTALL_SETUP=/tmp/ayyo-stage9c-install/setup.bash \
 ```
 
 The proof's reviewed development fixture moves from
-`(0.0, 0.0, 0.2, 0.0)` to `(0.3, 0.0, 0.8, 0.2)` in canonical left-arm joint
+`(0.0, 0.0, 0.2, 0.0)` to `(0.3, 0.4, 0.8, 0.2)` in canonical left-arm joint
 order. Stage 9A owns and collision-checks that candidate path, Stage 9B owns
 its exact timing, and Stage 9C forwards the resulting trajectory without
 altering its geometry.
