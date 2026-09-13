@@ -157,7 +157,7 @@ import sys
 path = Path(sys.argv[1])
 if not path.is_file() or not path.stat().st_size:
     raise SystemExit("FAIL: Stage 9C emitted no result artifact")
-result = json.loads(path.read_text(encoding="utf-8"))
+result = json.loads(path.read_text(encoding="utf-8").splitlines()[0])
 observation = result.get("observation")
 if observation is None:
     print(

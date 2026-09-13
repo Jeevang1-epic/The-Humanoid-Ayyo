@@ -43,7 +43,7 @@ const std::array<std::string, 4> kJointNames = {
   "left_wrist_yaw_joint",
 };
 const std::array<double, 4> kStart = {0.0, 0.0, 0.2, 0.0};
-const std::array<double, 4> kGoal = {0.3, 0.4, 0.8, 0.2};
+const std::array<double, 4> kGoal = {0.3, 0.0, 0.8, 0.2};
 const std::array<double, 4> kLower = {-1.2, -1.8, 0.0, -1.5};
 const std::array<double, 4> kUpper = {1.2, 1.8, 2.2, 1.5};
 const std::array<double, 4> kEffort = {20.0, 20.0, 15.0, 5.0};

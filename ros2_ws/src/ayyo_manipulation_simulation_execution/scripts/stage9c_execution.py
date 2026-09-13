@@ -16,6 +16,28 @@ import time
 
 from action_msgs.msg import GoalStatus
 from ament_index_python.packages import get_package_prefix, get_package_share_directory
+from ayyo_manipulation_planning import moveit_collision_proof_from_canonical_json
+from ayyo_manipulation_simulation_execution import (
+    canonical_simulation_execution_artifact_json,
+    create_simulation_execution_goal,
+    create_simulation_execution_result,
+    DEFAULT_FINAL_TOLERANCE,
+    evaluate_simulation_preflight,
+    GoalAcceptance,
+    moveit_collision_proof_from_canonical_json as stage9c_proof_from_json,
+    observed_final_errors,
+    preflight_input_document,
+    PreflightStatus,
+    SimulatedJointState,
+    SimulationControllerState,
+    SimulationExecutionObservation,
+    SimulationExecutionOutcome,
+    STAGE9C_ACTION_ENDPOINT,
+    STAGE9C_CONTROLLER_NAME,
+    STAGE9C_CONTROLLER_TYPE,
+    STAGE9C_REVIEWED_CONTROLLER_CONFIGURATION_FINGERPRINT,
+    STAGE9C_REVIEWED_SIMULATION_DESCRIPTION_FINGERPRINT,
+)
 from control_msgs.action import FollowJointTrajectory
 from controller_manager_msgs.srv import ListControllers, ListHardwareComponents
 import rclpy
@@ -23,46 +45,23 @@ from rclpy.action import ActionClient
 from rclpy.node import Node
 from rclpy.parameter import Parameter
 from sensor_msgs.msg import JointState
+from stage9c_reviewed_fixture import reviewed_execution_request, reviewed_planning_request
 from trajectory_msgs.msg import JointTrajectoryPoint
 
-from ayyo_manipulation_planning import moveit_collision_proof_from_canonical_json
-from ayyo_manipulation_simulation_execution import (
-    STAGE9C_ACTION_ENDPOINT,
-    STAGE9C_CONTROLLER_NAME,
-    STAGE9C_CONTROLLER_TYPE,
-    STAGE9C_REVIEWED_CONTROLLER_CONFIGURATION_FINGERPRINT,
-    STAGE9C_REVIEWED_SIMULATION_DESCRIPTION_FINGERPRINT,
-    GoalAcceptance,
-    PreflightStatus,
-    SimulationControllerState,
-    SimulationExecutionObservation,
-    SimulationExecutionOutcome,
-    SimulatedJointState,
-    canonical_simulation_execution_artifact_json,
-    create_simulation_execution_goal,
-    create_simulation_execution_result,
-    evaluate_simulation_preflight,
-    moveit_collision_proof_from_canonical_json as stage9c_proof_from_json,
-    observed_final_errors,
-    preflight_input_document,
-)
-from stage9c_reviewed_fixture import reviewed_execution_request, reviewed_planning_request
 
-
-CONTROLLER_MANAGER = "/controller_manager"
-STATE_BROADCASTER = "joint_state_broadcaster"
-STATE_BROADCASTER_TYPE = "joint_state_broadcaster/JointStateBroadcaster"
-HARDWARE_SYSTEM = "AyyoSystem"
+CONTROLLER_MANAGER = '/controller_manager'
+STATE_BROADCASTER = 'joint_state_broadcaster'
+STATE_BROADCASTER_TYPE = 'joint_state_broadcaster/JointStateBroadcaster'
+HARDWARE_SYSTEM = 'AyyoSystem'
 DESCRIPTION_FILES = (
-    "ayyo.urdf.xacro",
-    "ayyo_body.xacro",
-    "ayyo_gazebo.xacro",
-    "ayyo_geometry.xacro",
-    "ayyo_materials.xacro",
-    "ayyo_ros2_control.xacro",
+    'ayyo.urdf.xacro',
+    'ayyo_body.xacro',
+    'ayyo_gazebo.xacro',
+    'ayyo_geometry.xacro',
+    'ayyo_materials.xacro',
+    'ayyo_ros2_control.xacro',
 )
 MAX_WAIT_SECONDS = 10.0
-FINAL_STATE_WAIT_SECONDS = 1.0
 
 
 def _wait_future(node: Node, future, timeout_seconds: float) -> bool:
@@ -89,42 +88,42 @@ def _goal_message(goal):
 
 
 def _profile_fingerprints() -> tuple[str, str]:
-    description_root = Path(get_package_share_directory("ayyo_description")) / "urdf"
-    description = b"".join(
-        name.encode() + b"\0" + (description_root / name).read_bytes() + b"\0"
+    description_root = Path(get_package_share_directory('ayyo_description')) / 'urdf'
+    description = b''.join(
+        name.encode() + b'\0' + (description_root / name).read_bytes() + b'\0'
         for name in DESCRIPTION_FILES
     )
     controller = (
-        Path(get_package_share_directory("ayyo_simulation"))
-        / "config/manipulation_controllers.yaml"
+        Path(get_package_share_directory('ayyo_simulation'))
+        / 'config/manipulation_controllers.yaml'
     ).read_bytes()
     return (
-        "ayyo-stage9c-simulation-description-sha256-"
+        'ayyo-stage9c-simulation-description-sha256-'
         + sha256(description).hexdigest(),
-        "ayyo-stage9c-controller-configuration-sha256-"
+        'ayyo-stage9c-controller-configuration-sha256-'
         + sha256(controller).hexdigest(),
     )
 
 
 def _reviewed_descriptions() -> tuple[str, str, Path]:
-    description = Path(get_package_share_directory("ayyo_description"))
-    planning = Path(get_package_share_directory("ayyo_manipulation_planning"))
-    xacro = description / "urdf/ayyo.urdf.xacro"
-    srdf_path = planning / "config/ayyo_left_arm.srdf"
+    description = Path(get_package_share_directory('ayyo_description'))
+    planning = Path(get_package_share_directory('ayyo_manipulation_planning'))
+    xacro = description / 'urdf/ayyo.urdf.xacro'
+    srdf_path = planning / 'config/ayyo_left_arm.srdf'
     urdf = subprocess.run(
-        ["xacro", str(xacro), "use_meshes:=false", "simulation_mode:=false"],
+        ['xacro', str(xacro), 'use_meshes:=false', 'simulation_mode:=false'],
         check=True,
         capture_output=True,
         text=True,
         timeout=15,
     ).stdout
-    return urdf, srdf_path.read_text(encoding="utf-8"), srdf_path
+    return urdf, srdf_path.read_text(encoding='utf-8'), srdf_path
 
 
 def _moveit_reports(urdf: str, srdf_path: Path, planning_request):
     stage9a_executable = (
-        Path(get_package_prefix("ayyo_manipulation_planning"))
-        / "lib/ayyo_manipulation_planning/moveit_planning_scene_proof"
+        Path(get_package_prefix('ayyo_manipulation_planning'))
+        / 'lib/ayyo_manipulation_planning/moveit_planning_scene_proof'
     )
     stage9a = subprocess.run(
         [str(stage9a_executable), str(srdf_path)],
@@ -143,20 +142,20 @@ def _moveit_reports(urdf: str, srdf_path: Path, planning_request):
         preflight_input_document(request),
         allow_nan=False,
         ensure_ascii=False,
-        separators=(",", ":"),
+        separators=(',', ':'),
         sort_keys=True,
     )
     stage9c_executable = (
-        Path(get_package_prefix("ayyo_manipulation_simulation_execution"))
-        / "lib/ayyo_manipulation_simulation_execution/stage9c_moveit_preflight"
+        Path(get_package_prefix('ayyo_manipulation_simulation_execution'))
+        / 'lib/ayyo_manipulation_simulation_execution/stage9c_moveit_preflight'
     )
     input_path = None
     try:
         with tempfile.NamedTemporaryFile(
-            mode="w",
-            encoding="utf-8",
-            prefix="ayyo-stage9c-preflight-",
-            suffix=".json",
+            mode='w',
+            encoding='utf-8',
+            prefix='ayyo-stage9c-preflight-',
+            suffix='.json',
             delete=False,
         ) as stream:
             stream.write(preflight_payload)
@@ -180,22 +179,22 @@ class Stage9CClient(Node):
 
     def __init__(self) -> None:
         super().__init__(
-            "ayyo_stage9c_execution_client",
-            parameter_overrides=[Parameter("use_sim_time", value=True)],
+            'ayyo_stage9c_execution_client',
+            parameter_overrides=[Parameter('use_sim_time', value=True)],
         )
         self._state = None
         self._sequence = 0
         self._feedback_count = 0
         self._feedback_malformed = False
         self._feedback_positions = None
-        self.create_subscription(JointState, "/joint_states", self._on_state, 10)
+        self.create_subscription(JointState, '/joint_states', self._on_state, 10)
         self._controllers = self.create_client(
             ListControllers,
-            f"{CONTROLLER_MANAGER}/list_controllers",
+            f'{CONTROLLER_MANAGER}/list_controllers',
         )
         self._hardware = self.create_client(
             ListHardwareComponents,
-            f"{CONTROLLER_MANAGER}/list_hardware_components",
+            f'{CONTROLLER_MANAGER}/list_hardware_components',
         )
         self._action = ActionClient(
             self,
@@ -230,10 +229,10 @@ class Stage9CClient(Node):
     @property
     def _expected_names(self):
         return (
-            "left_shoulder_yaw_joint",
-            "left_shoulder_pitch_joint",
-            "left_elbow_flex_joint",
-            "left_wrist_yaw_joint",
+            'left_shoulder_yaw_joint',
+            'left_shoulder_pitch_joint',
+            'left_elbow_flex_joint',
+            'left_wrist_yaw_joint',
         )
 
     def wait_for_state(self) -> SimulatedJointState | None:
@@ -248,14 +247,23 @@ class Stage9CClient(Node):
                 return self._state
         return None
 
-    def wait_for_state_after(self, sequence: int) -> SimulatedJointState | None:
-        """Require an observed state sample delivered after an action result."""
-        deadline = time.monotonic() + FINAL_STATE_WAIT_SECONDS
+    def wait_for_final_state(
+        self,
+        sequence: int,
+        target: tuple[float, ...],
+        timeout_seconds: float,
+    ) -> SimulatedJointState | None:
+        """Observe bounded post-result settling without retrying the action."""
+        deadline = time.monotonic() + max(0.0, timeout_seconds)
+        latest = None
         while rclpy.ok() and time.monotonic() < deadline:
             rclpy.spin_once(self, timeout_sec=0.05)
             if self._state is not None and self._state.sequence > sequence:
-                return self._state
-        return None
+                latest = self._state
+                errors = observed_final_errors(latest.positions, target)
+                if all(error <= DEFAULT_FINAL_TOLERANCE for error in errors):
+                    return latest
+        return latest
 
     def controller_state(self, contract) -> SimulationControllerState:
         controller_active = False
@@ -269,14 +277,14 @@ class Stage9CClient(Node):
                     if (
                         controller.name == STAGE9C_CONTROLLER_NAME
                         and controller.type == STAGE9C_CONTROLLER_TYPE
-                        and controller.state == "active"
+                        and controller.state == 'active'
                     ):
                         controller_active = True
                         claimed = tuple(controller.claimed_interfaces)
                     elif (
                         controller.name == STATE_BROADCASTER
                         and controller.type == STATE_BROADCASTER_TYPE
-                        and controller.state == "active"
+                        and controller.state == 'active'
                     ):
                         broadcaster_active = True
         if self._hardware.wait_for_service(timeout_sec=2.0):
@@ -291,9 +299,9 @@ class Stage9CClient(Node):
                         if item.is_available and item.is_claimed
                     )
                     hardware_active = component.state.id == 3 and interfaces == tuple(
-                        f"{name}/position" for name in self._expected_names
+                        f'{name}/position' for name in self._expected_names
                     )
-        expected_claimed = tuple(f"{name}/position" for name in self._expected_names)
+        expected_claimed = tuple(f'{name}/position' for name in self._expected_names)
         if claimed != expected_claimed:
             claimed = ()
             controller_active = False
@@ -314,10 +322,10 @@ class Stage9CClient(Node):
         try:
             feedback = message.feedback
             if tuple(feedback.joint_names) != self._expected_names:
-                raise ValueError("feedback joint order differs")
+                raise ValueError('feedback joint order differs')
             positions = tuple(float(item) for item in feedback.actual.positions)
             if len(positions) != 4 or not all(isfinite(item) for item in positions):
-                raise ValueError("feedback positions are malformed")
+                raise ValueError('feedback positions are malformed')
             self._feedback_positions = positions
             self._feedback_count += 1
         except (AttributeError, TypeError, ValueError):
@@ -334,7 +342,7 @@ class Stage9CClient(Node):
                 SimulationExecutionOutcome.CONTROLLER_UNAVAILABLE,
                 0,
                 started,
-                "FollowJointTrajectory action became unavailable before dispatch.",
+                'FollowJointTrajectory action became unavailable before dispatch.',
             )
         handle = send.result()
         if not handle.accepted:
@@ -344,10 +352,11 @@ class Stage9CClient(Node):
                 SimulationExecutionOutcome.GOAL_REJECTED,
                 0,
                 started,
-                "FollowJointTrajectory goal was explicitly rejected.",
+                'FollowJointTrajectory goal was explicitly rejected.',
             )
         result_future = handle.get_result_async()
         timeout_seconds = goal.execution_timeout_ns / 1_000_000_000
+        execution_deadline = time.monotonic() + timeout_seconds
         if not _wait_future(self, result_future, timeout_seconds):
             cancel = handle.cancel_goal_async()
             confirmed = (
@@ -361,7 +370,7 @@ class Stage9CClient(Node):
                 SimulationExecutionOutcome.TIMED_OUT,
                 0,
                 started,
-                "Execution deadline expired; cancellation was requested.",
+                'Execution deadline expired; cancellation was requested.',
                 cancellation_requested=True,
                 cancellation_confirmed=confirmed,
                 timed_out=True,
@@ -373,12 +382,16 @@ class Stage9CClient(Node):
                 SimulationExecutionOutcome.SIMULATOR_SHUTDOWN,
                 0,
                 started,
-                "Simulation action terminated without a result.",
+                'Simulation action terminated without a result.',
             )
         wrapped = result_future.result()
         code = int(wrapped.result.error_code)
         result_sequence = self._sequence
-        final_state = self.wait_for_state_after(result_sequence)
+        final_state = self.wait_for_final_state(
+            result_sequence,
+            goal.points[-1].positions,
+            execution_deadline - time.monotonic(),
+        )
         if final_state is not None:
             self._feedback_positions = final_state.positions
         if self._feedback_malformed:
@@ -394,7 +407,7 @@ class Stage9CClient(Node):
             and code == FollowJointTrajectory.Result.SUCCESSFUL
             and self._feedback_positions is not None
             and all(
-                error <= 0.02
+                error <= DEFAULT_FINAL_TOLERANCE
                 for error in observed_final_errors(
                     self._feedback_positions,
                     goal.points[-1].positions,
@@ -415,7 +428,7 @@ class Stage9CClient(Node):
             outcome,
             code,
             started,
-            "Observed bounded FollowJointTrajectory result and correlated feedback.",
+            'Observed bounded FollowJointTrajectory result and correlated feedback.',
         )
 
     def _observation(
@@ -462,7 +475,7 @@ def main() -> int:
             STAGE9C_REVIEWED_SIMULATION_DESCRIPTION_FINGERPRINT,
             STAGE9C_REVIEWED_CONTROLLER_CONFIGURATION_FINGERPRINT,
         ):
-            print("FAIL: installed Stage 9C simulation profile is not reviewed", file=sys.stderr)
+            print('FAIL: installed Stage 9C simulation profile is not reviewed', file=sys.stderr)
             return 2
         urdf, srdf, srdf_path = _reviewed_descriptions()
         planning_request = reviewed_planning_request(urdf, srdf)
@@ -475,12 +488,12 @@ def main() -> int:
         node = Stage9CClient()
         try:
             if node.wait_for_state() is None:
-                print("FAIL: fresh simulated start state is unavailable", file=sys.stderr)
+                print('FAIL: fresh simulated start state is unavailable', file=sys.stderr)
                 return 2
             controller = node.controller_state(request.controller_contract)
             start = node.wait_for_state()
             if start is None:
-                print("FAIL: fresh simulated start state expired", file=sys.stderr)
+                print('FAIL: fresh simulated start state expired', file=sys.stderr)
                 return 2
             evaluated_at = max(0, node.get_clock().now().nanoseconds)
             preflight = evaluate_simulation_preflight(
@@ -500,9 +513,9 @@ def main() -> int:
                 SimulationExecutionOutcome.SIMULATION_EXECUTION_COMPLETED
             ):
                 print(
-                    "FAIL: observed action outcome "
-                    f"{observation.outcome.value}; final errors "
-                    f"{observation.final_joint_errors}",
+                    'FAIL: observed action outcome '
+                    f'{observation.outcome.value}; final errors '
+                    f'{observation.final_joint_errors}',
                     file=sys.stderr,
                 )
             return (
@@ -521,9 +534,9 @@ def main() -> int:
         subprocess.SubprocessError,
         ValueError,
     ) as error:
-        print(f"FAIL: Stage 9C execution rejected: {error}", file=sys.stderr)
+        print(f'FAIL: Stage 9C execution rejected: {error}', file=sys.stderr)
         return 2
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     raise SystemExit(main())

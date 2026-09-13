@@ -14,7 +14,7 @@ JOINT_NAMES = [
     "left_wrist_yaw_joint",
 ]
 START = (0.0, 0.0, 0.2, 0.0)
-GOAL = (0.3, 0.4, 0.8, 0.2)
+GOAL = (0.3, 0.0, 0.8, 0.2)
 PATH_SEGMENTS = 13
 DISABLED_COLLISION_PAIRS = [
     ["chest_link", "left_shoulder_mount_link"],

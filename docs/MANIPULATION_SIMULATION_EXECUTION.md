@@ -114,6 +114,16 @@ controller type, lifecycle state, claimed interfaces, simulated hardware
 state, state broadcaster, and action availability. A mismatch is rejected; the
 adapter does not teleport, prepend, or replan a path to the start.
 
+The dedicated profile sets gz_ros2_control's position tracking gain to `1.0`
+so the simulated arm can converge under its simulated load. This parameter is
+content-addressed with the controller configuration, remains absent from the
+ordinary neck-only profile, and has no physical-controller or hardware meaning.
+JointTrajectoryController enforces a `0.02` rad goal tolerance per reviewed
+joint, a `0.05` rad/s stopped-velocity tolerance, and at most four seconds of
+simulated goal-settling time. These development-only simulation values fit
+inside the execution contract's five-second margin and have no physical-safety
+meaning.
+
 One accepted goal receives a timeout equal to its reviewed duration plus a
 fixed five-second development margin. There is no automatic retry or
 replacement goal. On timeout the adapter requests cancellation and records
@@ -123,9 +133,11 @@ shutdown, malformed feedback, and missing final feedback remain explicit
 failure outcomes.
 
 Successful classification requires an accepted action, controller success,
-at least one valid correlated feedback sample, one fresh simulated joint-state
-sample received after the result, no timeout/cancellation, and final absolute
-error no greater than `0.02` rad on every reviewed joint. The bounded
+at least one valid correlated feedback sample, and a fresh post-result simulated
+joint-state observation that settles within the original execution deadline,
+with no timeout/cancellation and final absolute error no greater than `0.02`
+rad on every reviewed joint. This observation period never resends or replaces
+the action. The bounded
 observation records start/completion times, start/end/target positions, final
 errors, feedback count, controller code, and cancellation/timeout truth. It
 does not retain an unbounded telemetry stream.
@@ -185,6 +197,12 @@ development action:
 AYYO_STAGE9C_INSTALL_SETUP=/tmp/ayyo-stage9c-install/setup.bash \
   scripts/smoke_manipulation_simulation_execution.sh
 ```
+
+The proof's reviewed development fixture moves from
+`(0.0, 0.0, 0.2, 0.0)` to `(0.3, 0.0, 0.8, 0.2)` in canonical left-arm joint
+order. Stage 9A owns and collision-checks that candidate path, Stage 9B owns
+its exact timing, and Stage 9C forwards the resulting trajectory without
+altering its geometry.
 
 ## Remaining Stage 9 work
 

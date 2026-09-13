@@ -17,33 +17,33 @@ from ayyo_executive import (
     PlanStep,
 )
 from ayyo_manipulation_planning import (
+    build_left_arm_planning_model,
+    build_reviewed_collision_model,
     CollisionBox,
+    default_planner_configuration,
+    deterministic_joint_interpolation,
+    evaluate_manipulation_plan,
     ExecutionDisposition,
+    make_joint_goal,
+    make_joint_state,
     ManipulationPlanEvidence,
     ManipulationPlanningRequest,
     MoveItCollisionProof,
     PlanEvidenceStatus,
     PlanningSceneEvidence,
-    build_left_arm_planning_model,
-    build_reviewed_collision_model,
-    default_planner_configuration,
-    deterministic_joint_interpolation,
-    evaluate_manipulation_plan,
-    make_joint_goal,
-    make_joint_state,
 )
 from ayyo_manipulation_simulation_execution import create_simulation_execution_request
 from ayyo_manipulation_trajectory import (
-    FUTURE_SKILL_BACKEND_ID,
-    SAFETY_REVIEW_CAPABILITY_ID,
-    SAFETY_REVIEW_STEP_ID,
-    TrajectoryConstructionRequest,
-    TrajectoryTimingConfiguration,
     construct_deterministic_trajectory,
     create_trajectory_evidence,
     evaluate_execution_handoff_eligibility,
     evaluate_trajectory_safety_eligibility,
+    FUTURE_SKILL_BACKEND_ID,
+    SAFETY_REVIEW_CAPABILITY_ID,
+    SAFETY_REVIEW_STEP_ID,
     trajectory_safety_review_parameters,
+    TrajectoryConstructionRequest,
+    TrajectoryTimingConfiguration,
 )
 from ayyo_personal_context import ContextSnapshotVersion
 from ayyo_safety import CapabilitySafetyRule, HazardClass, SafetyKernel, SafetyPolicy
@@ -68,7 +68,6 @@ def reviewed_planning_request(
     reviewed_srdf: str,
 ) -> ManipulationPlanningRequest:
     """Construct the documented fixed Stage 9A demonstration request."""
-
     model, catalog, group = build_left_arm_planning_model(expanded_urdf)
     collision_model = build_reviewed_collision_model(
         expanded_urdf,
@@ -78,8 +77,8 @@ def reviewed_planning_request(
         group,
     )
     box = CollisionBox(
-        object_id="review-box",
-        frame_id="base_link",
+        object_id='review-box',
+        frame_id='base_link',
         position_xyz=(1.0, 0.0, 0.5),
         orientation_xyzw=(0.0, 0.0, 0.0, 1.0),
         dimensions_xyz=(0.1, 0.1, 0.1),
@@ -90,13 +89,13 @@ def reviewed_planning_request(
         group=group,
         collision_model=collision_model,
         start_state=make_joint_state(group, catalog, (0.0, 0.0, 0.2, 0.0)),
-        goal=make_joint_goal(group, catalog, (0.3, 0.4, 0.8, 0.2)),
+        goal=make_joint_goal(group, catalog, (0.3, 0.0, 0.8, 0.2)),
         scene=PlanningSceneEvidence(
             robot_model_id=model.robot_model_id,
             robot_model_fingerprint=model.robot_model_fingerprint,
             group_id=group.group_id,
             group_fingerprint=group.group_fingerprint,
-            frame_id="base_link",
+            frame_id='base_link',
             collision_objects=(box,),
         ),
         planner_configuration=default_planner_configuration(),
@@ -118,17 +117,17 @@ def _proposal(trajectory_evidence) -> ExecutiveDecision:
     )
     return ExecutiveDecision(
         request_id=trajectory_evidence.trajectory_evidence_id,
-        owner_subject="ayyo-stage9c-simulation-proof",
+        owner_subject='ayyo-stage9c-simulation-proof',
         decision_type=ExecutiveDecisionType.PROPOSE,
         reason_codes=(DecisionReason.READY_FOR_SAFETY_REVIEW,),
         explanation=(
-            "Review one exact Stage 9B trajectory for explicit Stage 9C simulation."
+            'Review one exact Stage 9B trajectory for explicit Stage 9C simulation.'
         ),
-        context_snapshot_version=ContextSnapshotVersion("3" * 64),
-        request_fingerprint=Fingerprint(FingerprintKind.REQUEST, "1" * 64),
+        context_snapshot_version=ContextSnapshotVersion('3' * 64),
+        request_fingerprint=Fingerprint(FingerprintKind.REQUEST, '1' * 64),
         capability_contract_fingerprint=Fingerprint(
             FingerprintKind.CAPABILITY_CONTRACT,
-            "2" * 64,
+            '2' * 64,
         ),
         context_references=(),
         assumptions=(),
@@ -148,17 +147,17 @@ def _skill_manager(kernel, parameters) -> SkillManagerService:
                 min_length=1,
                 max_length=256,
                 allowed_values=(value,)
-                if name in {"execution_disposition", "physical_validation"}
+                if name in {'execution_disposition', 'physical_validation'}
                 else (),
             ),
         )
         for name, value in parameters.items()
     )
     skill = SkillDefinition(
-        skill_id="manipulation.trajectory.simulation-review",
-        version=SemanticVersion("1.0.0"),
-        name="Future manipulation simulation review",
-        description="Inert declarative Stage 9B handoff; Stage 9C remains explicit.",
+        skill_id='manipulation.trajectory.simulation-review',
+        version=SemanticVersion('1.0.0'),
+        name='Future manipulation simulation review',
+        description='Inert declarative Stage 9B handoff; Stage 9C remains explicit.',
         capability_ids=(SAFETY_REVIEW_CAPABILITY_ID,),
         backend_id=FUTURE_SKILL_BACKEND_ID,
         input_schema=ValueSchema(ValueType.OBJECT, properties=properties),
@@ -171,10 +170,10 @@ def _skill_manager(kernel, parameters) -> SkillManagerService:
         failure_semantics=FailureSemantics.NON_RETRYABLE,
         availability=SkillAvailability.AVAILABLE,
         lifecycle=SkillLifecycle.VALIDATED,
-        metadata={"authority": "none", "stage": "9b"},
+        metadata={'authority': 'none', 'stage': '9b'},
     )
     return SkillManagerService(
-        registry=SkillRegistry(version=SemanticVersion("1.0.0"), skills=(skill,)),
+        registry=SkillRegistry(version=SemanticVersion('1.0.0'), skills=(skill,)),
         safety_kernel=kernel,
     )
 
@@ -184,7 +183,6 @@ def reviewed_execution_request(
     collision_proof: MoveItCollisionProof,
 ):
     """Derive Stage 9C only after binding the observed Stage 9A proof."""
-
     waypoints = deterministic_joint_interpolation(planning_request)
     stage9a_evidence = ManipulationPlanEvidence(
         request=planning_request,
@@ -225,7 +223,7 @@ def reviewed_execution_request(
         trajectory_safety_review_parameters(evidence),
     )
     selection = manager.registry.selection(
-        skill_id="manipulation.trajectory.simulation-review",
+        skill_id='manipulation.trajectory.simulation-review',
         capability_id=SAFETY_REVIEW_CAPABILITY_ID,
         source_step_id=SAFETY_REVIEW_STEP_ID,
     )

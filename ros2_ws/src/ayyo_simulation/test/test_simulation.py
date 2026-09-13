@@ -430,6 +430,9 @@ def test_stage9c_controller_configuration_is_exact_and_position_only() -> None:
         )
     )
     manager = config['controller_manager']['ros__parameters']
+    assert config['gz_ros_control']['ros__parameters'] == {
+        'position_proportional_gain': 1.0,
+    }
     assert manager['ayyo_left_arm_trajectory_controller']['type'] == (
         'joint_trajectory_controller/JointTrajectoryController'
     )
@@ -445,6 +448,14 @@ def test_stage9c_controller_configuration_is_exact_and_position_only() -> None:
     assert controller['state_interfaces'] == ['position', 'velocity']
     assert controller['allow_partial_joints_goal'] is False
     assert controller['allow_nonzero_velocity_at_trajectory_end'] is False
+    assert controller['constraints'] == {
+        'goal_time': 4.0,
+        'stopped_velocity_tolerance': 0.05,
+        'left_shoulder_yaw_joint': {'goal': 0.02},
+        'left_shoulder_pitch_joint': {'goal': 0.02},
+        'left_elbow_flex_joint': {'goal': 0.02},
+        'left_wrist_yaw_joint': {'goal': 0.02},
+    }
 
 
 def test_control_lifecycle_is_spawn_then_state_then_position() -> None:
@@ -458,8 +469,8 @@ def test_control_lifecycle_is_spawn_then_state_then_position() -> None:
     assert 'manipulation_controller_spawner,' in source
     assert 'target_action=position_controller_spawner' in source
     assert 'on_exit=[development_control_node]' in source
-    assert "enable_manipulation_control = LaunchConfiguration(" in source
-    assert "NotSubstitution(enable_manipulation_control)" in source
+    assert 'enable_manipulation_control = LaunchConfiguration(' in source
+    assert 'NotSubstitution(enable_manipulation_control)' in source
     assert 'AndSubstitution(enable_control, enable_development_control)' in source
 
 
