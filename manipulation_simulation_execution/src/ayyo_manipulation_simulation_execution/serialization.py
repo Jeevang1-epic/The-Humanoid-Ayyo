@@ -21,6 +21,7 @@ from .errors import (
     SimulationExecutionValidationError,
 )
 from .models import (
+    BASE_POSE_SCHEMA_ID,
     COLLISION_PROOF_SCHEMA_ID,
     CONTROLLER_CONTRACT_SCHEMA_ID,
     CONTROLLER_STATE_SCHEMA_ID,
@@ -31,6 +32,8 @@ from .models import (
     JOINT_STATE_SCHEMA_ID,
     PREFLIGHT_EVIDENCE_SCHEMA_ID,
     SAMPLING_POLICY_SCHEMA_ID,
+    STABILITY_OBSERVATION_SCHEMA_ID,
+    WHOLE_BODY_STATE_SCHEMA_ID,
     CollisionSamplingPolicy,
     DenseCollisionSample,
     GoalAcceptance,
@@ -53,10 +56,17 @@ from .models import (
     SimulationGoalPoint,
     SimulationMotionStatus,
     SimulationPreflightEvidence,
+    SimulationStabilityObservation,
+    SimulationSupportMode,
+    StabilityReason,
+    StabilityStatus,
+    SimulatedBasePose,
     SimulatedJointState,
+    SimulatedWholeBodyState,
     verify_collision_proof,
     verify_controller_contract,
     verify_controller_state,
+    verify_base_pose,
     verify_execution_goal,
     verify_execution_observation,
     verify_execution_request,
@@ -64,6 +74,8 @@ from .models import (
     verify_joint_state,
     verify_preflight_evidence,
     verify_sampling_policy,
+    verify_stability_observation,
+    verify_whole_body_state,
 )
 
 
@@ -74,6 +86,9 @@ Stage9CArtifact = (
     | SimulationCollisionProof
     | SimulatedJointState
     | SimulationControllerState
+    | SimulatedBasePose
+    | SimulatedWholeBodyState
+    | SimulationStabilityObservation
     | SimulationPreflightEvidence
     | SimulationExecutionGoal
     | SimulationExecutionObservation
@@ -140,6 +155,7 @@ def _controller(value: object) -> SimulationControllerContract:
         {
             "action_endpoint",
             "allow_partial_joints_goal",
+            "base_pose_topic",
             "command_interfaces",
             "controller_configuration_fingerprint",
             "controller_contract_fingerprint",
@@ -156,6 +172,7 @@ def _controller(value: object) -> SimulationControllerContract:
             "simulation_description_fingerprint",
             "simulation_mode",
             "state_interfaces",
+            "support_mode",
             "use_sim_time",
         },
         "controller_contract",
@@ -179,9 +196,11 @@ def _controller(value: object) -> SimulationControllerContract:
             ),
             interpolation_method=item["interpolation_method"],
             allow_partial_joints_goal=item["allow_partial_joints_goal"],
+            base_pose_topic=item["base_pose_topic"],
             use_sim_time=item["use_sim_time"],
             simulation_mode=item["simulation_mode"],
             manipulation_control_enabled=item["manipulation_control_enabled"],
+            support_mode=SimulationSupportMode(item["support_mode"]),
             simulation_description_fingerprint=(
                 item["simulation_description_fingerprint"]
             ),
@@ -386,6 +405,7 @@ def _controller_state(value: object) -> SimulationControllerState:
         item,
         {
             "action_server_available",
+            "base_pose_observable",
             "claimed_command_interfaces",
             "controller_active",
             "controller_contract_fingerprint",
@@ -395,6 +415,7 @@ def _controller_state(value: object) -> SimulationControllerState:
             "observed_at_ns",
             "schema",
             "state_broadcaster_active",
+            "support_fixture_active",
         },
         "controller_state",
     )
@@ -410,6 +431,8 @@ def _controller_state(value: object) -> SimulationControllerState:
             hardware_active=item["hardware_active"],
             state_broadcaster_active=item["state_broadcaster_active"],
             action_server_available=item["action_server_available"],
+            support_fixture_active=item["support_fixture_active"],
+            base_pose_observable=item["base_pose_observable"],
             claimed_command_interfaces=tuple(
                 _sequence(
                     item["claimed_command_interfaces"],
@@ -417,6 +440,113 @@ def _controller_state(value: object) -> SimulationControllerState:
                 )
             ),
             observed_at_ns=item["observed_at_ns"],
+        ),
+    )
+
+
+def _base_pose(value: object) -> SimulatedBasePose:
+    item = _mapping(value, "base_pose")
+    _exact_keys(
+        item,
+        {
+            "base_pose_fingerprint",
+            "observed_at_ns",
+            "orientation_xyzw",
+            "position_xyz",
+            "schema",
+            "sequence",
+            "source",
+        },
+        "base_pose",
+    )
+    _schema(item, BASE_POSE_SCHEMA_ID)
+    return _verify_recomputed(
+        item,
+        SimulatedBasePose(
+            position_xyz=tuple(_sequence(item["position_xyz"], "position_xyz")),
+            orientation_xyzw=tuple(
+                _sequence(item["orientation_xyzw"], "orientation_xyzw")
+            ),
+            observed_at_ns=item["observed_at_ns"],
+            sequence=item["sequence"],
+            source=item["source"],
+        ),
+    )
+
+
+def _whole_body_state(value: object) -> SimulatedWholeBodyState:
+    item = _mapping(value, "whole_body_state")
+    _exact_keys(
+        item,
+        {
+            "base_pose",
+            "joint_names",
+            "observed_at_ns",
+            "positions",
+            "schema",
+            "sequence",
+            "source",
+            "whole_body_state_fingerprint",
+        },
+        "whole_body_state",
+    )
+    _schema(item, WHOLE_BODY_STATE_SCHEMA_ID)
+    return _verify_recomputed(
+        item,
+        SimulatedWholeBodyState(
+            joint_names=tuple(_sequence(item["joint_names"], "joint_names")),
+            positions=tuple(_sequence(item["positions"], "positions")),
+            observed_at_ns=item["observed_at_ns"],
+            sequence=item["sequence"],
+            base_pose=_base_pose(item["base_pose"]),
+            source=item["source"],
+        ),
+    )
+
+
+def _stability_observation(value: object) -> SimulationStabilityObservation:
+    item = _mapping(value, "stability_observation")
+    _exact_keys(
+        item,
+        {
+            "evaluated_at_ns",
+            "final_state",
+            "initial_state",
+            "maximum_base_roll_pitch",
+            "maximum_base_translation",
+            "maximum_base_yaw_change",
+            "maximum_non_target_joint_displacement",
+            "minimum_base_height",
+            "post_controller_state",
+            "reasons",
+            "schema",
+            "stability_observation_fingerprint",
+            "state_freshness_ns",
+            "status",
+        },
+        "stability_observation",
+    )
+    _schema(item, STABILITY_OBSERVATION_SCHEMA_ID)
+    return _verify_recomputed(
+        item,
+        SimulationStabilityObservation(
+            initial_state=_whole_body_state(item["initial_state"]),
+            final_state=_whole_body_state(item["final_state"]),
+            post_controller_state=_controller_state(item["post_controller_state"]),
+            evaluated_at_ns=item["evaluated_at_ns"],
+            status=StabilityStatus(item["status"]),
+            reasons=tuple(
+                StabilityReason(raw)
+                for raw in _sequence(item["reasons"], "stability reasons")
+            ),
+            state_freshness_ns=item["state_freshness_ns"],
+            maximum_base_translation=item["maximum_base_translation"],
+            maximum_base_roll_pitch=item["maximum_base_roll_pitch"],
+            maximum_base_yaw_change=item["maximum_base_yaw_change"],
+            maximum_non_target_joint_displacement=item[
+                "maximum_non_target_joint_displacement"
+            ],
+            minimum_base_height=item["minimum_base_height"],
         ),
     )
 
@@ -529,6 +659,7 @@ def _observation(value: object) -> SimulationExecutionObservation:
             "outcome",
             "schema",
             "started_at_ns",
+            "stability_observation",
             "starting_positions",
             "timed_out",
         },
@@ -567,6 +698,11 @@ def _observation(value: object) -> SimulationExecutionObservation:
             cancellation_confirmed=item["cancellation_confirmed"],
             timed_out=item["timed_out"],
             detail=item["detail"],
+            stability_observation=(
+                None
+                if item["stability_observation"] is None
+                else _stability_observation(item["stability_observation"])
+            ),
         ),
     )
 
@@ -615,6 +751,9 @@ _VERIFIERS: dict[type, Callable[[object], bool]] = {
     SimulationCollisionProof: verify_collision_proof,
     SimulatedJointState: verify_joint_state,
     SimulationControllerState: verify_controller_state,
+    SimulatedBasePose: verify_base_pose,
+    SimulatedWholeBodyState: verify_whole_body_state,
+    SimulationStabilityObservation: verify_stability_observation,
     SimulationPreflightEvidence: verify_preflight_evidence,
     SimulationExecutionGoal: verify_execution_goal,
     SimulationExecutionObservation: verify_execution_observation,
@@ -700,6 +839,12 @@ def simulation_execution_artifact_from_canonical_json(
             return _joint_state(item)
         if schema_id == CONTROLLER_STATE_SCHEMA_ID:
             return _controller_state(item)
+        if schema_id == BASE_POSE_SCHEMA_ID:
+            return _base_pose(item)
+        if schema_id == WHOLE_BODY_STATE_SCHEMA_ID:
+            return _whole_body_state(item)
+        if schema_id == STABILITY_OBSERVATION_SCHEMA_ID:
+            return _stability_observation(item)
         if schema_id == PREFLIGHT_EVIDENCE_SCHEMA_ID:
             return _preflight(item, context)
         if schema_id == EXECUTION_GOAL_SCHEMA_ID:

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import StrEnum
-from math import ceil
+from math import asin, atan2, ceil, sqrt
 
 from ayyo_manipulation_planning import (
     LEFT_ARM_JOINT_NAMES,
@@ -47,12 +47,13 @@ STAGE9C_ACTION_ENDPOINT = (
 )
 STAGE9C_HARDWARE_SYSTEM = "AyyoSystem"
 STAGE9C_INTERPOLATION_METHOD = "position-only-linear"
+STAGE9C_BASE_POSE_TOPIC = "/ayyo/localization/odometry"
 STAGE9C_COLLISION_BACKEND_ID = "moveit.planning-scene.stage9c-preflight.v1"
 STAGE9C_COLLISION_BACKEND_VERSION = "moveit-2.12.4"
 STAGE9C_SAMPLING_POLICY_ID = "ayyo.stage9c.bounded-linear-sampling.v1"
 STAGE9C_REVIEWED_SIMULATION_DESCRIPTION_FINGERPRINT = (
     "ayyo-stage9c-simulation-description-sha256-"
-    "cb595e3d4c8829d158c823550d331c23028d43e36174916154543371a31b50ec"
+    "dcc8a1155e5d92da54b89145a8f579226e3ad6d40ca20ba1fb36e7e5ea9627da"
 )
 STAGE9C_REVIEWED_CONTROLLER_CONFIGURATION_FINGERPRINT = (
     "ayyo-stage9c-controller-configuration-sha256-"
@@ -60,6 +61,27 @@ STAGE9C_REVIEWED_CONTROLLER_CONFIGURATION_FINGERPRINT = (
 )
 
 MAX_STAGE9C_JOINTS = 4
+STAGE9C_WHOLE_BODY_JOINT_NAMES = (
+    "neck_yaw_joint",
+    "head_pitch_joint",
+    *LEFT_ARM_JOINT_NAMES,
+    "right_shoulder_yaw_joint",
+    "right_shoulder_pitch_joint",
+    "right_elbow_flex_joint",
+    "right_wrist_yaw_joint",
+    "left_hip_yaw_joint",
+    "left_hip_pitch_joint",
+    "left_knee_flex_joint",
+    "left_ankle_pitch_joint",
+    "right_hip_yaw_joint",
+    "right_hip_pitch_joint",
+    "right_knee_flex_joint",
+    "right_ankle_pitch_joint",
+)
+STAGE9C_NON_TARGET_JOINT_NAMES = tuple(
+    name for name in STAGE9C_WHOLE_BODY_JOINT_NAMES if name not in LEFT_ARM_JOINT_NAMES
+)
+MAX_STAGE9C_WHOLE_BODY_JOINTS = len(STAGE9C_WHOLE_BODY_JOINT_NAMES)
 MAX_STAGE9C_TRAJECTORY_POINTS = 129
 MAX_PREFLIGHT_SAMPLES_PER_SEGMENT = 64
 MAX_PREFLIGHT_SAMPLES = 4096
@@ -68,6 +90,11 @@ MAXIMUM_ALLOWED_JOINT_SAMPLE_STEP = 0.02
 DEFAULT_START_TOLERANCE = 0.01
 DEFAULT_FINAL_TOLERANCE = 0.02
 DEFAULT_STATE_FRESHNESS_NS = 500_000_000
+DEFAULT_MAXIMUM_BASE_TRANSLATION = 0.005
+DEFAULT_MAXIMUM_BASE_ROLL_PITCH = 0.01
+DEFAULT_MAXIMUM_BASE_YAW_CHANGE = 0.01
+DEFAULT_MAXIMUM_NON_TARGET_JOINT_DISPLACEMENT = 0.01
+DEFAULT_MINIMUM_BASE_HEIGHT = 0.90
 DEFAULT_EXECUTION_TIMEOUT_MARGIN_NS = 5_000_000_000
 MAX_EXECUTION_TIMEOUT_NS = 310_000_000_000
 
@@ -89,6 +116,13 @@ JOINT_STATE_SCHEMA_ID = (
 CONTROLLER_STATE_SCHEMA_ID = (
     "ayyo.manipulation-simulation-execution.controller-state.v1"
 )
+BASE_POSE_SCHEMA_ID = "ayyo.manipulation-simulation-execution.base-pose.v1"
+WHOLE_BODY_STATE_SCHEMA_ID = (
+    "ayyo.manipulation-simulation-execution.whole-body-state.v1"
+)
+STABILITY_OBSERVATION_SCHEMA_ID = (
+    "ayyo.manipulation-simulation-execution.stability-observation.v1"
+)
 PREFLIGHT_EVIDENCE_SCHEMA_ID = (
     "ayyo.manipulation-simulation-execution.preflight.v1"
 )
@@ -105,6 +139,10 @@ EXECUTION_RESULT_SCHEMA_ID = (
 
 class SimulationEnvironment(StrEnum):
     GAZEBO_HARMONIC = "gazebo_harmonic"
+
+
+class SimulationSupportMode(StrEnum):
+    FIXED_BASE_MANIPULATION_FIXTURE = "fixed_base_manipulation_fixture"
 
 
 class SimulationAuthority(StrEnum):
@@ -138,6 +176,22 @@ class PreflightReason(StrEnum):
     STATE_STALE = "state_stale"
 
 
+class StabilityStatus(StrEnum):
+    WHOLE_BODY_STABLE = "whole_body_stable"
+    REJECTED = "rejected"
+
+
+class StabilityReason(StrEnum):
+    WHOLE_BODY_STABLE = "whole_body_stable"
+    POST_STATE_STALE = "post_state_stale"
+    CONTROLLER_NOT_READY = "controller_not_ready"
+    BASE_TRANSLATION_EXCEEDED = "base_translation_exceeded"
+    BASE_ROLL_PITCH_EXCEEDED = "base_roll_pitch_exceeded"
+    BASE_YAW_CHANGE_EXCEEDED = "base_yaw_change_exceeded"
+    BASE_HEIGHT_INVALID = "base_height_invalid"
+    NON_TARGET_JOINT_MOTION = "non_target_joint_motion"
+
+
 class GoalAcceptance(StrEnum):
     NOT_SENT = "not_sent"
     REJECTED = "rejected"
@@ -155,6 +209,7 @@ class SimulationExecutionOutcome(StrEnum):
     ABORTED = "aborted"
     SIMULATOR_SHUTDOWN = "simulator_shutdown"
     MALFORMED_FEEDBACK = "malformed_feedback"
+    WHOLE_BODY_STABILITY_VIOLATED = "whole_body_stability_violated"
 
 
 class SimulationExecutionResultStatus(StrEnum):
@@ -257,6 +312,24 @@ def _position_tuple(value: object, field_name: str) -> tuple[float, ...]:
     return tuple(finite_float(item, field_name) for item in value)
 
 
+def _whole_body_position_tuple(value: object, field_name: str) -> tuple[float, ...]:
+    if type(value) not in {tuple, list} or len(value) != MAX_STAGE9C_WHOLE_BODY_JOINTS:
+        raise SimulationExecutionValidationError(
+            SimulationExecutionFailureCode.PHYSICAL_OBSERVATION,
+            f"{field_name} must contain all reviewed movable-joint positions",
+        )
+    return tuple(finite_float(item, field_name) for item in value)
+
+
+def _fixed_vector(value: object, field_name: str, length: int) -> tuple[float, ...]:
+    if type(value) not in {tuple, list} or len(value) != length:
+        raise SimulationExecutionValidationError(
+            SimulationExecutionFailureCode.PHYSICAL_OBSERVATION,
+            f"{field_name} must contain exactly {length} finite values",
+        )
+    return tuple(finite_float(item, field_name) for item in value)
+
+
 def _timestamp_ns(value: object, field_name: str) -> int:
     return bounded_integer(value, field_name, 0, 2**63 - 1)
 
@@ -277,6 +350,10 @@ class SimulationControllerContract:
     use_sim_time: bool = True
     simulation_mode: bool = True
     manipulation_control_enabled: bool = True
+    support_mode: SimulationSupportMode = (
+        SimulationSupportMode.FIXED_BASE_MANIPULATION_FIXTURE
+    )
+    base_pose_topic: str = STAGE9C_BASE_POSE_TOPIC
     simulation_description_fingerprint: str = (
         STAGE9C_REVIEWED_SIMULATION_DESCRIPTION_FINGERPRINT
     )
@@ -337,6 +414,12 @@ class SimulationControllerContract:
             identifier(self.interpolation_method, "interpolation_method"),
         )
         _closed_enum(self.environment, SimulationEnvironment, "environment")
+        _closed_enum(self.support_mode, SimulationSupportMode, "support_mode")
+        object.__setattr__(
+            self,
+            "base_pose_topic",
+            bounded_text(self.base_pose_topic, "base_pose_topic", 256),
+        )
         for name in (
             "allow_partial_joints_goal",
             "use_sim_time",
@@ -379,6 +462,9 @@ class SimulationControllerContract:
             and self.use_sim_time
             and self.simulation_mode
             and self.manipulation_control_enabled
+            and self.support_mode
+            is SimulationSupportMode.FIXED_BASE_MANIPULATION_FIXTURE
+            and self.base_pose_topic == STAGE9C_BASE_POSE_TOPIC
             and self.simulation_description_fingerprint
             == STAGE9C_REVIEWED_SIMULATION_DESCRIPTION_FINGERPRINT
             and self.controller_configuration_fingerprint
@@ -401,6 +487,7 @@ class SimulationControllerContract:
         return {
             "action_endpoint": self.action_endpoint,
             "allow_partial_joints_goal": self.allow_partial_joints_goal,
+            "base_pose_topic": self.base_pose_topic,
             "command_interfaces": list(self.command_interfaces),
             "controller_configuration_fingerprint": (
                 self.controller_configuration_fingerprint
@@ -419,6 +506,7 @@ class SimulationControllerContract:
             ),
             "simulation_mode": self.simulation_mode,
             "state_interfaces": list(self.state_interfaces),
+            "support_mode": self.support_mode.value,
             "use_sim_time": self.use_sim_time,
         }
 
@@ -449,6 +537,8 @@ def verify_controller_contract(value: object) -> bool:
             use_sim_time=value.use_sim_time,
             simulation_mode=value.simulation_mode,
             manipulation_control_enabled=value.manipulation_control_enabled,
+            support_mode=value.support_mode,
+            base_pose_topic=value.base_pose_topic,
             simulation_description_fingerprint=(
                 value.simulation_description_fingerprint
             ),
@@ -1130,6 +1220,8 @@ class SimulationControllerState:
     hardware_active: bool
     state_broadcaster_active: bool
     action_server_available: bool
+    support_fixture_active: bool
+    base_pose_observable: bool
     claimed_command_interfaces: tuple[str, ...]
     observed_at_ns: int
     schema_id: str = field(init=False, default=CONTROLLER_STATE_SCHEMA_ID)
@@ -1155,6 +1247,8 @@ class SimulationControllerState:
             "hardware_active",
             "state_broadcaster_active",
             "action_server_available",
+            "support_fixture_active",
+            "base_pose_observable",
         ):
             if type(getattr(self, name)) is not bool:
                 raise SimulationExecutionValidationError(
@@ -1191,6 +1285,8 @@ class SimulationControllerState:
             and self.hardware_active
             and self.state_broadcaster_active
             and self.action_server_available
+            and self.support_fixture_active
+            and self.base_pose_observable
             and self.claimed_command_interfaces
             == tuple(f"{name}/position" for name in LEFT_ARM_JOINT_NAMES)
         )
@@ -1198,6 +1294,7 @@ class SimulationControllerState:
     def _semantic_dict(self) -> dict[str, JSONValue]:
         return {
             "action_server_available": self.action_server_available,
+            "base_pose_observable": self.base_pose_observable,
             "claimed_command_interfaces": list(self.claimed_command_interfaces),
             "controller_active": self.controller_active,
             "controller_contract_fingerprint": self.controller_contract_fingerprint,
@@ -1206,6 +1303,7 @@ class SimulationControllerState:
             "observed_at_ns": self.observed_at_ns,
             "schema": _schema(self.schema_id),
             "state_broadcaster_active": self.state_broadcaster_active,
+            "support_fixture_active": self.support_fixture_active,
         }
 
     def as_dict(self) -> dict[str, JSONValue]:
@@ -1226,8 +1324,424 @@ def verify_controller_state(value: object) -> bool:
             hardware_active=value.hardware_active,
             state_broadcaster_active=value.state_broadcaster_active,
             action_server_available=value.action_server_available,
+            support_fixture_active=value.support_fixture_active,
+            base_pose_observable=value.base_pose_observable,
             claimed_command_interfaces=value.claimed_command_interfaces,
             observed_at_ns=value.observed_at_ns,
+        ),
+    )
+
+
+@dataclass(frozen=True, slots=True)
+class SimulatedBasePose:
+    position_xyz: tuple[float, ...]
+    orientation_xyzw: tuple[float, ...]
+    observed_at_ns: int
+    sequence: int
+    source: str = "gazebo_odometry_publisher"
+    schema_id: str = field(init=False, default=BASE_POSE_SCHEMA_ID)
+    schema_version: str = field(init=False, default=SCHEMA_VERSION)
+    base_pose_fingerprint: str = field(init=False)
+
+    def __post_init__(self) -> None:
+        position = _fixed_vector(self.position_xyz, "base position", 3)
+        orientation = _fixed_vector(self.orientation_xyzw, "base orientation", 4)
+        norm = sqrt(sum(value * value for value in orientation))
+        if abs(norm - 1.0) > 1e-6:
+            raise SimulationExecutionValidationError(
+                SimulationExecutionFailureCode.PHYSICAL_OBSERVATION,
+                "base orientation must be a normalized quaternion",
+            )
+        object.__setattr__(self, "position_xyz", position)
+        object.__setattr__(self, "orientation_xyzw", orientation)
+        object.__setattr__(
+            self,
+            "observed_at_ns",
+            _timestamp_ns(self.observed_at_ns, "base observed_at_ns"),
+        )
+        object.__setattr__(
+            self,
+            "sequence",
+            bounded_integer(self.sequence, "base sequence", 1, 2**63 - 1),
+        )
+        object.__setattr__(self, "source", identifier(self.source, "base source"))
+        if self.source != "gazebo_odometry_publisher":
+            raise SimulationExecutionValidationError(
+                SimulationExecutionFailureCode.PHYSICAL_OBSERVATION,
+                "base pose must come from the reviewed Gazebo odometry source",
+            )
+        object.__setattr__(
+            self,
+            "base_pose_fingerprint",
+            semantic_fingerprint("stage9c-base-pose", self._semantic_dict()),
+        )
+
+    def _semantic_dict(self) -> dict[str, JSONValue]:
+        return {
+            "observed_at_ns": self.observed_at_ns,
+            "orientation_xyzw": list(self.orientation_xyzw),
+            "position_xyz": list(self.position_xyz),
+            "schema": _schema(self.schema_id),
+            "sequence": self.sequence,
+            "source": self.source,
+        }
+
+    def as_dict(self) -> dict[str, JSONValue]:
+        return {**self._semantic_dict(), "base_pose_fingerprint": self.base_pose_fingerprint}
+
+
+def verify_base_pose(value: object) -> bool:
+    return _verify(
+        value,
+        SimulatedBasePose,
+        lambda: SimulatedBasePose(
+            position_xyz=value.position_xyz,
+            orientation_xyzw=value.orientation_xyzw,
+            observed_at_ns=value.observed_at_ns,
+            sequence=value.sequence,
+            source=value.source,
+        ),
+    )
+
+
+@dataclass(frozen=True, slots=True)
+class SimulatedWholeBodyState:
+    joint_names: tuple[str, ...]
+    positions: tuple[float, ...]
+    observed_at_ns: int
+    sequence: int
+    base_pose: SimulatedBasePose
+    source: str = "joint_state_broadcaster"
+    schema_id: str = field(init=False, default=WHOLE_BODY_STATE_SCHEMA_ID)
+    schema_version: str = field(init=False, default=SCHEMA_VERSION)
+    whole_body_state_fingerprint: str = field(init=False)
+
+    def __post_init__(self) -> None:
+        names = _identifier_tuple(
+            self.joint_names,
+            "whole-body joint names",
+            MAX_STAGE9C_WHOLE_BODY_JOINTS,
+            minimum=MAX_STAGE9C_WHOLE_BODY_JOINTS,
+        )
+        positions = _whole_body_position_tuple(
+            self.positions,
+            "whole-body joint positions",
+        )
+        if names != STAGE9C_WHOLE_BODY_JOINT_NAMES:
+            raise SimulationExecutionValidationError(
+                SimulationExecutionFailureCode.PHYSICAL_OBSERVATION,
+                "whole-body state must use every reviewed movable joint in exact order",
+            )
+        if not verify_base_pose(self.base_pose):
+            raise SimulationExecutionValidationError(
+                SimulationExecutionFailureCode.PHYSICAL_OBSERVATION,
+                "whole-body state contains malformed base-pose evidence",
+            )
+        object.__setattr__(self, "joint_names", names)
+        object.__setattr__(self, "positions", positions)
+        object.__setattr__(
+            self,
+            "observed_at_ns",
+            _timestamp_ns(self.observed_at_ns, "whole-body observed_at_ns"),
+        )
+        object.__setattr__(
+            self,
+            "sequence",
+            bounded_integer(self.sequence, "whole-body sequence", 1, 2**63 - 1),
+        )
+        object.__setattr__(self, "source", identifier(self.source, "whole-body source"))
+        if self.source != "joint_state_broadcaster":
+            raise SimulationExecutionValidationError(
+                SimulationExecutionFailureCode.PHYSICAL_OBSERVATION,
+                "whole-body joints must come from the reviewed state broadcaster",
+            )
+        object.__setattr__(
+            self,
+            "whole_body_state_fingerprint",
+            semantic_fingerprint("stage9c-whole-body-state", self._semantic_dict()),
+        )
+        assert_artifact_size(self.as_dict(), "Stage 9C whole-body state")
+
+    def positions_for(self, names: tuple[str, ...]) -> tuple[float, ...]:
+        values = dict(zip(self.joint_names, self.positions, strict=True))
+        return tuple(values[name] for name in names)
+
+    def _semantic_dict(self) -> dict[str, JSONValue]:
+        return {
+            "base_pose": self.base_pose.as_dict(),
+            "joint_names": list(self.joint_names),
+            "observed_at_ns": self.observed_at_ns,
+            "positions": list(self.positions),
+            "schema": _schema(self.schema_id),
+            "sequence": self.sequence,
+            "source": self.source,
+        }
+
+    def as_dict(self) -> dict[str, JSONValue]:
+        return {
+            **self._semantic_dict(),
+            "whole_body_state_fingerprint": self.whole_body_state_fingerprint,
+        }
+
+
+def verify_whole_body_state(value: object) -> bool:
+    return _verify(
+        value,
+        SimulatedWholeBodyState,
+        lambda: SimulatedWholeBodyState(
+            joint_names=value.joint_names,
+            positions=value.positions,
+            observed_at_ns=value.observed_at_ns,
+            sequence=value.sequence,
+            base_pose=value.base_pose,
+            source=value.source,
+        ),
+    )
+
+
+def _base_rpy(pose: SimulatedBasePose) -> tuple[float, float, float]:
+    x, y, z, w = pose.orientation_xyzw
+    roll = atan2(2.0 * ((w * x) + (y * z)), 1.0 - (2.0 * ((x * x) + (y * y))))
+    pitch_term = max(-1.0, min(1.0, 2.0 * ((w * y) - (z * x))))
+    pitch = asin(pitch_term)
+    yaw = atan2(2.0 * ((w * z) + (x * y)), 1.0 - (2.0 * ((y * y) + (z * z))))
+    return roll, pitch, yaw
+
+
+def _wrapped_angle_delta(first: float, second: float) -> float:
+    delta = abs(first - second)
+    return min(delta, (2.0 * 3.141592653589793) - delta)
+
+
+def _stability_reasons(
+    initial_state: SimulatedWholeBodyState,
+    final_state: SimulatedWholeBodyState,
+    post_controller_state: SimulationControllerState,
+    evaluated_at_ns: int,
+    *,
+    state_freshness_ns: int,
+    maximum_base_translation: float,
+    maximum_base_roll_pitch: float,
+    maximum_base_yaw_change: float,
+    maximum_non_target_joint_displacement: float,
+    minimum_base_height: float,
+) -> tuple[StabilityReason, ...]:
+    reasons: list[StabilityReason] = []
+    if (
+        final_state.sequence <= initial_state.sequence
+        or final_state.base_pose.sequence <= initial_state.base_pose.sequence
+        or any(
+            age < 0 or age > state_freshness_ns
+            for age in (
+                evaluated_at_ns - final_state.observed_at_ns,
+                evaluated_at_ns - final_state.base_pose.observed_at_ns,
+                evaluated_at_ns - post_controller_state.observed_at_ns,
+            )
+        )
+    ):
+        reasons.append(StabilityReason.POST_STATE_STALE)
+    if not post_controller_state.ready:
+        reasons.append(StabilityReason.CONTROLLER_NOT_READY)
+    translation = sqrt(
+        sum(
+            (ending - starting) ** 2
+            for starting, ending in zip(
+                initial_state.base_pose.position_xyz,
+                final_state.base_pose.position_xyz,
+                strict=True,
+            )
+        )
+    )
+    if translation > maximum_base_translation:
+        reasons.append(StabilityReason.BASE_TRANSLATION_EXCEEDED)
+    initial_rpy = _base_rpy(initial_state.base_pose)
+    final_rpy = _base_rpy(final_state.base_pose)
+    roll_pitch_magnitude = max(
+        abs(initial_rpy[0]),
+        abs(initial_rpy[1]),
+        abs(final_rpy[0]),
+        abs(final_rpy[1]),
+    )
+    if roll_pitch_magnitude > maximum_base_roll_pitch:
+        reasons.append(StabilityReason.BASE_ROLL_PITCH_EXCEEDED)
+    if _wrapped_angle_delta(initial_rpy[2], final_rpy[2]) > maximum_base_yaw_change:
+        reasons.append(StabilityReason.BASE_YAW_CHANGE_EXCEEDED)
+    minimum_observed_height = min(
+        initial_state.base_pose.position_xyz[2],
+        final_state.base_pose.position_xyz[2],
+    )
+    if minimum_observed_height < minimum_base_height:
+        reasons.append(StabilityReason.BASE_HEIGHT_INVALID)
+    initial_positions = dict(zip(initial_state.joint_names, initial_state.positions, strict=True))
+    final_positions = dict(zip(final_state.joint_names, final_state.positions, strict=True))
+    if any(
+        abs(initial_positions[name]) > maximum_non_target_joint_displacement
+        or abs(final_positions[name] - initial_positions[name])
+        > maximum_non_target_joint_displacement
+        for name in STAGE9C_NON_TARGET_JOINT_NAMES
+    ):
+        reasons.append(StabilityReason.NON_TARGET_JOINT_MOTION)
+    return tuple(reasons) if reasons else (StabilityReason.WHOLE_BODY_STABLE,)
+
+
+@dataclass(frozen=True, slots=True)
+class SimulationStabilityObservation:
+    initial_state: SimulatedWholeBodyState
+    final_state: SimulatedWholeBodyState
+    post_controller_state: SimulationControllerState
+    evaluated_at_ns: int
+    status: StabilityStatus
+    reasons: tuple[StabilityReason, ...]
+    state_freshness_ns: int = DEFAULT_STATE_FRESHNESS_NS
+    maximum_base_translation: float = DEFAULT_MAXIMUM_BASE_TRANSLATION
+    maximum_base_roll_pitch: float = DEFAULT_MAXIMUM_BASE_ROLL_PITCH
+    maximum_base_yaw_change: float = DEFAULT_MAXIMUM_BASE_YAW_CHANGE
+    maximum_non_target_joint_displacement: float = (
+        DEFAULT_MAXIMUM_NON_TARGET_JOINT_DISPLACEMENT
+    )
+    minimum_base_height: float = DEFAULT_MINIMUM_BASE_HEIGHT
+    schema_id: str = field(init=False, default=STABILITY_OBSERVATION_SCHEMA_ID)
+    schema_version: str = field(init=False, default=SCHEMA_VERSION)
+    stability_observation_fingerprint: str = field(init=False)
+
+    def __post_init__(self) -> None:
+        if not verify_whole_body_state(self.initial_state) or not verify_whole_body_state(
+            self.final_state
+        ):
+            raise SimulationExecutionValidationError(
+                SimulationExecutionFailureCode.PHYSICAL_OBSERVATION,
+                "stability evidence requires verified initial and final whole-body state",
+            )
+        if not verify_controller_state(self.post_controller_state):
+            raise SimulationExecutionValidationError(
+                SimulationExecutionFailureCode.CONTROLLER_MISMATCH,
+                "stability evidence requires verified post-result controller state",
+            )
+        evaluated = _timestamp_ns(self.evaluated_at_ns, "stability evaluated_at_ns")
+        object.__setattr__(self, "evaluated_at_ns", evaluated)
+        object.__setattr__(
+            self,
+            "state_freshness_ns",
+            bounded_integer(
+                self.state_freshness_ns,
+                "stability state_freshness_ns",
+                1,
+                DEFAULT_STATE_FRESHNESS_NS,
+            ),
+        )
+        bounded_thresholds = (
+            ("maximum_base_translation", DEFAULT_MAXIMUM_BASE_TRANSLATION),
+            ("maximum_base_roll_pitch", DEFAULT_MAXIMUM_BASE_ROLL_PITCH),
+            ("maximum_base_yaw_change", DEFAULT_MAXIMUM_BASE_YAW_CHANGE),
+            (
+                "maximum_non_target_joint_displacement",
+                DEFAULT_MAXIMUM_NON_TARGET_JOINT_DISPLACEMENT,
+            ),
+        )
+        for name, maximum in bounded_thresholds:
+            value = finite_float(getattr(self, name), name)
+            if not 0.0 < value <= maximum:
+                raise SimulationExecutionValidationError(
+                    SimulationExecutionFailureCode.PHYSICAL_OBSERVATION,
+                    f"{name} exceeds the reviewed stability bound",
+                )
+            object.__setattr__(self, name, value)
+        height = finite_float(self.minimum_base_height, "minimum_base_height")
+        if height != DEFAULT_MINIMUM_BASE_HEIGHT:
+            raise SimulationExecutionValidationError(
+                SimulationExecutionFailureCode.PHYSICAL_OBSERVATION,
+                "minimum base height differs from the reviewed ground-clearance bound",
+            )
+        object.__setattr__(self, "minimum_base_height", height)
+        _closed_enum(self.status, StabilityStatus, "stability status")
+        reasons = _closed_tuple(
+            self.reasons,
+            "stability reasons",
+            StabilityReason,
+            len(StabilityReason),
+            minimum=1,
+        )
+        if len(reasons) != len(set(reasons)):
+            raise SimulationExecutionValidationError(
+                SimulationExecutionFailureCode.PHYSICAL_OBSERVATION,
+                "stability reasons must be unique",
+            )
+        expected = _stability_reasons(
+            self.initial_state,
+            self.final_state,
+            self.post_controller_state,
+            self.evaluated_at_ns,
+            state_freshness_ns=self.state_freshness_ns,
+            maximum_base_translation=self.maximum_base_translation,
+            maximum_base_roll_pitch=self.maximum_base_roll_pitch,
+            maximum_base_yaw_change=self.maximum_base_yaw_change,
+            maximum_non_target_joint_displacement=(
+                self.maximum_non_target_joint_displacement
+            ),
+            minimum_base_height=self.minimum_base_height,
+        )
+        stable = expected == (StabilityReason.WHOLE_BODY_STABLE,)
+        expected_status = StabilityStatus.WHOLE_BODY_STABLE if stable else StabilityStatus.REJECTED
+        if reasons != expected or self.status is not expected_status:
+            raise SimulationExecutionValidationError(
+                SimulationExecutionFailureCode.WHOLE_BODY_STABILITY,
+                "stability status does not match current physical observations",
+            )
+        object.__setattr__(self, "reasons", reasons)
+        object.__setattr__(
+            self,
+            "stability_observation_fingerprint",
+            semantic_fingerprint("stage9c-stability-observation", self._semantic_dict()),
+        )
+        assert_artifact_size(self.as_dict(), "Stage 9C stability observation")
+
+    @property
+    def stable(self) -> bool:
+        return self.status is StabilityStatus.WHOLE_BODY_STABLE
+
+    def _semantic_dict(self) -> dict[str, JSONValue]:
+        return {
+            "evaluated_at_ns": self.evaluated_at_ns,
+            "final_state": self.final_state.as_dict(),
+            "initial_state": self.initial_state.as_dict(),
+            "maximum_base_roll_pitch": self.maximum_base_roll_pitch,
+            "maximum_base_translation": self.maximum_base_translation,
+            "maximum_base_yaw_change": self.maximum_base_yaw_change,
+            "maximum_non_target_joint_displacement": self.maximum_non_target_joint_displacement,
+            "minimum_base_height": self.minimum_base_height,
+            "post_controller_state": self.post_controller_state.as_dict(),
+            "reasons": [reason.value for reason in self.reasons],
+            "schema": _schema(self.schema_id),
+            "state_freshness_ns": self.state_freshness_ns,
+            "status": self.status.value,
+        }
+
+    def as_dict(self) -> dict[str, JSONValue]:
+        return {
+            **self._semantic_dict(),
+            "stability_observation_fingerprint": self.stability_observation_fingerprint,
+        }
+
+
+def verify_stability_observation(value: object) -> bool:
+    return _verify(
+        value,
+        SimulationStabilityObservation,
+        lambda: SimulationStabilityObservation(
+            initial_state=value.initial_state,
+            final_state=value.final_state,
+            post_controller_state=value.post_controller_state,
+            evaluated_at_ns=value.evaluated_at_ns,
+            status=value.status,
+            reasons=value.reasons,
+            state_freshness_ns=value.state_freshness_ns,
+            maximum_base_translation=value.maximum_base_translation,
+            maximum_base_roll_pitch=value.maximum_base_roll_pitch,
+            maximum_base_yaw_change=value.maximum_base_yaw_change,
+            maximum_non_target_joint_displacement=(
+                value.maximum_non_target_joint_displacement
+            ),
+            minimum_base_height=value.minimum_base_height,
         ),
     )
 
@@ -1602,6 +2116,7 @@ class SimulationExecutionObservation:
     cancellation_confirmed: bool
     timed_out: bool
     detail: str
+    stability_observation: SimulationStabilityObservation | None = None
     schema_id: str = field(init=False, default=EXECUTION_OBSERVATION_SCHEMA_ID)
     schema_version: str = field(init=False, default=SCHEMA_VERSION)
     observation_id: str = field(init=False)
@@ -1696,6 +2211,12 @@ class SimulationExecutionObservation:
                     f"{name} must be boolean",
                 )
         object.__setattr__(self, "detail", bounded_text(self.detail, "detail"))
+        stability = self.stability_observation
+        if stability is not None and not verify_stability_observation(stability):
+            raise SimulationExecutionValidationError(
+                SimulationExecutionFailureCode.PHYSICAL_OBSERVATION,
+                "execution contains malformed whole-body stability evidence",
+            )
         if self.cancellation_confirmed and not self.cancellation_requested:
             raise SimulationExecutionValidationError(
                 SimulationExecutionFailureCode.EXECUTION_CANCELED,
@@ -1717,10 +2238,18 @@ class SimulationExecutionObservation:
                 or self.cancellation_requested
                 or self.cancellation_confirmed
                 or self.timed_out
+                or stability is None
+                or not stability.stable
             ):
                 raise SimulationExecutionValidationError(
                     SimulationExecutionFailureCode.FEEDBACK_INVALID,
                     "simulation completion lacks exact successful action and feedback evidence",
+                )
+        elif self.outcome is SimulationExecutionOutcome.WHOLE_BODY_STABILITY_VIOLATED:
+            if not accepted or stability is None or stability.stable:
+                raise SimulationExecutionValidationError(
+                    SimulationExecutionFailureCode.WHOLE_BODY_STABILITY,
+                    "whole-body failure requires correlated rejected stability evidence",
                 )
         elif self.outcome is SimulationExecutionOutcome.CONTROLLER_UNAVAILABLE:
             if accepted or self.acceptance is not GoalAcceptance.NOT_SENT:
@@ -1792,6 +2321,11 @@ class SimulationExecutionObservation:
             "outcome": self.outcome.value,
             "schema": _schema(self.schema_id),
             "started_at_ns": self.started_at_ns,
+            "stability_observation": (
+                None
+                if self.stability_observation is None
+                else self.stability_observation.as_dict()
+            ),
             "starting_positions": list(self.starting_positions),
             "timed_out": self.timed_out,
         }
@@ -1825,6 +2359,7 @@ def verify_execution_observation(value: object) -> bool:
             cancellation_confirmed=value.cancellation_confirmed,
             timed_out=value.timed_out,
             detail=value.detail,
+            stability_observation=value.stability_observation,
         ),
     )
 
@@ -1883,6 +2418,45 @@ class SimulationExecutionResult:
                 SimulationExecutionFailureCode.TRAJECTORY_MISMATCH,
                 "observed run is bound to another request, start, or target",
             )
+        stability = self.observation.stability_observation
+        if stability is not None:
+            contract = self.execution_goal.preflight_evidence.execution_request.controller_contract
+            initial = stability.initial_state
+            final = stability.final_state
+            post_controller = stability.post_controller_state
+            initial_ages = (
+                self.observation.started_at_ns - initial.observed_at_ns,
+                self.observation.started_at_ns - initial.base_pose.observed_at_ns,
+            )
+            final_times = (
+                final.observed_at_ns,
+                final.base_pose.observed_at_ns,
+                post_controller.observed_at_ns,
+            )
+            if (
+                initial.positions_for(LEFT_ARM_JOINT_NAMES)
+                != self.observation.starting_positions
+                or final.positions_for(LEFT_ARM_JOINT_NAMES)
+                != self.observation.ending_positions
+                or any(
+                    age < 0 or age > DEFAULT_STATE_FRESHNESS_NS
+                    for age in initial_ages
+                )
+                or any(
+                    timestamp < self.observation.started_at_ns
+                    or timestamp > self.observation.completed_at_ns
+                    for timestamp in final_times
+                )
+                or stability.evaluated_at_ns != self.observation.completed_at_ns
+                or post_controller.controller_contract_id
+                != contract.controller_contract_id
+                or post_controller.controller_contract_fingerprint
+                != contract.controller_contract_fingerprint
+            ):
+                raise SimulationExecutionValidationError(
+                    SimulationExecutionFailureCode.PHYSICAL_OBSERVATION,
+                    "whole-body evidence is stale or bound to another controller/run",
+                )
         _closed_enum(self.status, SimulationExecutionResultStatus, "result status")
         _closed_enum(self.motion_status, SimulationMotionStatus, "motion status")
         _closed_enum(self.authority, SimulationAuthority, "authority")

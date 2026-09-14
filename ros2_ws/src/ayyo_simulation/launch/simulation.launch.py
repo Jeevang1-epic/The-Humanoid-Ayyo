@@ -35,6 +35,9 @@ def generate_launch_description() -> LaunchDescription:
     enable_manipulation_control = LaunchConfiguration(
         'enable_manipulation_control'
     )
+    enable_manipulation_support = LaunchConfiguration(
+        'enable_manipulation_support'
+    )
     enable_development_control = LaunchConfiguration('enable_development_control')
     enable_world_model = LaunchConfiguration('enable_world_model')
     enable_localization = LaunchConfiguration('enable_localization')
@@ -107,6 +110,8 @@ def generate_launch_description() -> LaunchDescription:
                 enable_control,
                 ' simulation_manipulation_control:=',
                 enable_manipulation_control,
+                ' simulation_manipulation_support:=',
+                enable_manipulation_support,
                 ' simulation_localization:=',
                 enable_localization,
                 ' simulation_camera:=',
@@ -322,6 +327,14 @@ def generate_launch_description() -> LaunchDescription:
                 default_value='false',
                 description=(
                     'Enable the Stage 9C simulation-only four-joint arm profile.'
+                ),
+            ),
+            DeclareLaunchArgument(
+                'enable_manipulation_support',
+                default_value='false',
+                description=(
+                    'Anchor the base only for the explicit Stage 9C simulation '
+                    'manipulation fixture.'
                 ),
             ),
             DeclareLaunchArgument(

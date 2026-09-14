@@ -24,6 +24,8 @@ class SimulationExecutionFailureCode(StrEnum):
     EXECUTION_ABORTED = "execution_aborted"
     SIMULATOR_SHUTDOWN = "simulator_shutdown"
     FEEDBACK_INVALID = "feedback_invalid"
+    PHYSICAL_OBSERVATION = "physical_observation"
+    WHOLE_BODY_STABILITY = "whole_body_stability"
     NONFINITE_VALUE = "nonfinite_value"
     RESOURCE_LIMIT = "resource_limit"
 

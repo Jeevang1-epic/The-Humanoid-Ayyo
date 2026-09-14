@@ -23,7 +23,11 @@ from .models import (
     SimulationExecutionResultStatus,
     SimulationExecutionOutcome,
     SimulationPreflightEvidence,
+    SimulationStabilityObservation,
+    StabilityReason,
+    StabilityStatus,
     SimulatedJointState,
+    SimulatedWholeBodyState,
     expected_goal_points,
     verify_collision_proof,
     verify_controller_state,
@@ -34,6 +38,7 @@ from .models import (
     _position_tuple,
     _motion_status,
     _preflight_reasons,
+    _stability_reasons,
 )
 
 
@@ -146,6 +151,79 @@ def create_simulation_execution_goal(
         points=points,
         execution_timeout_ns=timeout_ns,
     )
+
+
+def evaluate_whole_body_stability(
+    initial_state: SimulatedWholeBodyState,
+    final_state: SimulatedWholeBodyState,
+    post_controller_state: SimulationControllerState,
+    *,
+    evaluated_at_ns: int,
+) -> SimulationStabilityObservation:
+    """Evaluate fresh post-result whole-body and controller observations."""
+
+    from .models import (
+        DEFAULT_MAXIMUM_BASE_ROLL_PITCH,
+        DEFAULT_MAXIMUM_BASE_TRANSLATION,
+        DEFAULT_MAXIMUM_BASE_YAW_CHANGE,
+        DEFAULT_MAXIMUM_NON_TARGET_JOINT_DISPLACEMENT,
+        DEFAULT_MINIMUM_BASE_HEIGHT,
+        verify_whole_body_state,
+    )
+
+    if not verify_whole_body_state(initial_state) or not verify_whole_body_state(
+        final_state
+    ):
+        raise SimulationExecutionValidationError(
+            SimulationExecutionFailureCode.PHYSICAL_OBSERVATION,
+            "stability evaluation requires verified whole-body observations",
+        )
+    if not verify_controller_state(post_controller_state):
+        raise SimulationExecutionValidationError(
+            SimulationExecutionFailureCode.CONTROLLER_MISMATCH,
+            "stability evaluation requires verified post-result controller evidence",
+        )
+    try:
+        reasons = _stability_reasons(
+            initial_state,
+            final_state,
+            post_controller_state,
+            evaluated_at_ns,
+            state_freshness_ns=DEFAULT_STATE_FRESHNESS_NS,
+            maximum_base_translation=DEFAULT_MAXIMUM_BASE_TRANSLATION,
+            maximum_base_roll_pitch=DEFAULT_MAXIMUM_BASE_ROLL_PITCH,
+            maximum_base_yaw_change=DEFAULT_MAXIMUM_BASE_YAW_CHANGE,
+            maximum_non_target_joint_displacement=(
+                DEFAULT_MAXIMUM_NON_TARGET_JOINT_DISPLACEMENT
+            ),
+            minimum_base_height=DEFAULT_MINIMUM_BASE_HEIGHT,
+        )
+        return SimulationStabilityObservation(
+            initial_state=initial_state,
+            final_state=final_state,
+            post_controller_state=post_controller_state,
+            evaluated_at_ns=evaluated_at_ns,
+            status=(
+                StabilityStatus.WHOLE_BODY_STABLE
+                if reasons == (StabilityReason.WHOLE_BODY_STABLE,)
+                else StabilityStatus.REJECTED
+            ),
+            reasons=reasons,
+        )
+    except SimulationExecutionValidationError:
+        raise
+    except (
+        AssertionError,
+        AttributeError,
+        ArithmeticError,
+        KeyError,
+        TypeError,
+        ValueError,
+    ) as error:
+        raise SimulationExecutionValidationError(
+            SimulationExecutionFailureCode.PHYSICAL_OBSERVATION,
+            "stability evaluation received malformed physical observations",
+        ) from error
 
 
 def create_simulation_execution_result(
