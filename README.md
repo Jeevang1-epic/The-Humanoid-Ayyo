@@ -13,7 +13,12 @@ may consume one recursively verified positive Stage 9B handoff, run a dense
 MoveIt PlanningScene preflight, require a fresh matching Gazebo joint state,
 and submit the exact position-only left-arm trajectory to one fixed
 `FollowJointTrajectory` action. The dedicated controller profile is default-off
-and exists only in Gazebo Harmonic. A successful result means only
+and exists only in Gazebo Harmonic. Its explicit simulation-only manipulation
+fixture anchors the otherwise free base without disabling articulation,
+collision, or gravity. Success additionally requires fresh post-result state
+for all 18 movable joints and the base pose, an active controller, bounded
+non-target motion, and no base displacement, tilt, penetration, or collapse.
+A successful result means only
 `SIMULATION_EXECUTION_COMPLETED`, `NOT_PHYSICALLY_VALIDATED`,
 `NO_HARDWARE_AUTHORITY`, and `NO_PRODUCTION_RUNTIME_AUTHORITY`.
 
@@ -96,12 +101,16 @@ Implemented:
 - A dedicated default-off Gazebo Harmonic manipulation profile exposing only
   position command interfaces for the four reviewed left-arm revolute joints,
   with one fixed `ayyo_left_arm_trajectory_controller` and
-  `/ayyo_left_arm_trajectory_controller/follow_joint_trajectory` action
+  `/ayyo_left_arm_trajectory_controller/follow_joint_trajectory` action, plus
+  a separately default-off fixed-base manipulation fixture used only by the
+  Stage 9C launch; gravity and collision checking remain enabled
 - A headless Stage-9C proof that reconstructs the exact public Stage 9A → 9B
   chain, checks every bounded dense linear-interpolation sample through the
   authoritative MoveIt PlanningScene, verifies the simulated start state,
-  sends exactly one goal, correlates the controller result with fresh joint
-  feedback, emits bounded canonical evidence, and tears down owned processes
+  sends exactly one goal, correlates the controller result with fresh target,
+  all-joint, base-pose, and post-controller evidence, rejects whole-body
+  instability even after action success, emits bounded canonical evidence, and
+  tears down owned processes
 - A verified local ROS 2, Gazebo, and RViz development setup
 - A standalone, provenance-aware Memory OS core with SQLite persistence
 - A standalone deterministic validation and consolidation policy for candidate
@@ -458,7 +467,10 @@ PYTHONPATH=memory/src:personal_context/src:executive/src:safety_kernel/src:skill
 
 After building the relevant ROS workspace packages, run the explicit headless
 Gazebo proof. This command is the only documented Stage-9C movement invocation;
-launching the dedicated profile alone sends no trajectory.
+launching the dedicated profile alone sends no trajectory. The profile's
+fixed-base fixture is a simulation-only manipulation test support, not evidence
+of autonomous standing, dynamic balance, locomotion, hardware safety, or
+physical manipulation certification.
 
 ```bash
 scripts/smoke_manipulation_simulation_execution.sh

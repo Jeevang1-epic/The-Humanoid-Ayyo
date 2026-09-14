@@ -126,9 +126,11 @@ recursively verified positive Stage-9B handoff and exact timed trajectory
 → fixed Gazebo Harmonic controller/description contract
 → bounded dense position-only interpolation samples
 → authoritative MoveIt PlanningScene self/environment/limit preflight
-→ active fixed controller + action availability + fresh exact simulated start
+→ active fixed controller + explicit simulation-only base fixture
+  + action availability + fresh exact simulated start
 → one explicit FollowJointTrajectory goal (no retry or replanning)
-→ bounded controller result and fresh simulated joint-state observation
+→ bounded controller result + fresh all-joint/base/post-controller observation
+→ fail-closed whole-body stability invariant
 → immutable canonical Stage-9C result
 → stop (NOT_PHYSICALLY_VALIDATED, NO_HARDWARE_AUTHORITY,
         NO_PRODUCTION_RUNTIME_AUTHORITY)
@@ -140,13 +142,25 @@ ordinary simulation launches retain no arm command interfaces because
 `simulation_manipulation_control` and `enable_manipulation_control` default to
 false. The dedicated Stage-9C launch enables exactly the four reviewed
 left-arm position interfaces and the fixed
-`ayyo_left_arm_trajectory_controller`; it sends nothing on startup. Only a
+`ayyo_left_arm_trajectory_controller`, ground-truth base observation, and an
+explicit fixed `world`-to-`base_link` manipulation fixture; it sends nothing on
+startup. The fixture anchors only the free base: articulated dynamics,
+collisions, and gravity remain enabled. It is not a balance, locomotion, or
+physical-capability claim. Only a
 separate explicit client invocation may send the exact reviewed goal after
 preflight. The adapter has no arbitrary endpoint, publisher, MoveGroup,
 automatic Skill invocation, Runtime Bridge integration, physical driver,
 persistence, network API, daemon, retry, or planning loop. Dense sampling is
 bounded sample evidence, not continuous swept-volume or physical collision
 certification.
+
+Action-server success is necessary but insufficient. A positive Stage-9C
+result also requires a fresh post-result snapshot of every 18-joint state and
+the Gazebo base pose, a fresh exact post-result controller state, no non-target
+joint displacement above `0.01` rad, no base translation above `0.005` m, no
+base roll/pitch or yaw change above `0.01` rad, and base height at least `0.90`
+m. Missing, malformed, stale, collapsed, tilted, displaced, or controller-down
+evidence is a failed simulation result.
 
 The standalone
 [Teach Mode Demonstration Capture Foundation](TEACH_MODE_DEMONSTRATION_CAPTURE.md)

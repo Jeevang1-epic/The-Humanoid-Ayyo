@@ -152,7 +152,10 @@
 - Default-off Gazebo Harmonic manipulation profile with exactly four left-arm
   position command interfaces, position/velocity state feedback, the fixed
   `ayyo_left_arm_trajectory_controller`, partial goals disabled, and the fixed
-  `/ayyo_left_arm_trajectory_controller/follow_joint_trajectory` action
+  `/ayyo_left_arm_trajectory_controller/follow_joint_trajectory` action; the
+  dedicated Stage-9C launch also enables a separately default-off simulation-
+  only fixed-base fixture and ground-truth base observation without disabling
+  gravity, articulation, or collisions
 - Bounded dense MoveIt PlanningScene preflight of every derived position-only
   interpolation sample under the exact reviewed URDF, SRDF, ACM, scene, group,
   joint limits, and trajectory identity; this remains sample evidence and does
@@ -160,11 +163,14 @@
 - Explicit one-goal ROS adapter with no publisher, MoveGroup, retry, replan,
   automatic invocation, or startup motion; fresh exact simulated start state,
   controller/action availability, timeout cancellation, controller failure,
-  malformed feedback, and fresh final-state observation are handled truthfully
+  malformed feedback, and fresh final-state observation are handled truthfully;
+  positive completion additionally requires fresh all-18-joint/base evidence,
+  bounded non-target and base motion, minimum base height, and a fresh active
+  post-result controller state
 - Owned headless Stage-9C Gazebo proof covering opt-in controller/interface
   isolation, public Stage 9A/9B reconstruction, dense preflight, exact action
-  submission, observed simulated arm movement, bounded final error, canonical
-  evidence, and bounded process teardown
+  submission, observed simulated arm movement, bounded final error, whole-body
+  stability, canonical evidence, and bounded process teardown
 - Standalone Memory OS core with typed records and mandatory provenance
 - SQLite persistence with schema versioning, foreign keys, WAL journaling,
   transactional corrections, retractions, and conflict records
@@ -498,7 +504,7 @@
   self-contained bare-overlay import
 - Additional controlled joints, trajectory/whole-body control, friction/contact
   tuning, and validated dynamics
-- Grasp planning, Stage-9C simulation execution, arm controller/Runtime integration,
+- Grasp planning, production arm controller/Runtime integration,
   force/contact safety, and physical manipulator validation
 - Navigation integration
 - Additional Teach Mode sources, recorded/physical adapters, owner/teacher
@@ -530,9 +536,12 @@ exact deterministic trajectory and future simulation-handoff review evidence;
 both milestones always stop before execution. Stage 9C is the first manipulation
 execution boundary: only its default-off dedicated Gazebo Harmonic profile and
 explicit development client may submit the exact verified trajectory, after
-dense MoveIt preflight and fresh simulated-start verification. Its observed
-results remain not physically validated and grant neither hardware nor
-production Runtime authority. The separate Simulation Control Foundation can
+dense MoveIt preflight and fresh simulated-start verification. Its fixed-base
+support is only a simulation manipulation fixture; success requires
+fresh whole-body stability evidence and does not demonstrate autonomous
+standing, balance, or locomotion. Its observed results remain not physically
+validated and grant neither hardware nor production Runtime authority. The
+separate Simulation Control Foundation can
 actuate one bounded simulated neck joint only through explicit development
 injection and can prove the result from controller-derived feedback. The
 independent perception boundary admits
