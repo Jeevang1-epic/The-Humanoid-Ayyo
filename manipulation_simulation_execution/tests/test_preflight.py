@@ -73,6 +73,8 @@ def test_stale_start_or_controller_state_rejects(stage9c_bundle) -> None:
         "hardware_active",
         "state_broadcaster_active",
         "action_server_available",
+        "support_fixture_active",
+        "base_pose_observable",
     ),
 )
 def test_inactive_controller_boundary_rejects(stage9c_bundle, field: str) -> None:
@@ -97,6 +99,8 @@ def test_partial_claimed_command_interface_is_malformed(stage9c_bundle) -> None:
             hardware_active=True,
             state_broadcaster_active=True,
             action_server_available=True,
+            support_fixture_active=True,
+            base_pose_observable=True,
             claimed_command_interfaces=("left_shoulder_yaw_joint/position",),
             observed_at_ns=1,
         )

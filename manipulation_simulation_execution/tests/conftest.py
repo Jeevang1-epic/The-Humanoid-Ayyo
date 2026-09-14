@@ -38,11 +38,15 @@ from ayyo_manipulation_simulation_execution import (
     SimulationControllerState,
     SimulationExecutionObservation,
     SimulationExecutionOutcome,
+    SimulatedBasePose,
     SimulatedJointState,
+    SimulatedWholeBodyState,
+    STAGE9C_WHOLE_BODY_JOINT_NAMES,
     create_simulation_execution_goal,
     create_simulation_execution_request,
     create_simulation_execution_result,
     evaluate_simulation_preflight,
+    evaluate_whole_body_stability,
     expected_dense_samples,
     observed_final_errors,
     preflight_input_fingerprint,
@@ -306,6 +310,8 @@ def _stage9c_base(expanded_urdf: str, reviewed_srdf: str) -> dict[str, object]:
         hardware_active=True,
         state_broadcaster_active=True,
         action_server_available=True,
+        support_fixture_active=True,
+        base_pose_observable=True,
         claimed_command_interfaces=tuple(
             f"{name}/position" for name in trajectory.joint_names
         ),
@@ -319,6 +325,60 @@ def _stage9c_base(expanded_urdf: str, reviewed_srdf: str) -> dict[str, object]:
     )
     execution_goal = create_simulation_execution_goal(preflight)
     target = execution_goal.points[-1].positions
+    initial_positions_by_name = {
+        name: 0.0 for name in STAGE9C_WHOLE_BODY_JOINT_NAMES
+    }
+    initial_positions_by_name.update(dict(zip(trajectory.joint_names, start_positions)))
+    initial_whole_body_state = SimulatedWholeBodyState(
+        joint_names=STAGE9C_WHOLE_BODY_JOINT_NAMES,
+        positions=tuple(
+            initial_positions_by_name[name] for name in STAGE9C_WHOLE_BODY_JOINT_NAMES
+        ),
+        observed_at_ns=1_000_000_000,
+        sequence=1,
+        base_pose=SimulatedBasePose(
+            position_xyz=(0.0, 0.0, 0.95),
+            orientation_xyzw=(0.0, 0.0, 0.0, 1.0),
+            observed_at_ns=1_000_000_000,
+            sequence=1,
+        ),
+    )
+    final_positions_by_name = dict(initial_positions_by_name)
+    final_positions_by_name.update(dict(zip(trajectory.joint_names, target)))
+    final_whole_body_state = SimulatedWholeBodyState(
+        joint_names=STAGE9C_WHOLE_BODY_JOINT_NAMES,
+        positions=tuple(
+            final_positions_by_name[name] for name in STAGE9C_WHOLE_BODY_JOINT_NAMES
+        ),
+        observed_at_ns=3_400_000_000,
+        sequence=2,
+        base_pose=SimulatedBasePose(
+            position_xyz=(0.0, 0.0, 0.95),
+            orientation_xyzw=(0.0, 0.0, 0.0, 1.0),
+            observed_at_ns=3_400_000_000,
+            sequence=2,
+        ),
+    )
+    post_controller_state = SimulationControllerState(
+        controller_contract_id=contract.controller_contract_id,
+        controller_contract_fingerprint=contract.controller_contract_fingerprint,
+        controller_active=True,
+        hardware_active=True,
+        state_broadcaster_active=True,
+        action_server_available=True,
+        support_fixture_active=True,
+        base_pose_observable=True,
+        claimed_command_interfaces=tuple(
+            f"{name}/position" for name in trajectory.joint_names
+        ),
+        observed_at_ns=3_400_000_000,
+    )
+    stability_observation = evaluate_whole_body_stability(
+        initial_whole_body_state,
+        final_whole_body_state,
+        post_controller_state,
+        evaluated_at_ns=3_500_000_000,
+    )
     observation = SimulationExecutionObservation(
         execution_goal_id=execution_goal.execution_goal_id,
         execution_goal_fingerprint=execution_goal.execution_goal_fingerprint,
@@ -336,6 +396,7 @@ def _stage9c_base(expanded_urdf: str, reviewed_srdf: str) -> dict[str, object]:
         cancellation_confirmed=False,
         timed_out=False,
         detail="Simulation action completed with bounded final feedback.",
+        stability_observation=stability_observation,
     )
     result = create_simulation_execution_result(execution_goal, observation)
     return {
@@ -354,6 +415,10 @@ def _stage9c_base(expanded_urdf: str, reviewed_srdf: str) -> dict[str, object]:
         "collision_proof": collision_proof,
         "state": state,
         "controller_state": controller_state,
+        "initial_whole_body_state": initial_whole_body_state,
+        "final_whole_body_state": final_whole_body_state,
+        "post_controller_state": post_controller_state,
+        "stability_observation": stability_observation,
         "preflight": preflight,
         "execution_goal": execution_goal,
         "observation": observation,

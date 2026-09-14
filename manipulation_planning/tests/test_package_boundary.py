@@ -208,6 +208,7 @@ def test_arm_commands_are_default_off_and_stage9c_profile_is_separate():
         assert re.search(rf'name="{name}"\s+command_position="\$\{{manipulation_control\}}"', control)
     description = (REPOSITORY_ROOT / "ros2_ws/src/ayyo_description/urdf/ayyo.urdf.xacro").read_text()
     assert '<xacro:arg name="simulation_manipulation_control" default="false"/>' in description
+    assert '<xacro:arg name="simulation_manipulation_support" default="false"/>' in description
     controllers = (REPOSITORY_ROOT / "ros2_ws/src/ayyo_simulation/config/controllers.yaml").read_text()
     assert "ayyo_neck_position_controller" in controllers
     assert controllers.count("type: forward_command_controller/ForwardCommandController") == 1

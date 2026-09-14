@@ -81,6 +81,9 @@ def test_public_surface_is_contract_and_evidence_only() -> None:
         "SimulationPreflightEvidence",
         "SimulationExecutionGoal",
         "SimulationExecutionObservation",
+        "SimulationStabilityObservation",
+        "SimulatedWholeBodyState",
+        "SimulatedBasePose",
         "SimulationExecutionResult",
         "canonical_simulation_execution_artifact_json",
     }

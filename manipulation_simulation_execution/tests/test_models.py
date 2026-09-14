@@ -71,6 +71,7 @@ def test_controller_contract_is_exact_and_partial_goals_are_forbidden() -> None:
         ("joint_names", ("left_shoulder_yaw_joint",) * 4),
         ("simulation_mode", False),
         ("manipulation_control_enabled", False),
+        ("base_pose_topic", "/unreviewed/base_pose"),
     ),
 )
 def test_controller_substitution_fails_closed(field: str, value: object) -> None:

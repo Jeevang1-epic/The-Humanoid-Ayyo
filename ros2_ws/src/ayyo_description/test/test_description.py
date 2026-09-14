@@ -324,6 +324,7 @@ def test_stage9c_control_mode_exposes_only_reviewed_left_arm() -> None:
             'simulation_mode:=true',
             'simulation_control:=true',
             'simulation_manipulation_control:=true',
+            'simulation_manipulation_support:=true',
             'simulation_controller_config:=/tmp/ayyo-stage9c-test.yaml',
         )
     )
@@ -349,18 +350,42 @@ def test_stage9c_control_mode_exposes_only_reviewed_left_arm() -> None:
     assert initial['left_shoulder_yaw_joint'] == '0.0'
     assert initial['left_shoulder_pitch_joint'] == '0.0'
     assert initial['left_wrist_yaw_joint'] == '0.0'
-    gravity_neutral = {
+    fixture = robot.find("./joint[@name='stage9c_manipulation_fixture_joint']")
+    assert fixture is not None
+    assert fixture.get('type') == 'fixed'
+    assert fixture.find('parent').get('link') == 'world'
+    assert fixture.find('child').get('link') == 'base_link'
+    assert not {
         item.get('reference')
         for item in robot.findall('gazebo')
         if item.findtext('gravity') == 'false'
     }
-    assert gravity_neutral == {
-        'left_upper_arm_link',
-        'left_elbow_link',
-        'left_forearm_link',
-        'left_wrist_link',
-        'left_hand_link',
-    }
+
+
+def test_stage9c_support_fixture_is_default_off_and_profile_bounded() -> None:
+    xacro = PACKAGE_ROOT / 'urdf' / 'ayyo.urdf.xacro'
+    without_support = parse_robot(
+        expand_xacro(
+            xacro,
+            'simulation_mode:=true',
+            'simulation_control:=true',
+            'simulation_manipulation_control:=true',
+        )
+    )
+    assert without_support.find(
+        "./joint[@name='stage9c_manipulation_fixture_joint']"
+    ) is None
+    outside_stage9c = parse_robot(
+        expand_xacro(
+            xacro,
+            'simulation_mode:=true',
+            'simulation_control:=true',
+            'simulation_manipulation_support:=true',
+        )
+    )
+    assert outside_stage9c.find(
+        "./joint[@name='stage9c_manipulation_fixture_joint']"
+    ) is None
 
 
 def test_left_and_right_contracts_are_name_symmetric(proxy_robot: ET.Element) -> None:

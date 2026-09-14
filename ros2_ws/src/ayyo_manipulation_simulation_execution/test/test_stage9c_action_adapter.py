@@ -52,6 +52,42 @@ def test_adapter_has_one_fixed_action_and_no_alternate_command_surface() -> None
     assert 'FollowJointTrajectory' in source
     assert 'STAGE9C_ACTION_ENDPOINT' in source
     assert 'replacement' not in source.lower()
+    assert "'/ayyo/localization/odometry'" in source
+    assert "'/robot_description'" in source
+    assert 'STAGE9C_WHOLE_BODY_JOINT_NAMES' in source
+    assert 'evaluate_whole_body_stability(' in source
+    assert 'wait_for_support_fixture()' in source
+
+
+def test_stage9c_launch_enables_only_explicit_support_and_pose_evidence() -> None:
+    source = (SCRIPTS.parent / 'launch' / 'stage9c_simulation.launch.py').read_text(
+        encoding='utf-8'
+    )
+    assert "'enable_manipulation_support': 'true'" in source
+    assert "'enable_localization': 'true'" in source
+    assert "'enable_manipulation_control': 'true'" in source
+    assert "'enable_development_control': 'false'" in source
+    assert "'enable_world_model': 'false'" in source
+
+
+def test_support_fixture_attestation_waits_for_transient_description(
+    monkeypatch,
+) -> None:
+    adapter = _load('stage9c_execution')
+    client = SimpleNamespace(_support_fixture_active=False)
+    spins = 0
+
+    def spin_once(node, timeout_sec):
+        nonlocal spins
+        del timeout_sec
+        spins += 1
+        if spins == 2:
+            node._support_fixture_active = True
+
+    monkeypatch.setattr(adapter.rclpy, 'ok', lambda: True)
+    monkeypatch.setattr(adapter.rclpy, 'spin_once', spin_once)
+    assert adapter.Stage9CClient.wait_for_support_fixture(client)
+    assert spins == 2
 
 
 def test_final_state_observation_waits_for_correlated_convergence(monkeypatch) -> None:

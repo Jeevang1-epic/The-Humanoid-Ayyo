@@ -356,6 +356,7 @@ def test_launch_spawns_authoritative_description_as_static() -> None:
     assert "'ayyo.urdf.xacro'" in source
     assert "' simulation_mode:=true simulation_static:=true'" in source
     assert "' simulation_control:='" in source
+    assert "' simulation_manipulation_support:='" in source
     assert "' simulation_localization:='" in source
     assert "' simulation_camera:='" in source
     assert "' simulation_depth_camera:='" in source
@@ -384,6 +385,7 @@ def test_launch_defaults_to_headless_proxy_ground_contact() -> None:
     assert defaults['headless'] == 'true'
     assert defaults['enable_control'] == 'false'
     assert defaults['enable_manipulation_control'] == 'false'
+    assert defaults['enable_manipulation_support'] == 'false'
     assert defaults['enable_development_control'] == 'false'
     assert defaults['enable_world_model'] == 'false'
     assert defaults['enable_localization'] == 'false'

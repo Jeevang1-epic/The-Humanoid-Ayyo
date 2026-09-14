@@ -307,6 +307,10 @@ def test_arm_commands_remain_default_off_below_explicit_stage9c_profile() -> Non
         '<xacro:arg name="simulation_manipulation_control" default="false"/>'
         in description
     )
+    assert (
+        '<xacro:arg name="simulation_manipulation_support" default="false"/>'
+        in description
+    )
     controllers = (
         REPOSITORY_ROOT / "ros2_ws/src/ayyo_simulation/config/controllers.yaml"
     ).read_text(encoding="utf-8")
