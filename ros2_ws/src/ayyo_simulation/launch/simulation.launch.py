@@ -38,6 +38,9 @@ def generate_launch_description() -> LaunchDescription:
     enable_manipulation_support = LaunchConfiguration(
         'enable_manipulation_support'
     )
+    enable_stage9d_grasp_contact = LaunchConfiguration(
+        'enable_stage9d_grasp_contact'
+    )
     enable_development_control = LaunchConfiguration('enable_development_control')
     enable_world_model = LaunchConfiguration('enable_world_model')
     enable_localization = LaunchConfiguration('enable_localization')
@@ -61,8 +64,14 @@ def generate_launch_description() -> LaunchDescription:
     spawn_z = LaunchConfiguration('spawn_z')
     spawn_yaw = LaunchConfiguration('spawn_yaw')
 
-    world_file = PathJoinSubstitution(
-        [FindPackageShare('ayyo_simulation'), 'worlds', 'ayyo_foundation.sdf']
+    world_file = IfElseSubstitution(
+        enable_stage9d_grasp_contact,
+        if_value=PathJoinSubstitution(
+            [FindPackageShare('ayyo_simulation'), 'worlds', 'ayyo_stage9d.sdf']
+        ),
+        else_value=PathJoinSubstitution(
+            [FindPackageShare('ayyo_simulation'), 'worlds', 'ayyo_foundation.sdf']
+        ),
     )
     bridge_config = PathJoinSubstitution(
         [FindPackageShare('ayyo_simulation'), 'config', 'ros_gz_bridge.yaml']
@@ -335,6 +344,14 @@ def generate_launch_description() -> LaunchDescription:
                 description=(
                     'Anchor the base only for the explicit Stage 9C simulation '
                     'manipulation fixture.'
+                ),
+            ),
+            DeclareLaunchArgument(
+                'enable_stage9d_grasp_contact',
+                default_value='false',
+                description=(
+                    'Select the contact-enabled world only for an explicit '
+                    'Stage 9D development profile.'
                 ),
             ),
             DeclareLaunchArgument(
