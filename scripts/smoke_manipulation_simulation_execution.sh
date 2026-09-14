@@ -136,10 +136,22 @@ joint_states_ready() {
     grep -q 'left_elbow_flex_joint' <<<"$sample"
 }
 
+base_pose_ready() {
+  local sample
+  sample="$(
+    timeout 3 ros2 topic echo --once /ayyo/localization/odometry \
+      nav_msgs/msg/Odometry 2>/dev/null || true
+  )"
+  grep -q 'child_frame_id: base_link' <<<"$sample" &&
+    grep -q 'position:' <<<"$sample" &&
+    grep -q 'orientation:' <<<"$sample"
+}
+
 wait_until 'Stage 9C controllers are active without the neck controller' controllers_ready
 wait_until 'exactly four reviewed arm command interfaces are claimed' hardware_ready
 wait_until 'the fixed FollowJointTrajectory action is available' action_ready
 wait_until 'fresh simulated left-arm state is observable' joint_states_ready
+wait_until 'fresh Stage 9C base-pose evidence is observable' base_pose_ready
 
 set +e
 timeout --signal=INT --kill-after=5 90 \
@@ -189,18 +201,49 @@ assert result["physical_validation"] == "not_physically_validated"
 assert result["hardware_authority"] == "no_hardware_authority"
 assert result["production_runtime_authority"] == "no_production_runtime_authority"
 observation = result["observation"]
+goal = result["execution_goal"]
 assert observation["acceptance"] == "accepted"
 assert observation["outcome"] == "simulation_execution_completed"
 assert observation["controller_error_code"] == 0
 assert observation["feedback_samples_observed"] >= 1
 assert max(observation["final_joint_errors"]) <= 0.02
+stability = observation["stability_observation"]
+assert stability["status"] == "whole_body_stable"
+assert stability["reasons"] == ["whole_body_stable"]
+initial = stability["initial_state"]
+final = stability["final_state"]
+assert final["sequence"] > initial["sequence"]
+assert final["base_pose"]["sequence"] > initial["base_pose"]["sequence"]
+assert min(
+    initial["base_pose"]["position_xyz"][2],
+    final["base_pose"]["position_xyz"][2],
+) >= 0.90
+assert sum(
+    (end - start) ** 2
+    for start, end in zip(
+        initial["base_pose"]["position_xyz"],
+        final["base_pose"]["position_xyz"],
+        strict=True,
+    )
+) ** 0.5 <= 0.005
+target_names = set(goal["joint_names"])
+initial_positions = dict(zip(initial["joint_names"], initial["positions"], strict=True))
+final_positions = dict(zip(final["joint_names"], final["positions"], strict=True))
+assert max(
+    abs(final_positions[name] - initial_positions[name])
+    for name in initial_positions
+    if name not in target_names
+) <= 0.01
+post_controller = stability["post_controller_state"]
+assert post_controller["controller_active"] is True
+assert post_controller["support_fixture_active"] is True
+assert post_controller["base_pose_observable"] is True
 assert max(
     abs(end - start)
     for start, end in zip(
         observation["starting_positions"], observation["ending_positions"], strict=True
     )
 ) >= 0.1
-goal = result["execution_goal"]
 assert goal["action_endpoint"] == (
     "/ayyo_left_arm_trajectory_controller/follow_joint_trajectory"
 )
@@ -227,6 +270,7 @@ assert len(proof["samples"]) > len(
 PY
 printf 'PASS: reviewed Stage 9B trajectory moved only the simulated left arm\n'
 printf 'PASS: final state feedback is correlated and within 0.02 rad\n'
+printf 'PASS: fresh whole-body/base state remained inside Stage 9C stability bounds\n'
 
 ayyo_smoke_shutdown_owned_launch
 if grep -Eq 'Traceback|exception was never retrieved|Segmentation fault' "$launch_log"; then
