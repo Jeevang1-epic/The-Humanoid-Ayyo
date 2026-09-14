@@ -270,12 +270,16 @@ def test_no_runtime_request_endpoint_or_transport_contract_is_defined() -> None:
 
 def test_lower_architecture_layers_have_no_reverse_dependency() -> None:
     offenders = []
+    stage9c_root = (
+        REPOSITORY_ROOT
+        / "ros2_ws/src/ayyo_manipulation_simulation_execution"
+    )
     for package in LOWER_PACKAGES:
         for source in (REPOSITORY_ROOT / package / "src").rglob("*.py"):
             if "ayyo_manipulation_trajectory" in source.read_text(encoding="utf-8"):
                 offenders.append(str(source.relative_to(REPOSITORY_ROOT)))
     for source in (REPOSITORY_ROOT / "ros2_ws/src").rglob("*"):
-        if not source.is_file():
+        if stage9c_root in source.parents or not source.is_file():
             continue
         if source.suffix in {".py", ".cpp", ".hpp", ".xml", ".txt", ".yaml"}:
             if "ayyo_manipulation_trajectory" in source.read_text(
@@ -286,13 +290,27 @@ def test_lower_architecture_layers_have_no_reverse_dependency() -> None:
     assert offenders == []
 
 
-def test_arm_command_interfaces_and_controller_scope_remain_unchanged() -> None:
+def test_arm_commands_remain_default_off_below_explicit_stage9c_profile() -> None:
     control = (
         REPOSITORY_ROOT
         / "ros2_ws/src/ayyo_description/urdf/ayyo_ros2_control.xacro"
     ).read_text(encoding="utf-8")
     for name in LEFT_ARM_JOINT_NAMES:
-        assert re.search(rf'name="{name}"\s+command_position="false"', control)
+        assert re.search(
+            rf'name="{name}"\s+command_position="\$\{{manipulation_control\}}"',
+            control,
+        )
+    description = (
+        REPOSITORY_ROOT / "ros2_ws/src/ayyo_description/urdf/ayyo.urdf.xacro"
+    ).read_text(encoding="utf-8")
+    assert (
+        '<xacro:arg name="simulation_manipulation_control" default="false"/>'
+        in description
+    )
+    assert (
+        '<xacro:arg name="simulation_manipulation_support" default="false"/>'
+        in description
+    )
     controllers = (
         REPOSITORY_ROOT / "ros2_ws/src/ayyo_simulation/config/controllers.yaml"
     ).read_text(encoding="utf-8")
@@ -306,7 +324,7 @@ def test_arm_command_interfaces_and_controller_scope_remain_unchanged() -> None:
     assert "left_wrist" not in command_section
 
 
-def test_only_stage9b_and_canonical_docs_are_changed() -> None:
+def test_only_stage9b_or_downstream_stage9c_surfaces_are_changed() -> None:
     changed = subprocess.run(
         ["git", "diff", "--name-only", "main", "--"],
         cwd=REPOSITORY_ROOT,
@@ -315,7 +333,17 @@ def test_only_stage9b_and_canonical_docs_are_changed() -> None:
         text=True,
         timeout=10,
     ).stdout.splitlines()
-    allowed = ("manipulation_trajectory/", "README.md", "docs/")
+    allowed = (
+        "manipulation_trajectory/",
+        "manipulation_planning/tests/test_package_boundary.py",
+        "manipulation_simulation_execution/",
+        "ros2_ws/src/ayyo_description/",
+        "ros2_ws/src/ayyo_manipulation_simulation_execution/",
+        "ros2_ws/src/ayyo_simulation/",
+        "scripts/",
+        "README.md",
+        "docs/",
+    )
     assert [path for path in changed if not path.startswith(allowed)] == []
 
 

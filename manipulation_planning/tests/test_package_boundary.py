@@ -149,7 +149,15 @@ def test_lower_architecture_layers_have_no_reverse_dependency():
             if "ayyo_manipulation_planning" in source.read_text(encoding="utf-8"):
                 offenders.append(str(source.relative_to(REPOSITORY_ROOT)))
     for source in (REPOSITORY_ROOT / "ros2_ws/src").rglob("*"):
-        if ROS_ROOT in source.parents or not source.is_file():
+        stage9c_root = (
+            REPOSITORY_ROOT
+            / "ros2_ws/src/ayyo_manipulation_simulation_execution"
+        )
+        if (
+            ROS_ROOT in source.parents
+            or stage9c_root in source.parents
+            or not source.is_file()
+        ):
             continue
         if source.suffix in {".py", ".cpp", ".hpp", ".xml", ".txt", ".yaml"}:
             if "ayyo_manipulation_planning" in source.read_text(encoding="utf-8", errors="ignore"):
@@ -194,10 +202,13 @@ def test_srdf_contains_only_left_arm_group_and_bounded_adjacent_exclusions():
     assert all(item.attrib["link2"].startswith("left_") for item in exclusions)
 
 
-def test_arm_command_interfaces_remain_disabled_and_only_neck_controller_exists():
+def test_arm_commands_are_default_off_and_stage9c_profile_is_separate():
     control = (REPOSITORY_ROOT / "ros2_ws/src/ayyo_description/urdf/ayyo_ros2_control.xacro").read_text()
     for name in public_api.LEFT_ARM_JOINT_NAMES:
-        assert re.search(rf'name="{name}"\s+command_position="false"', control)
+        assert re.search(rf'name="{name}"\s+command_position="\$\{{manipulation_control\}}"', control)
+    description = (REPOSITORY_ROOT / "ros2_ws/src/ayyo_description/urdf/ayyo.urdf.xacro").read_text()
+    assert '<xacro:arg name="simulation_manipulation_control" default="false"/>' in description
+    assert '<xacro:arg name="simulation_manipulation_support" default="false"/>' in description
     controllers = (REPOSITORY_ROOT / "ros2_ws/src/ayyo_simulation/config/controllers.yaml").read_text()
     assert "ayyo_neck_position_controller" in controllers
     assert controllers.count("type: forward_command_controller/ForwardCommandController") == 1
@@ -219,6 +230,12 @@ def test_no_existing_authority_or_runtime_implementation_was_modified():
     ).stdout.splitlines()
     allowed_prefixes = (
         "manipulation_planning/", "ros2_ws/src/ayyo_manipulation_planning/",
+        "manipulation_trajectory/tests/test_package_boundary.py",
+        "manipulation_simulation_execution/",
+        "ros2_ws/src/ayyo_manipulation_simulation_execution/",
+        "ros2_ws/src/ayyo_description/",
+        "ros2_ws/src/ayyo_simulation/",
+        "scripts/",
         "README.md", "docs/",
     )
     assert [path for path in changed if not path.startswith(allowed_prefixes)] == []

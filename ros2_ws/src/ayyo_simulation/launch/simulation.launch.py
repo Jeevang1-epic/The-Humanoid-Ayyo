@@ -20,6 +20,7 @@ from launch.substitutions import (
     FindExecutable,
     IfElseSubstitution,
     LaunchConfiguration,
+    NotSubstitution,
     PathJoinSubstitution,
 )
 from launch_ros.actions import Node
@@ -31,6 +32,12 @@ def generate_launch_description() -> LaunchDescription:
     """Build the non-actuating Gazebo development launch graph."""
     headless = LaunchConfiguration('headless')
     enable_control = LaunchConfiguration('enable_control')
+    enable_manipulation_control = LaunchConfiguration(
+        'enable_manipulation_control'
+    )
+    enable_manipulation_support = LaunchConfiguration(
+        'enable_manipulation_support'
+    )
     enable_development_control = LaunchConfiguration('enable_development_control')
     enable_world_model = LaunchConfiguration('enable_world_model')
     enable_localization = LaunchConfiguration('enable_localization')
@@ -74,8 +81,18 @@ def generate_launch_description() -> LaunchDescription:
             'ros_gz_depth_camera_bridge.yaml',
         ]
     )
-    controller_config = PathJoinSubstitution(
-        [FindPackageShare('ayyo_simulation'), 'config', 'controllers.yaml']
+    controller_config = IfElseSubstitution(
+        enable_manipulation_control,
+        if_value=PathJoinSubstitution(
+            [
+                FindPackageShare('ayyo_simulation'),
+                'config',
+                'manipulation_controllers.yaml',
+            ]
+        ),
+        else_value=PathJoinSubstitution(
+            [FindPackageShare('ayyo_simulation'), 'config', 'controllers.yaml']
+        ),
     )
     xacro_file = PathJoinSubstitution(
         [FindPackageShare('ayyo_description'), 'urdf', 'ayyo.urdf.xacro']
@@ -91,6 +108,10 @@ def generate_launch_description() -> LaunchDescription:
                 ' simulation_mode:=true simulation_static:=true',
                 ' simulation_control:=',
                 enable_control,
+                ' simulation_manipulation_control:=',
+                enable_manipulation_control,
+                ' simulation_manipulation_support:=',
+                enable_manipulation_support,
                 ' simulation_localization:=',
                 enable_localization,
                 ' simulation_camera:=',
@@ -190,6 +211,24 @@ def generate_launch_description() -> LaunchDescription:
         ],
         condition=IfCondition(enable_control),
     )
+    manipulation_controller_spawner = Node(
+        package='controller_manager',
+        executable='spawner',
+        name='spawn_ayyo_left_arm_trajectory_controller',
+        output='screen',
+        arguments=[
+            'ayyo_left_arm_trajectory_controller',
+            '--controller-manager',
+            '/controller_manager',
+            '--controller-manager-timeout',
+            '30',
+            '--switch-timeout',
+            '30',
+        ],
+        condition=IfCondition(
+            AndSubstitution(enable_control, enable_manipulation_control)
+        ),
+    )
     position_controller_spawner = Node(
         package='controller_manager',
         executable='spawner',
@@ -204,7 +243,9 @@ def generate_launch_description() -> LaunchDescription:
             '--switch-timeout',
             '30',
         ],
-        condition=IfCondition(enable_control),
+        condition=IfCondition(
+            AndSubstitution(enable_control, NotSubstitution(enable_manipulation_control))
+        ),
     )
     development_control_node = Node(
         package='ayyo_simulation_control',
@@ -216,7 +257,10 @@ def generate_launch_description() -> LaunchDescription:
             {'development_injection_enabled': True},
         ],
         condition=IfCondition(
-            AndSubstitution(enable_control, enable_development_control)
+            AndSubstitution(
+                AndSubstitution(enable_control, enable_development_control),
+                NotSubstitution(enable_manipulation_control),
+            )
         ),
     )
     world_model_node = Node(
@@ -276,6 +320,21 @@ def generate_launch_description() -> LaunchDescription:
                 default_value='false',
                 description=(
                     'Expose the typed development-only command service; requires control.'
+                ),
+            ),
+            DeclareLaunchArgument(
+                'enable_manipulation_control',
+                default_value='false',
+                description=(
+                    'Enable the Stage 9C simulation-only four-joint arm profile.'
+                ),
+            ),
+            DeclareLaunchArgument(
+                'enable_manipulation_support',
+                default_value='false',
+                description=(
+                    'Anchor the base only for the explicit Stage 9C simulation '
+                    'manipulation fixture.'
                 ),
             ),
             DeclareLaunchArgument(
@@ -411,7 +470,10 @@ def generate_launch_description() -> LaunchDescription:
             RegisterEventHandler(
                 OnProcessExit(
                     target_action=joint_state_broadcaster_spawner,
-                    on_exit=[position_controller_spawner],
+                    on_exit=[
+                        position_controller_spawner,
+                        manipulation_controller_spawner,
+                    ],
                 )
             ),
             RegisterEventHandler(

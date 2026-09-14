@@ -4,6 +4,8 @@
   <xacro:arg name="simulation_mode" default="false"/>
   <xacro:arg name="simulation_static" default="true"/>
   <xacro:arg name="simulation_control" default="false"/>
+  <xacro:arg name="simulation_manipulation_control" default="false"/>
+  <xacro:arg name="simulation_manipulation_support" default="false"/>
   <xacro:arg name="simulation_localization" default="false"/>
   <xacro:arg name="simulation_camera" default="false"/>
   <xacro:arg name="simulation_depth_camera" default="false"/>
@@ -24,10 +26,13 @@
       localization_enabled="$(arg simulation_localization)"
       camera_enabled="$(arg simulation_camera)"
       depth_camera_enabled="$(arg simulation_depth_camera)"
-      controller_config="$(arg simulation_controller_config)"/>
+      controller_config="$(arg simulation_controller_config)"
+      manipulation_control_enabled="$(arg simulation_manipulation_control)"
+      manipulation_support_enabled="$(arg simulation_manipulation_support)"/>
     <xacro:if value="$(arg simulation_control)">
       <xacro:ayyo_ros2_control_system
-        hardware_plugin="gz_ros2_control/GazeboSimSystem"/>
+        hardware_plugin="gz_ros2_control/GazeboSimSystem"
+        manipulation_control="$(arg simulation_manipulation_control)"/>
     </xacro:if>
   </xacro:if>
 </robot>

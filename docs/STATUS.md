@@ -140,6 +140,37 @@
   produce typed Stage 9B failures. Runtime Bridge is not imported or invoked, no
   endpoint is registered, and positive results remain `NOT_EXECUTED` with
   physical validation absent
+- Standalone `ayyo-manipulation-simulation-execution` Stage-9C core with
+  immutable bounded simulation controller, sampling, execution request, dense
+  collision proof, simulated joint/controller state, preflight, exact action
+  goal, observed outcome, and result contracts
+- Recursive verification of the complete Stage 9A → 9B chain before every
+  positive Stage-9C artifact, strict canonical JSON and reconstruction with
+  authoritative Stage-9B Safety/Skill contexts, deterministic request/config
+  identities, run-specific observed evidence identities, and typed fail-closed
+  malformed-input handling
+- Default-off Gazebo Harmonic manipulation profile with exactly four left-arm
+  position command interfaces, position/velocity state feedback, the fixed
+  `ayyo_left_arm_trajectory_controller`, partial goals disabled, and the fixed
+  `/ayyo_left_arm_trajectory_controller/follow_joint_trajectory` action; the
+  dedicated Stage-9C launch also enables a separately default-off simulation-
+  only fixed-base fixture and ground-truth base observation without disabling
+  gravity, articulation, or collisions
+- Bounded dense MoveIt PlanningScene preflight of every derived position-only
+  interpolation sample under the exact reviewed URDF, SRDF, ACM, scene, group,
+  joint limits, and trajectory identity; this remains sample evidence and does
+  not claim continuous or physical collision certification
+- Explicit one-goal ROS adapter with no publisher, MoveGroup, retry, replan,
+  automatic invocation, or startup motion; fresh exact simulated start state,
+  controller/action availability, timeout cancellation, controller failure,
+  malformed feedback, and fresh final-state observation are handled truthfully;
+  positive completion additionally requires fresh all-18-joint/base evidence,
+  bounded non-target and base motion, minimum base height, and a fresh active
+  post-result controller state
+- Owned headless Stage-9C Gazebo proof covering opt-in controller/interface
+  isolation, public Stage 9A/9B reconstruction, dense preflight, exact action
+  submission, observed simulated arm movement, bounded final error, whole-body
+  stability, canonical evidence, and bounded process teardown
 - Standalone Memory OS core with typed records and mandatory provenance
 - SQLite persistence with schema versioning, foreign keys, WAL journaling,
   transactional corrections, retractions, and conflict records
@@ -473,7 +504,7 @@
   self-contained bare-overlay import
 - Additional controlled joints, trajectory/whole-body control, friction/contact
   tuning, and validated dynamics
-- Grasp planning, Stage-9C simulation execution, arm controller/Runtime integration,
+- Grasp planning, production arm controller/Runtime integration,
   force/contact safety, and physical manipulator validation
 - Navigation integration
 - Additional Teach Mode sources, recorded/physical adapters, owner/teacher
@@ -502,11 +533,18 @@ plus a deterministic Stage-8 software-showcase catalog that inspects those
 public contracts without executing them. Stage 9A provides an exact immutable
 planning-only left-arm and MoveIt collision-evidence boundary. Stage 9B adds
 exact deterministic trajectory and future simulation-handoff review evidence;
-both milestones always stop before execution. The
-downstream Simulation Control Foundation can actuate one bounded simulated
-neck joint only
-through explicit development injection and can prove the result from
-controller-derived feedback. The independent perception boundary admits
+both milestones always stop before execution. Stage 9C is the first manipulation
+execution boundary: only its default-off dedicated Gazebo Harmonic profile and
+explicit development client may submit the exact verified trajectory, after
+dense MoveIt preflight and fresh simulated-start verification. Its fixed-base
+support is only a simulation manipulation fixture; success requires
+fresh whole-body stability evidence and does not demonstrate autonomous
+standing, balance, or locomotion. Its observed results remain not physically
+validated and grant neither hardware nor production Runtime authority. The
+separate Simulation Control Foundation can
+actuate one bounded simulated neck joint only through explicit development
+injection and can prove the result from controller-derived feedback. The
+independent perception boundary admits
 standard joint/IMU, exact body-localization, allowlisted diagnostic, and
 compact calibrated visual-frame and bounded interpreted evidence but grants no
 authority. The project
@@ -514,5 +552,5 @@ does not
 provide inferred personality, natural-language understanding, model reasoning,
 general perception, physical sensor validation, authenticated
 authorization, live backend attestation, physical-safety certification,
-production runtime motion, task execution, walking, manipulation execution, or
-physical execution.
+production runtime motion, autonomous task execution, walking, production
+manipulation execution, or physical manipulation execution.

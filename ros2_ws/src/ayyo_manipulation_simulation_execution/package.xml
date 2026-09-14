@@ -1,0 +1,46 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>ayyo_manipulation_simulation_execution</name>
+  <version>0.1.0</version>
+  <description>Explicit simulation-only Stage 9C manipulation execution adapter.</description>
+  <maintainer email="jeevan116p@gmail.com">P. Jeevan Kumar</maintainer>
+  <license>Proprietary</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+  <buildtool_depend>ament_cmake_python</buildtool_depend>
+
+  <depend>geometry_msgs</depend>
+  <depend>moveit_core</depend>
+  <depend>moveit_msgs</depend>
+  <depend>nlohmann_json</depend>
+  <depend>openssl</depend>
+  <depend>shape_msgs</depend>
+  <depend>srdfdom</depend>
+  <depend>urdf</depend>
+
+  <exec_depend>action_msgs</exec_depend>
+  <exec_depend>ament_index_python</exec_depend>
+  <exec_depend>ayyo_description</exec_depend>
+  <exec_depend>ayyo_manipulation_planning</exec_depend>
+  <exec_depend>ayyo_simulation</exec_depend>
+  <exec_depend>control_msgs</exec_depend>
+  <exec_depend>controller_manager_msgs</exec_depend>
+  <exec_depend>nav_msgs</exec_depend>
+  <exec_depend>rclpy</exec_depend>
+  <exec_depend>sensor_msgs</exec_depend>
+  <exec_depend>std_msgs</exec_depend>
+  <exec_depend>trajectory_msgs</exec_depend>
+
+  <test_depend>ament_cmake_pytest</test_depend>
+  <test_depend>ament_lint_auto</test_depend>
+  <test_depend>ament_lint_common</test_depend>
+  <test_depend>ament_index_python</test_depend>
+  <test_depend>ayyo_description</test_depend>
+  <test_depend>ayyo_manipulation_planning</test_depend>
+  <test_depend>python3-pytest</test_depend>
+  <test_depend>xacro</test_depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>

@@ -1,7 +1,21 @@
 <?xml version="1.0"?>
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro">
   <xacro:macro name="ayyo_gazebo"
-               params="static_model control_enabled localization_enabled camera_enabled depth_camera_enabled controller_config">
+               params="static_model control_enabled localization_enabled camera_enabled depth_camera_enabled controller_config manipulation_control_enabled manipulation_support_enabled">
+    <xacro:if value="${control_enabled}">
+      <xacro:if value="${manipulation_control_enabled}">
+        <xacro:if value="${manipulation_support_enabled}">
+          <!-- Explicit simulation-only Stage 9C manipulation fixture. The
+               articulated model remains dynamic and collisions/gravity remain
+               enabled; only its free base is anchored for this bounded proof. -->
+          <link name="world"/>
+          <joint name="stage9c_manipulation_fixture_joint" type="fixed">
+            <parent link="world"/>
+            <child link="base_link"/>
+          </joint>
+        </xacro:if>
+      </xacro:if>
+    </xacro:if>
     <gazebo reference="imu_link">
       <sensor name="body_imu" type="imu">
         <always_on>true</always_on>

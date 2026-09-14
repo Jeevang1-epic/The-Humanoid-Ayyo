@@ -356,6 +356,7 @@ def test_launch_spawns_authoritative_description_as_static() -> None:
     assert "'ayyo.urdf.xacro'" in source
     assert "' simulation_mode:=true simulation_static:=true'" in source
     assert "' simulation_control:='" in source
+    assert "' simulation_manipulation_support:='" in source
     assert "' simulation_localization:='" in source
     assert "' simulation_camera:='" in source
     assert "' simulation_depth_camera:='" in source
@@ -383,6 +384,8 @@ def test_launch_defaults_to_headless_proxy_ground_contact() -> None:
             defaults[call.args[0].value] = default.value
     assert defaults['headless'] == 'true'
     assert defaults['enable_control'] == 'false'
+    assert defaults['enable_manipulation_control'] == 'false'
+    assert defaults['enable_manipulation_support'] == 'false'
     assert defaults['enable_development_control'] == 'false'
     assert defaults['enable_world_model'] == 'false'
     assert defaults['enable_localization'] == 'false'
@@ -422,6 +425,41 @@ def test_controller_configuration_is_exactly_one_position_joint() -> None:
     assert broadcaster['interfaces'] == ['position', 'velocity', 'effort']
 
 
+def test_stage9c_controller_configuration_is_exact_and_position_only() -> None:
+    config = yaml.safe_load(
+        (PACKAGE_ROOT / 'config' / 'manipulation_controllers.yaml').read_text(
+            encoding='utf-8'
+        )
+    )
+    manager = config['controller_manager']['ros__parameters']
+    assert config['gz_ros_control']['ros__parameters'] == {
+        'position_proportional_gain': 1.0,
+    }
+    assert manager['ayyo_left_arm_trajectory_controller']['type'] == (
+        'joint_trajectory_controller/JointTrajectoryController'
+    )
+    assert 'ayyo_neck_position_controller' not in manager
+    controller = config['ayyo_left_arm_trajectory_controller']['ros__parameters']
+    assert controller['joints'] == [
+        'left_shoulder_yaw_joint',
+        'left_shoulder_pitch_joint',
+        'left_elbow_flex_joint',
+        'left_wrist_yaw_joint',
+    ]
+    assert controller['command_interfaces'] == ['position']
+    assert controller['state_interfaces'] == ['position', 'velocity']
+    assert controller['allow_partial_joints_goal'] is False
+    assert controller['allow_nonzero_velocity_at_trajectory_end'] is False
+    assert controller['constraints'] == {
+        'goal_time': 4.0,
+        'stopped_velocity_tolerance': 0.05,
+        'left_shoulder_yaw_joint': {'goal': 0.02},
+        'left_shoulder_pitch_joint': {'goal': 0.02},
+        'left_elbow_flex_joint': {'goal': 0.02},
+        'left_wrist_yaw_joint': {'goal': 0.02},
+    }
+
+
 def test_control_lifecycle_is_spawn_then_state_then_position() -> None:
     source = (PACKAGE_ROOT / 'launch' / 'simulation.launch.py').read_text(
         encoding='utf-8'
@@ -429,10 +467,12 @@ def test_control_lifecycle_is_spawn_then_state_then_position() -> None:
     assert 'target_action=spawn_ayyo' in source
     assert 'on_exit=[joint_state_broadcaster_spawner]' in source
     assert 'target_action=joint_state_broadcaster_spawner' in source
-    assert 'on_exit=[position_controller_spawner]' in source
+    assert 'position_controller_spawner,' in source
+    assert 'manipulation_controller_spawner,' in source
     assert 'target_action=position_controller_spawner' in source
     assert 'on_exit=[development_control_node]' in source
-    assert source.count('condition=IfCondition(enable_control)') == 2
+    assert 'enable_manipulation_control = LaunchConfiguration(' in source
+    assert 'NotSubstitution(enable_manipulation_control)' in source
     assert 'AndSubstitution(enable_control, enable_development_control)' in source
 
 
@@ -460,6 +500,7 @@ def test_simulation_package_has_no_authorization_layer_dependency() -> None:
         'forward_command_controller',
         'gz_ros2_control',
         'joint_state_broadcaster',
+        'joint_trajectory_controller',
         'ros_gz_image',
     } <= dependencies
 
