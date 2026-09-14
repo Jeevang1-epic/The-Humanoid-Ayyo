@@ -90,6 +90,13 @@ from .serialization import (
     canonical_grasp_interaction_artifact_json,
     grasp_interaction_artifact_from_canonical_json,
 )
+from .proof import (
+    INTERACTION_PREFLIGHT_INPUT_SCHEMA_ID,
+    RAW_INTERACTION_PREFLIGHT_SCHEMA_ID,
+    interaction_preflight_input_document,
+    interaction_preflight_input_fingerprint,
+    moveit_interaction_proof_from_canonical_json,
+)
 
 
 __all__ = (
@@ -141,6 +148,7 @@ __all__ = (
     "GraspInteractionValidationError",
     "GraspableObjectContract",
     "HardwareAuthority",
+    "INTERACTION_PREFLIGHT_INPUT_SCHEMA_ID",
     "HoldEvidence",
     "InteractionCollisionProof",
     "InteractionCollisionSample",
@@ -149,6 +157,7 @@ __all__ = (
     "PhysicalValidationClaim",
     "PregraspEvidence",
     "ProductionRuntimeAuthority",
+    "RAW_INTERACTION_PREFLIGHT_SCHEMA_ID",
     "ReleaseEvidence",
     "SimulationAuthority",
     "canonical_grasp_interaction_artifact_json",
@@ -160,6 +169,9 @@ __all__ = (
     "evaluate_pregrasp",
     "evaluate_release",
     "grasp_interaction_artifact_from_canonical_json",
+    "interaction_preflight_input_document",
+    "interaction_preflight_input_fingerprint",
+    "moveit_interaction_proof_from_canonical_json",
     "relative_pose",
     "reviewed_end_effector_contract",
     "reviewed_graspable_object_contract",

@@ -320,6 +320,7 @@ def _collision(value: object, context: dict) -> InteractionCollisionProof:
             grasp_evidence_fingerprint=item["grasp_evidence_fingerprint"],
             backend_id=item["backend_id"],
             backend_version=item["backend_version"],
+            input_fingerprint=item["input_fingerprint"],
             samples=tuple(
                 _collision_sample(value)
                 for value in _sequence(item["samples"], "collision samples")

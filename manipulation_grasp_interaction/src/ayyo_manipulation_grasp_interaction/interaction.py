@@ -158,12 +158,19 @@ def create_interaction_collision_proof(
     """Bind target-specific attached-body collision checks to one grasp interval."""
 
     try:
+        from .proof import interaction_preflight_input_fingerprint
+
         return InteractionCollisionProof(
             request=grasp.request,
             grasp_evidence_id=grasp.grasp_evidence_id,
             grasp_evidence_fingerprint=grasp.grasp_evidence_fingerprint,
             backend_id=STAGE9D_COLLISION_BACKEND_ID,
             backend_version=STAGE9D_COLLISION_BACKEND_VERSION,
+            input_fingerprint=interaction_preflight_input_fingerprint(
+                grasp.request,
+                grasp.grasp_evidence_id,
+                grasp.grasp_evidence_fingerprint,
+            ),
             samples=samples,
             allowed_touch_links=(STAGE9D_END_EFFECTOR_LINK,),
             allowed_collision_pair=(

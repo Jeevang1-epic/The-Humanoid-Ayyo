@@ -65,9 +65,9 @@ STAGE9D_OBJECT_INERTIA = (
     0.0000075,
 )
 STAGE9D_OBJECT_INITIAL_POSITION = (
-    -0.04178749165884909,
+    -0.07754797120196011,
     0.19,
-    1.033186040831155,
+    0.8567740568197316,
 )
 STAGE9D_OBJECT_INITIAL_ORIENTATION = (
     0.0,
@@ -75,7 +75,7 @@ STAGE9D_OBJECT_INITIAL_ORIENTATION = (
     0.0,
     0.9950041652780258,
 )
-STAGE9D_EXPECTED_RELATIVE_POSITION = (0.02, 0.0, 0.01)
+STAGE9D_EXPECTED_RELATIVE_POSITION = (0.02, 0.0, -0.17)
 STAGE9D_EXPECTED_RELATIVE_ORIENTATION = (0.0, 0.0, 0.0, 1.0)
 STAGE9D_COLLISION_BACKEND_ID = "moveit.planning-scene.stage9d-attached-object.v1"
 STAGE9D_COLLISION_BACKEND_VERSION = "moveit-2.12.4"
@@ -1400,6 +1400,7 @@ class InteractionCollisionProof:
     grasp_evidence_fingerprint: str
     backend_id: str
     backend_version: str
+    input_fingerprint: str
     samples: tuple[InteractionCollisionSample, ...]
     allowed_touch_links: tuple[str, ...]
     allowed_collision_pair: tuple[str, str]
@@ -1433,6 +1434,20 @@ class InteractionCollisionProof:
         object.__setattr__(
             self, "backend_version", bounded_text(self.backend_version, "backend_version", 64)
         )
+        object.__setattr__(
+            self,
+            "input_fingerprint",
+            fingerprint(self.input_fingerprint, "input_fingerprint"),
+        )
+        from .proof import interaction_preflight_input_fingerprint
+
+        if self.input_fingerprint != interaction_preflight_input_fingerprint(
+            self.request, self.grasp_evidence_id, self.grasp_evidence_fingerprint
+        ):
+            raise GraspInteractionValidationError(
+                GraspInteractionFailureCode.INTERACTION_COLLISION,
+                "collision input is not bound to the exact Stage 9D grasp",
+            )
         if type(self.samples) not in {tuple, list}:
             raise GraspInteractionValidationError(
                 GraspInteractionFailureCode.RESOURCE_LIMIT,
@@ -1515,6 +1530,7 @@ class InteractionCollisionProof:
             "grasp_evidence_fingerprint": self.grasp_evidence_fingerprint,
             "grasp_evidence_id": self.grasp_evidence_id,
             "grasp_interval_only": self.grasp_interval_only,
+            "input_fingerprint": self.input_fingerprint,
             "physical_collision_certification": self.physical_collision_certification,
             "request": self.request.as_dict(),
             "samples": [item.as_dict() for item in self.samples],
@@ -1540,6 +1556,7 @@ def verify_collision_proof(value: object) -> bool:
             grasp_evidence_fingerprint=value.grasp_evidence_fingerprint,
             backend_id=value.backend_id,
             backend_version=value.backend_version,
+            input_fingerprint=value.input_fingerprint,
             samples=value.samples,
             allowed_touch_links=value.allowed_touch_links,
             allowed_collision_pair=value.allowed_collision_pair,
