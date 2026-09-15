@@ -274,12 +274,20 @@ def test_lower_architecture_layers_have_no_reverse_dependency() -> None:
         REPOSITORY_ROOT
         / "ros2_ws/src/ayyo_manipulation_simulation_execution"
     )
+    stage9d_root = (
+        REPOSITORY_ROOT
+        / "ros2_ws/src/ayyo_manipulation_grasp_interaction"
+    )
     for package in LOWER_PACKAGES:
         for source in (REPOSITORY_ROOT / package / "src").rglob("*.py"):
             if "ayyo_manipulation_trajectory" in source.read_text(encoding="utf-8"):
                 offenders.append(str(source.relative_to(REPOSITORY_ROOT)))
     for source in (REPOSITORY_ROOT / "ros2_ws/src").rglob("*"):
-        if stage9c_root in source.parents or not source.is_file():
+        if (
+            stage9c_root in source.parents
+            or stage9d_root in source.parents
+            or not source.is_file()
+        ):
             continue
         if source.suffix in {".py", ".cpp", ".hpp", ".xml", ".txt", ".yaml"}:
             if "ayyo_manipulation_trajectory" in source.read_text(
@@ -324,7 +332,7 @@ def test_arm_commands_remain_default_off_below_explicit_stage9c_profile() -> Non
     assert "left_wrist" not in command_section
 
 
-def test_only_stage9b_or_downstream_stage9c_surfaces_are_changed() -> None:
+def test_only_stage9b_or_reviewed_downstream_surfaces_are_changed() -> None:
     changed = subprocess.run(
         ["git", "diff", "--name-only", "main", "--"],
         cwd=REPOSITORY_ROOT,
@@ -337,8 +345,10 @@ def test_only_stage9b_or_downstream_stage9c_surfaces_are_changed() -> None:
         "manipulation_trajectory/",
         "manipulation_planning/tests/test_package_boundary.py",
         "manipulation_simulation_execution/",
+        "manipulation_grasp_interaction/",
         "ros2_ws/src/ayyo_description/",
         "ros2_ws/src/ayyo_manipulation_simulation_execution/",
+        "ros2_ws/src/ayyo_manipulation_grasp_interaction/",
         "ros2_ws/src/ayyo_simulation/",
         "scripts/",
         "README.md",
