@@ -95,7 +95,7 @@ def _goal_message(goal):
     return message
 
 
-def _profile_fingerprints() -> tuple[str, str]:
+def reviewed_profile_fingerprints() -> tuple[str, str]:
     description_root = Path(get_package_share_directory('ayyo_description')) / 'urdf'
     description = b''.join(
         name.encode() + b'\0' + (description_root / name).read_bytes() + b'\0'
@@ -113,7 +113,7 @@ def _profile_fingerprints() -> tuple[str, str]:
     )
 
 
-def _reviewed_descriptions() -> tuple[str, str, Path]:
+def reviewed_descriptions() -> tuple[str, str, Path]:
     description = Path(get_package_share_directory('ayyo_description'))
     planning = Path(get_package_share_directory('ayyo_manipulation_planning'))
     xacro = description / 'urdf/ayyo.urdf.xacro'
@@ -128,7 +128,7 @@ def _reviewed_descriptions() -> tuple[str, str, Path]:
     return urdf, srdf_path.read_text(encoding='utf-8'), srdf_path
 
 
-def _moveit_reports(urdf: str, srdf_path: Path, planning_request):
+def reviewed_moveit_reports(urdf: str, srdf_path: Path, planning_request):
     stage9a_executable = (
         Path(get_package_prefix('ayyo_manipulation_planning'))
         / 'lib/ayyo_manipulation_planning/moveit_planning_scene_proof'
@@ -651,16 +651,16 @@ class Stage9CClient(Node):
 
 def main() -> int:
     try:
-        profile = _profile_fingerprints()
+        profile = reviewed_profile_fingerprints()
         if profile != (
             STAGE9C_REVIEWED_SIMULATION_DESCRIPTION_FINGERPRINT,
             STAGE9C_REVIEWED_CONTROLLER_CONFIGURATION_FINGERPRINT,
         ):
             print('FAIL: installed Stage 9C simulation profile is not reviewed', file=sys.stderr)
             return 2
-        urdf, srdf, srdf_path = _reviewed_descriptions()
+        urdf, srdf, srdf_path = reviewed_descriptions()
         planning_request = reviewed_planning_request(urdf, srdf)
-        request, collision_proof = _moveit_reports(
+        request, collision_proof = reviewed_moveit_reports(
             urdf,
             srdf_path,
             planning_request,

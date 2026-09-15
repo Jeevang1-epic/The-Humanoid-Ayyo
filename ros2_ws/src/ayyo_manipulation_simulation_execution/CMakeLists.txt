@@ -65,6 +65,15 @@ ament_python_install_package(
   ayyo_manipulation_simulation_execution
   PACKAGE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../../manipulation_simulation_execution/src/ayyo_manipulation_simulation_execution"
 )
+# Stage 9D imports the reviewed Stage 9C adapter instead of copying its
+# controller, state-observation, or execution logic.  Keep the executable
+# entry points as well as these importable, fixed-surface modules.
+install(
+  FILES
+    scripts/stage9c_execution.py
+    scripts/stage9c_reviewed_fixture.py
+  DESTINATION "${PYTHON_INSTALL_DIR}"
+)
 
 install(TARGETS stage9c_moveit_preflight DESTINATION lib/${PROJECT_NAME})
 install(
