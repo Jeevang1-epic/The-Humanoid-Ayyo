@@ -16,6 +16,11 @@
 - Generic RViz GUI environment smoke test passed
 - Six-result Stage-6 headless Gazebo/ROS scenario smoke passed with
   three sequential launch profiles and zero owned-process leaks
+- Stage-9D final validation passed: 57 transport-neutral tests; 11/10/5
+  Stage-9A/9B/9C boundary regressions; an 8-package fresh ROS build; 107
+  focused colcon cases with 0 errors, 0 failures, and 3 declared skips; and two
+  consecutive owned headless grasp-interaction smokes with zero owned-process
+  leaks
 - Ayyo-specific controlled Gazebo graphical review not executed in this milestone
 
 ## Implemented
@@ -171,6 +176,26 @@
   isolation, public Stage 9A/9B reconstruction, dense preflight, exact action
   submission, observed simulated arm movement, bounded final error, whole-body
   stability, canonical evidence, and bounded process teardown
+- Standalone `ayyo-manipulation-grasp-interaction` Stage-9D core with immutable
+  bounded fixed end-effector/object contracts, detached pregrasp, real contact,
+  attachment, attached-body collision, hold, release, and final result evidence;
+  complete Stage-9C lineage retention; strict canonical reconstruction; and
+  typed fail-closed handling of malformed, stale, substituted, replayed,
+  cross-run, slip, collision, and release evidence
+- Exactly one reviewed collision-enabled, gravity-enabled dynamic box and a
+  default-off Gazebo contact profile; five fixed directional ROS/Gazebo bridges;
+  and a contact-gated fixed constraint whose robot, `left_hand_link`, object,
+  topics, mode, freshness, and alignment are not caller-configurable
+- Target-specific attached-object MoveIt checks at all exact 66 Stage-9C dense
+  samples with only `left_hand_link` as a touch link, no global ACM mutation,
+  and explicit non-claims for continuous and physical collision certification
+- Explicit Stage-9D adapter reuse of the reviewed Stage-9C construction,
+  state/controller observation, exact one-goal execution, result, and
+  whole-body stability seam; bounded relative-pose hold plus explicit detached,
+  non-rigid post-release evidence; no launch-time motion or attachment
+- Owned headless Stage-9D Gazebo proof covering exact contact, detached
+  precondition, one attachment, unchanged Stage-9C motion while holding the
+  object, release, canonical recursive evidence, and bounded process teardown
 - Standalone Memory OS core with typed records and mandatory provenance
 - SQLite persistence with schema versioning, foreign keys, WAL journaling,
   transactional corrections, retractions, and conflict records
@@ -540,7 +565,13 @@ dense MoveIt preflight and fresh simulated-start verification. Its fixed-base
 support is only a simulation manipulation fixture; success requires
 fresh whole-body stability evidence and does not demonstrate autonomous
 standing, balance, or locomotion. Its observed results remain not physically
-validated and grant neither hardware nor production Runtime authority. The
+validated and grant neither hardware nor production Runtime authority. Stage
+9D adds only a fixed `left_hand_link`, one exact dynamic object, real target
+contact, a contact-gated simulation constraint, attached-body sample checks,
+bounded relative-pose hold, and explicit release evidence. It reuses Stage 9C
+without changing its path, joints, timing, controller, result, or stability
+policy, and adds no general grasping, hardware, physical validation, or
+production Runtime authority. The
 separate Simulation Control Foundation can
 actuate one bounded simulated neck joint only through explicit development
 injection and can prove the result from controller-derived feedback. The

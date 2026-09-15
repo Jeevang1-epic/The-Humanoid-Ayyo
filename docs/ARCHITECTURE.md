@@ -162,6 +162,42 @@ base roll/pitch or yaw change above `0.01` rad, and base height at least `0.90`
 m. Missing, malformed, stale, collapsed, tilted, displaced, or controller-down
 evidence is a failed simulation result.
 
+Stage-9D simulated end-effector interaction is a still narrower explicit
+development path downstream of the complete Stage-9C boundary:
+
+```text
+recursively verified Stage-9C request lineage
+→ fixed left_hand_link + one exact dynamic-box contract
+→ fresh detached pose/alignment evidence
+→ real Gazebo contact for the exact hand/object collision pair
+→ one contact-gated fixed constraint
+→ target-specific attached-body MoveIt checks at all 66 Stage-9C samples
+→ unchanged Stage-9C preflight, controller, goal, result, and stability proof
+→ bounded fresh relative-pose hold evidence
+→ explicit detach + fresh non-rigid relative motion
+→ fresh Stage-9C whole-body stability evidence
+→ immutable canonical Stage-9D result
+→ stop (NOT_PHYSICALLY_VALIDATED, NO_HARDWARE_AUTHORITY,
+        NO_PRODUCTION_RUNTIME_AUTHORITY)
+```
+
+The [Simulated End-Effector and Grasp Interaction Foundation](MANIPULATION_GRASP_INTERACTION.md)
+owns the fixed object, Gazebo contact/exact-world-pose bridge, and a simulation-only
+contact-gated detachable constraint. The constraint starts detached and its
+targets, topics, mode, alignment, and freshness bounds are not configurable.
+Only exact fresh contact plus reviewed relative alignment can create the
+temporary hand/object joint. The attached collision allowance is object-
+specific, permits touch only with `left_hand_link`, lasts only for the grasp
+interval, and does not change the global allowed-collision matrix. The Stage 9D
+adapter imports the reviewed Stage 9C execution seam; it does not fork its path,
+joint order, timing, action endpoint, success rules, or whole-body policy.
+
+Ordinary simulation keeps Stage 9D contact support false, and the dedicated
+profile sends no goal and creates no attachment on launch. Stage 9D has no
+arbitrary target/endpoint API, grasp planner, finger actuation, force or tactile
+claim, Runtime/Skill integration, hardware path, or physical validation.
+Bounded attached-body samples are not continuous collision certification.
+
 The standalone
 [Teach Mode Demonstration Capture Foundation](TEACH_MODE_DEMONSTRATION_CAPTURE.md)
 depends only on public immutable developmental-scenario contracts. It records
@@ -573,6 +609,13 @@ replace proxy geometry without duplicating or bypassing frame semantics.
   9A/9B public contracts; the ROS adapter depends on that core and the reviewed
   simulation/MoveIt packages. Lower cognition, Safety, Skill, Runtime, Stage-9A,
   and Stage-9B packages remain unaware of Stage 9C. Its result cannot grant
+  physical, hardware, or production Runtime authority.
+- Manipulation Grasp Interaction is the only Stage-9D owner of the fixed
+  end-effector/object contract, target contact evidence, contact-gated
+  simulation constraint, attached-body collision proof, hold evidence, and
+  release evidence. It depends downward on the complete Stage-9C boundary and
+  its ROS adapter reuses the reviewed Stage-9C execution module. All lower
+  layers remain unaware of Stage 9D. Its result cannot grant general grasping,
   physical, hardware, or production Runtime authority.
 - Learning updates remain candidates until evaluation and controlled promotion;
   consolidation does not bypass safety or permissions.

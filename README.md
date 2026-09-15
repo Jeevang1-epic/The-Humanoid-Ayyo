@@ -7,19 +7,17 @@ can mature behind stable boundaries before physical hardware is introduced.
 
 ## Current status
 
-Ayyo has completed the local Stage 9C Simulation-Only Manipulation Controller
-Execution & Observed Outcome Foundation v1. An explicit development invocation
-may consume one recursively verified positive Stage 9B handoff, run a dense
-MoveIt PlanningScene preflight, require a fresh matching Gazebo joint state,
-and submit the exact position-only left-arm trajectory to one fixed
-`FollowJointTrajectory` action. The dedicated controller profile is default-off
-and exists only in Gazebo Harmonic. Its explicit simulation-only manipulation
-fixture anchors the otherwise free base without disabling articulation,
-collision, or gravity. Success additionally requires fresh post-result state
-for all 18 movable joints and the base pose, an active controller, bounded
-non-target motion, and no base displacement, tilt, penetration, or collapse.
-A successful result means only
-`SIMULATION_EXECUTION_COMPLETED`, `NOT_PHYSICALLY_VALIDATED`,
+Ayyo has completed the local Stage 9D Simulated End-Effector & Grasp
+Interaction Foundation v1. One explicit default-off Gazebo Harmonic profile
+gives the existing `left_hand_link` a fixed simulation-only end-effector
+contract and one exact small dynamic box target. A contact-gated detachable
+constraint starts detached, accepts only fresh real Gazebo contact and reviewed
+alignment for that exact pair, and carries the object through the unchanged
+Stage 9C trajectory and controller seam. A successful artifact recursively
+retains Stage 9C, target-specific attached-body MoveIt checks over all 66 dense
+samples, fresh relative-pose hold evidence, explicit detachment, non-rigid
+post-release object evidence, and whole-body stability. It means only
+`SIMULATION_GRASP_INTERACTION_COMPLETED`, `NOT_PHYSICALLY_VALIDATED`,
 `NO_HARDWARE_AUTHORITY`, and `NO_PRODUCTION_RUNTIME_AUTHORITY`.
 
 Implemented:
@@ -111,6 +109,20 @@ Implemented:
   all-joint, base-pose, and post-controller evidence, rejects whole-body
   instability even after action success, emits bounded canonical evidence, and
   tears down owned processes
+- A standalone `ayyo-manipulation-grasp-interaction` Stage-9D layer with fixed
+  `left_hand_link` and one reviewed dynamic-box contract; immutable bounded
+  pregrasp, contact, attachment, collision, hold, release, and result evidence;
+  exact Stage-9C lineage; strict canonical reconstruction; and typed fail-closed
+  errors
+- A default-off Stage-9D Gazebo profile with real target contact and exact
+  paired Gazebo world poses, an exact contact-gated fixed constraint that starts
+  detached, and five fixed directional bridge seams; launching it neither
+  attaches nor moves the arm
+- A headless Stage-9D proof that reuses the reviewed Stage-9C adapter and exact
+  one-goal execution, restricts MoveIt touch permission to the target object and
+  `left_hand_link` for the grasp interval, proves bounded relative-pose hold,
+  explicit non-rigid release, whole-body stability, canonical evidence, and
+  owned-process teardown
 - A verified local ROS 2, Gazebo, and RViz development setup
 - A standalone, provenance-aware Memory OS core with SQLite persistence
 - A standalone deterministic validation and consolidation policy for candidate
@@ -476,6 +488,25 @@ physical manipulation certification.
 scripts/smoke_manipulation_simulation_execution.sh
 ```
 
+Run the Stage-9D grasp-interaction contracts, recursive integrity checks,
+serialization, and adversarial tests:
+
+```bash
+source /opt/ros/jazzy/setup.bash
+PYTHONPATH=memory/src:personal_context/src:executive/src:safety_kernel/src:skill_manager/src:manipulation_planning/src:manipulation_trajectory/src:manipulation_simulation_execution/src:manipulation_grasp_interaction/src${PYTHONPATH:+:$PYTHONPATH} \
+  python3 -m pytest -q manipulation_grasp_interaction/tests
+```
+
+After building the affected ROS packages, run the explicit owned-process Stage
+9D proof twice. The profile is non-actuating on launch; only the smoke's fixed
+client requests one contact-gated attachment, the unchanged Stage 9C motion,
+and one release.
+
+```bash
+scripts/smoke_manipulation_grasp_interaction.sh
+scripts/smoke_manipulation_grasp_interaction.sh
+```
+
 Run Memory OS tests:
 
 ```bash
@@ -696,6 +727,7 @@ software_showcase/  Deterministic Stage-8 public-contract catalog and inspector
 manipulation_planning/  Immutable Stage-9A planning-only evidence contracts
 manipulation_trajectory/  Immutable Stage-9B trajectory and handoff eligibility
 manipulation_simulation_execution/  Stage-9C simulation-only execution evidence
+manipulation_grasp_interaction/  Stage-9D simulated end-effector/grasp evidence
 world_model/  Transport-neutral embodied/environment observations and snapshots
 perception/  Deterministic sensor/provenance/time admission trust boundary
 physical_camera/  Driver-neutral physical source, calibration, lifecycle, and diagnostics
@@ -848,3 +880,14 @@ feedback, and sends one exact goal to the fixed left-arm
 `FollowJointTrajectory` action. It does not add a Runtime Bridge endpoint,
 production Skill, physical driver, persistence, network API, background worker,
 automatic invocation, replanning, retry, or physical-safety claim.
+
+Simulated End-Effector & Grasp Interaction Foundation v1 adds the narrow Stage
+9D interaction seam. See
+[Simulated End-Effector and Grasp Interaction](docs/MANIPULATION_GRASP_INTERACTION.md).
+It defines only `left_hand_link`, one exact dynamic box, real Gazebo contact, a
+contact-gated simulation constraint, target-specific attached-body sample
+checks, relative-pose hold, and explicit release evidence. It imports and
+retains the reviewed Stage 9C adapter, trajectory, controller, one-goal result,
+and whole-body stability boundary unchanged. It adds no grasp planner,
+generalized manipulation, Runtime/Skill execution authority, hardware path, or
+physical-validation claim.

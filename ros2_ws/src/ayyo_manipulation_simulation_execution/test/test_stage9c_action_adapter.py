@@ -59,6 +59,17 @@ def test_adapter_has_one_fixed_action_and_no_alternate_command_surface() -> None
     assert 'wait_for_support_fixture()' in source
 
 
+def test_reviewed_execution_helpers_are_publicly_importable() -> None:
+    adapter = _load('stage9c_execution')
+    assert callable(adapter.reviewed_profile_fingerprints)
+    assert callable(adapter.reviewed_descriptions)
+    assert callable(adapter.reviewed_moveit_reports)
+    cmake = (SCRIPTS.parent / 'CMakeLists.txt').read_text(encoding='utf-8')
+    module_install = cmake[cmake.index('install(\n  FILES\n    scripts/stage9c_execution.py'):]
+    assert 'scripts/stage9c_reviewed_fixture.py' in module_install[:300]
+    assert 'DESTINATION "${PYTHON_INSTALL_DIR}"' in module_install[:300]
+
+
 def test_stage9c_launch_enables_only_explicit_support_and_pose_evidence() -> None:
     source = (SCRIPTS.parent / 'launch' / 'stage9c_simulation.launch.py').read_text(
         encoding='utf-8'
