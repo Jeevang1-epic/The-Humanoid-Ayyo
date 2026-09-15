@@ -283,11 +283,27 @@ fails the proof. Success means only simulation execution completed; it
 explicitly retains no physical validation, hardware authority, or production
 Runtime authority.
 
-Stage 9 is not complete. Grasp planning, end-effector semantics, trajectory
-dynamics, force/contact reasoning, production Runtime/Skill implementations,
-independent physical motion/contact Safety policy, emergency-stop integration,
-physical calibration, and any physical arm execution remain separately
-reviewed future milestones.
+Stage 9D now adds Simulated End-Effector & Grasp Interaction Foundation v1 as a
+fixed, deliberately non-general downstream proof. It binds the complete Stage
+9C request/result lineage to `left_hand_link` and one exact dynamic box. A
+default-off Gazebo profile supplies real contact and an exact bounded hand/object
+world-pose pair; a fixed simulation constraint begins detached and can attach
+only after fresh contact and reviewed alignment for the exact collision pair.
+The unchanged Stage 9C trajectory then carries the object. Success requires
+object-specific attached-
+body MoveIt checks at all 66 dense samples, a fresh bounded relative-pose hold,
+explicit detachment, fresh non-rigid post-release motion, and whole-body
+stability. Immutable canonical evidence rejects stale/replayed contact,
+substitution, cross-run composition, attachment mismatch, slip, collision,
+release failure, malformed data, and recursively invalid Stage 9C evidence.
+The profile launches without motion or attachment and grants no general grasp,
+physical, hardware, Safety-bypass, or production Runtime authority.
+
+Stage 9 is not complete. Grasp planning, articulated end-effectors, trajectory
+dynamics, force/closure/tactile reasoning, production Runtime/Skill
+implementations, independent physical motion/contact Safety policy,
+emergency-stop integration, physical calibration, and any physical arm
+execution remain separately reviewed future milestones.
 
 Final Ayyo assets, graphical controlled-design validation, additional joints,
 trajectory/whole-body controllers, validated dynamics/contact behavior,
