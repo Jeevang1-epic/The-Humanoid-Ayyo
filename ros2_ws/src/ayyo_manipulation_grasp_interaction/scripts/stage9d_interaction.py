@@ -456,7 +456,6 @@ def main() -> int:
             if node.wait_for_whole_body_state() is None or not node.wait_for_support_fixture():
                 print('FAIL: Stage 9C support evidence is unavailable', file=sys.stderr)
                 return 2
-            controller = node.controller_state(stage9c_request.controller_contract)
             initial_whole = node.wait_for_whole_body_state()
             if initial_whole is None:
                 print('FAIL: fresh Stage 9C initial whole-body state expired', file=sys.stderr)
@@ -467,14 +466,22 @@ def main() -> int:
                 observed_at_ns=initial_whole.observed_at_ns,
                 sequence=initial_whole.sequence,
             )
+            controller = node.controller_state(stage9c_request.controller_contract)
+            evaluated_at = node._simulation_now()
             preflight = evaluate_simulation_preflight(
                 stage9c_collision,
                 start,
                 controller,
-                evaluated_at_ns=node._simulation_now(),
+                evaluated_at_ns=evaluated_at,
             )
             if preflight.status is not PreflightStatus.READY_FOR_SIMULATION_EXECUTION:
-                print('FAIL: exact Stage 9C preflight rejected execution', file=sys.stderr)
+                reasons = ','.join(reason.value for reason in preflight.reasons)
+                positions = ','.join(f'{value:.6f}' for value in start.positions)
+                print(
+                    'FAIL: exact Stage 9C preflight rejected execution; '
+                    f'reasons={reasons}; start_positions={positions}',
+                    file=sys.stderr,
+                )
                 return 2
             goal = create_simulation_execution_goal(preflight)
             observation = node.execute(goal, initial_whole)

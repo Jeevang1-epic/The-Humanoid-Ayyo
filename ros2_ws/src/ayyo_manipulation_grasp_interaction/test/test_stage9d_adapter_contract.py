@@ -126,6 +126,17 @@ def test_adapter_has_no_generic_command_or_retry_surface() -> None:
     )
 
 
+def test_stage9c_preflight_uses_the_freshest_controller_observation() -> None:
+    source = (PACKAGE_ROOT / 'scripts/stage9d_interaction.py').read_text()
+    state = source.index('initial_whole = node.wait_for_whole_body_state()')
+    controller = source.index(
+        'controller = node.controller_state(stage9c_request.controller_contract)'
+    )
+    evaluated_at = source.index('evaluated_at = node._simulation_now()', controller)
+    preflight = source.index('preflight = evaluate_simulation_preflight(', evaluated_at)
+    assert state < controller < evaluated_at < preflight
+
+
 def test_stage9c_controller_contract_is_not_duplicated_or_changed() -> None:
     package_text = '\n'.join(
         path.read_text(encoding='utf-8')
