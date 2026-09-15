@@ -101,7 +101,7 @@ std::string without_xml_comments(const std::string & document)
 
 std::string sha256_hex(const std::string & value)
 {
-  std::unique_ptr<EVP_MD_CTX, decltype(&EVP_MD_CTX_free)> context(
+  std::unique_ptr<EVP_MD_CTX, decltype(& EVP_MD_CTX_free)> context(
     EVP_MD_CTX_new(), &EVP_MD_CTX_free);
   if (!context || EVP_DigestInit_ex(context.get(), EVP_sha256(), nullptr) != 1 ||
     EVP_DigestUpdate(context.get(), value.data(), value.size()) != 1)
@@ -434,8 +434,8 @@ int main(int argc, char ** argv)
       {"samples", reports},
       {"samples_checked", reports.size()},
       {"schema", {
-        {"id", "ayyo.stage9d.moveit-interaction-preflight-report.v1"},
-        {"version", "1.0.0"}}},
+          {"id", "ayyo.stage9d.moveit-interaction-preflight-report.v1"},
+          {"version", "1.0.0"}}},
       {"target_object_specific", true},
     };
     std::cout << output.dump();

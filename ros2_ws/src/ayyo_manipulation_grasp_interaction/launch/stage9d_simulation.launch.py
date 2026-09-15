@@ -46,6 +46,12 @@ def generate_launch_description() -> LaunchDescription:
             ),
             'name': 'stage9d_grasp_object',
             'allow_renaming': False,
+            'x': -0.07774664053275518,
+            'y': 0.19,
+            'z': 0.5757939902418903,
+            'R': 0.0,
+            'P': 0.2,
+            'Y': 0.0,
         }],
     )
     bridge = Node(

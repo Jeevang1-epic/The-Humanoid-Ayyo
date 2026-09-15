@@ -40,7 +40,10 @@ STAGE9D_ROBOT_NAME = "ayyo"
 STAGE9D_END_EFFECTOR_LINK = "left_hand_link"
 STAGE9D_END_EFFECTOR_FRAME = "left_hand_link"
 STAGE9D_END_EFFECTOR_ENTITY = "ayyo::left_hand_link"
-STAGE9D_END_EFFECTOR_COLLISION = "ayyo::left_hand_link::collision"
+STAGE9D_END_EFFECTOR_COLLISION = (
+    "ayyo::left_wrist_link::"
+    "left_wrist_link_fixed_joint_lump__left_hand_link_collision_1"
+)
 STAGE9D_FIXTURE_ID = "ayyo.stage9d.contact-gated-fixed-constraint.v1"
 STAGE9D_FIXTURE_VERSION = "1.0.0"
 STAGE9D_FIXTURE_STATE_TOPIC = "/ayyo/stage9d/grasp_fixture/state"
@@ -48,7 +51,7 @@ STAGE9D_FIXTURE_ATTACH_TOPIC = "/ayyo/stage9d/grasp_fixture/attach"
 STAGE9D_FIXTURE_DETACH_TOPIC = "/ayyo/stage9d/grasp_fixture/detach"
 STAGE9D_CONTACT_TOPIC = "/ayyo/stage9d/grasp_object/contacts"
 STAGE9D_CONTACT_MESSAGE_TYPE = "ros_gz_interfaces/msg/Contacts"
-STAGE9D_OBJECT_ODOMETRY_TOPIC = "/ayyo/stage9d/grasp_object/odometry"
+STAGE9D_ENTITY_POSES_TOPIC = "/ayyo/stage9d/grasp_fixture/entity_poses"
 STAGE9D_OBJECT_ID = "ayyo.stage9d.reviewed-grasp-object.v1"
 STAGE9D_OBJECT_MODEL = "stage9d_grasp_object"
 STAGE9D_OBJECT_LINK = "stage9d_grasp_object_link"
@@ -65,9 +68,9 @@ STAGE9D_OBJECT_INERTIA = (
     0.0000075,
 )
 STAGE9D_OBJECT_INITIAL_POSITION = (
-    -0.07754797120196011,
+    -0.07774664053275518,
     0.19,
-    0.8567740568197316,
+    0.5757939902418903,
 )
 STAGE9D_OBJECT_INITIAL_ORIENTATION = (
     0.0,
@@ -706,11 +709,11 @@ class EntityPoseEvidence:
         expected = {
             ObservedEntityKind.END_EFFECTOR: (
                 STAGE9D_END_EFFECTOR_ENTITY,
-                "stage9d.tf2-gazebo-base.v1",
+                "stage9d.gazebo-exact-pose-pair.v1",
             ),
             ObservedEntityKind.GRASP_OBJECT: (
                 STAGE9D_OBJECT_MODEL,
-                "stage9d.gazebo-object-odometry.v1",
+                "stage9d.gazebo-exact-pose-pair.v1",
             ),
         }[self.kind]
         if self.entity_name != expected[0] or self.source != expected[1]:

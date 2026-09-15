@@ -56,11 +56,7 @@ def _pose(request, kind, position, *, sequence, observed_at_ns):
         observed_at_ns=observed_at_ns,
         sequence=sequence,
         entity_count=1,
-        source=(
-            "stage9d.tf2-gazebo-base.v1"
-            if kind is ObservedEntityKind.END_EFFECTOR
-            else "stage9d.gazebo-object-odometry.v1"
-        ),
+        source="stage9d.gazebo-exact-pose-pair.v1",
     )
 
 

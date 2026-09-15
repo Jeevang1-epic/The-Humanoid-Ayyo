@@ -105,8 +105,8 @@ stage9d_topics_ready() {
     '/ayyo/stage9d/grasp_object/contacts [ros_gz_interfaces/msg/Contacts]' \
     <<<"$topics" &&
     grep -Fxq \
-      '/ayyo/stage9d/grasp_object/odometry [nav_msgs/msg/Odometry]' \
-      <<<"$topics" &&
+    '/ayyo/stage9d/grasp_fixture/entity_poses [tf2_msgs/msg/TFMessage]' \
+    <<<"$topics" &&
     grep -Fxq \
       '/ayyo/stage9d/grasp_fixture/state [std_msgs/msg/String]' \
       <<<"$topics"
@@ -115,10 +115,12 @@ stage9d_topics_ready() {
 object_ready() {
   local sample
   sample="$(
-    timeout 3 ros2 topic echo --once /ayyo/stage9d/grasp_object/odometry \
-      nav_msgs/msg/Odometry 2>/dev/null || true
+    timeout 3 ros2 topic echo --once /ayyo/stage9d/grasp_fixture/entity_poses \
+      tf2_msgs/msg/TFMessage 2>/dev/null || true
   )"
-  grep -q 'position:' <<<"$sample" && grep -q 'orientation:' <<<"$sample"
+  grep -q 'child_frame_id: ayyo/left_hand_link' <<<"$sample" &&
+    grep -q 'child_frame_id: stage9d_grasp_object' <<<"$sample" &&
+    grep -q 'frame_id: world' <<<"$sample"
 }
 
 contact_ready() {
@@ -143,7 +145,7 @@ fixture_detached() {
 wait_until 'Stage 9C reviewed controllers are active' controllers_ready
 wait_until 'the fixed Stage 9C action is the only arm execution seam' action_ready
 wait_until 'the five fixed Stage 9D bridge topics are typed' stage9d_topics_ready
-wait_until 'the exact reviewed primitive has fresh odometry' object_ready
+wait_until 'the exact hand and primitive have fresh Gazebo world poses' object_ready
 wait_until 'the exact hand/object contact is observable' contact_ready
 wait_until 'the Stage 9D constraint begins detached' fixture_detached
 
@@ -184,7 +186,7 @@ release = result["release"]
 hold = release["hold"]
 grasp = hold["grasp"]
 assert grasp["contact"]["collision_pairs"] == [[
-    "ayyo::left_hand_link::collision",
+    "ayyo::left_wrist_link::left_wrist_link_fixed_joint_lump__left_hand_link_collision_1",
     "stage9d_grasp_object::stage9d_grasp_object_link::stage9d_grasp_object_collision",
 ]]
 assert grasp["pregrasp"]["detached_fixture"]["state"] == "detached"

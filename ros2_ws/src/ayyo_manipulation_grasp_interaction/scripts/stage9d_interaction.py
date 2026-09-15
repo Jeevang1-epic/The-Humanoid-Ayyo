@@ -5,7 +5,6 @@
 
 from __future__ import annotations
 
-import importlib.util
 import json
 from math import isfinite
 from pathlib import Path
@@ -16,68 +15,52 @@ import time
 
 from ament_index_python.packages import get_package_prefix
 from ayyo_manipulation_grasp_interaction import (
-    ContactEvidence,
-    EntityPoseEvidence,
-    FixtureAttachmentState,
-    FixtureStateEvidence,
-    GraspInteractionValidationError,
-    ObservedEntityKind,
-    STAGE9D_CONTACT_TOPIC,
-    STAGE9D_END_EFFECTOR_COLLISION,
-    STAGE9D_END_EFFECTOR_ENTITY,
-    STAGE9D_FIXTURE_ATTACH_TOPIC,
-    STAGE9D_FIXTURE_DETACH_TOPIC,
-    STAGE9D_FIXTURE_ID,
-    STAGE9D_FIXTURE_STATE_TOPIC,
-    STAGE9D_OBJECT_COLLISION,
-    STAGE9D_OBJECT_ID,
-    STAGE9D_OBJECT_MODEL,
-    STAGE9D_OBJECT_ODOMETRY_TOPIC,
     canonical_grasp_interaction_artifact_json,
+    ContactEvidence,
     create_grasp_interaction_request,
     create_grasp_interaction_result,
+    EntityPoseEvidence,
     establish_grasp,
     evaluate_hold,
     evaluate_pregrasp,
     evaluate_release,
+    FixtureAttachmentState,
+    FixtureStateEvidence,
+    GraspInteractionValidationError,
     interaction_preflight_input_document,
     moveit_interaction_proof_from_canonical_json,
+    ObservedEntityKind,
     relative_pose,
+    STAGE9D_CONTACT_TOPIC,
+    STAGE9D_END_EFFECTOR_ENTITY,
+    STAGE9D_ENTITY_POSES_TOPIC,
+    STAGE9D_FIXTURE_ATTACH_TOPIC,
+    STAGE9D_FIXTURE_DETACH_TOPIC,
+    STAGE9D_FIXTURE_ID,
+    STAGE9D_FIXTURE_STATE_TOPIC,
+    STAGE9D_OBJECT_ID,
+    STAGE9D_OBJECT_MODEL,
 )
 from ayyo_manipulation_simulation_execution import (
-    PreflightStatus,
-    SimulatedJointState,
-    SimulationExecutionOutcome,
     create_simulation_execution_goal,
     create_simulation_execution_result,
     evaluate_simulation_preflight,
     evaluate_whole_body_stability,
+    PreflightStatus,
+    SimulatedJointState,
+    SimulationExecutionOutcome,
 )
-from nav_msgs.msg import Odometry
 import rclpy
-from rclpy.parameter import Parameter
 from ros_gz_interfaces.msg import Contacts
+import stage9c_execution as stage9c
 from std_msgs.msg import Empty, String
-from tf2_ros import Buffer, TransformException, TransformListener
+from tf2_msgs.msg import TFMessage
 
 
 MAX_WAIT_SECONDS = 10.0
+STAGE9D_ROS_END_EFFECTOR_FRAME = 'ayyo/left_hand_link'
 MAX_CONTACT_ENTRIES = 16
 MINIMUM_RELEASE_CHANGE = 0.005
-
-
-def _load_stage9c_adapter():
-    """Load only the installed, fixed Stage 9C executable implementation."""
-    path = (
-        Path(get_package_prefix('ayyo_manipulation_simulation_execution'))
-        / 'lib/ayyo_manipulation_simulation_execution/stage9c_execution.py'
-    )
-    spec = importlib.util.spec_from_file_location('ayyo_stage9c_execution', path)
-    if spec is None or spec.loader is None:
-        raise RuntimeError('installed Stage 9C execution seam is unavailable')
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
 
 
 def _interaction_report(grasp, urdf: str, srdf_path: Path) -> str:
@@ -124,24 +107,19 @@ class Stage9DClient:
     """Mixin adding only fixed Stage 9D observations to Stage 9C's client."""
 
     def _initialize_stage9d(self) -> None:
-        self._stage9d_object = None
-        self._stage9d_object_sequence = 0
+        self._stage9d_poses = None
+        self._stage9d_pose_sequence = 0
         self._stage9d_fixture = None
         self._stage9d_fixture_sequence = 0
         self._stage9d_contact = None
         self._stage9d_contact_sequence = 0
-        self._stage9d_tf_sequence = 0
+        self._stage9d_contact_messages = 0
+        self._stage9d_contact_rejection = None
         self._stage9d_request = None
-        self._stage9d_tf_buffer = Buffer(node=self)
-        self._stage9d_tf_listener = TransformListener(
-            self._stage9d_tf_buffer,
-            self,
-            spin_thread=False,
-        )
         self.create_subscription(
-            Odometry,
-            STAGE9D_OBJECT_ODOMETRY_TOPIC,
-            self._on_stage9d_object,
+            TFMessage,
+            STAGE9D_ENTITY_POSES_TOPIC,
+            self._on_stage9d_poses,
             10,
         )
         self.create_subscription(
@@ -170,27 +148,50 @@ class Stage9DClient:
     def _simulation_now(self) -> int:
         return max(0, self.get_clock().now().nanoseconds)
 
-    def _on_stage9d_object(self, message: Odometry) -> None:
+    def _on_stage9d_poses(self, message: TFMessage) -> None:
         try:
-            pose = message.pose.pose
-            values = (
-                float(pose.position.x),
-                float(pose.position.y),
-                float(pose.position.z),
-                float(pose.orientation.x),
-                float(pose.orientation.y),
-                float(pose.orientation.z),
-                float(pose.orientation.w),
-            )
-            if not all(isfinite(value) for value in values):
+            if len(message.transforms) != 2:
                 return
-            stamp = message.header.stamp.sec * 1_000_000_000 + (
-                message.header.stamp.nanosec
-            )
-            if stamp < 0:
+            expected = {STAGE9D_ROS_END_EFFECTOR_FRAME, STAGE9D_OBJECT_MODEL}
+            if {item.child_frame_id for item in message.transforms} != expected:
                 return
-            self._stage9d_object_sequence += 1
-            self._stage9d_object = (values, stamp, self._stage9d_object_sequence)
+            poses = {}
+            stamps = set()
+            for item in message.transforms:
+                if item.header.frame_id != 'world':
+                    return
+                transform = item.transform
+                values = (
+                    float(transform.translation.x),
+                    float(transform.translation.y),
+                    float(transform.translation.z),
+                    float(transform.rotation.x),
+                    float(transform.rotation.y),
+                    float(transform.rotation.z),
+                    float(transform.rotation.w),
+                )
+                if not all(isfinite(value) for value in values):
+                    return
+                stamp = item.header.stamp.sec * 1_000_000_000 + (
+                    item.header.stamp.nanosec
+                )
+                if stamp < 0:
+                    return
+                entity_name = (
+                    STAGE9D_END_EFFECTOR_ENTITY
+                    if item.child_frame_id == STAGE9D_ROS_END_EFFECTOR_FRAME
+                    else item.child_frame_id
+                )
+                poses[entity_name] = values
+                stamps.add(stamp)
+            if len(stamps) != 1:
+                return
+            self._stage9d_pose_sequence += 1
+            self._stage9d_poses = (
+                poses,
+                stamps.pop(),
+                self._stage9d_pose_sequence,
+            )
         except (AttributeError, ArithmeticError, TypeError, ValueError):
             return
 
@@ -205,11 +206,18 @@ class Stage9DClient:
         )
 
     def _on_stage9d_contact(self, message: Contacts) -> None:
+        self._stage9d_contact_messages = min(
+            self._stage9d_contact_messages + 1,
+            sys.maxsize,
+        )
         try:
             if not 1 <= len(message.contacts) <= MAX_CONTACT_ENTRIES:
+                self._stage9d_contact_rejection = (
+                    'contact message violates the retained-entry bound'
+                )
                 return
             pairs = tuple(
-                sorted((contact.collision1.name, contact.collision2.name))
+                tuple(sorted((contact.collision1.name, contact.collision2.name)))
                 for contact in message.contacts
             )
             depths = tuple(
@@ -220,6 +228,9 @@ class Stage9DClient:
             if depths and (
                 not all(isfinite(depth) and 0.0 <= depth <= 0.01 for depth in depths)
             ):
+                self._stage9d_contact_rejection = (
+                    'contact depth is non-finite, negative, or above 0.01 m'
+                )
                 return
             self._stage9d_contact_sequence += 1
             self._stage9d_contact = (
@@ -229,61 +240,35 @@ class Stage9DClient:
                 self._simulation_now(),
                 self._stage9d_contact_sequence,
             )
-        except (AttributeError, ArithmeticError, TypeError, ValueError):
+            self._stage9d_contact_rejection = None
+        except (AttributeError, ArithmeticError, TypeError, ValueError) as error:
+            self._stage9d_contact_rejection = f'malformed contact message: {error}'
             return
 
     def _pose_evidence(self, kind: ObservedEntityKind):
         request = self._stage9d_request
-        if request is None:
+        if request is None or self._stage9d_poses is None:
             return None
-        if kind is ObservedEntityKind.GRASP_OBJECT:
-            if self._stage9d_object is None:
-                return None
-            values, stamp, sequence = self._stage9d_object
-            return EntityPoseEvidence(
-                interaction_request_id=request.interaction_request_id,
-                interaction_request_fingerprint=(
-                    request.interaction_request_fingerprint
-                ),
-                run_session_id=request.run_session_id,
-                kind=kind,
-                entity_name=STAGE9D_OBJECT_MODEL,
-                frame_id='world',
-                position_xyz=values[:3],
-                orientation_xyzw=values[3:],
-                observed_at_ns=stamp,
-                sequence=sequence,
-                entity_count=1,
-                source='stage9d.gazebo-object-odometry.v1',
-            )
-        try:
-            transform = self._stage9d_tf_buffer.lookup_transform(
-                'world',
-                'left_hand_link',
-                rclpy.time.Time(),
-            )
-        except TransformException:
-            return None
-        translation = transform.transform.translation
-        rotation = transform.transform.rotation
-        stamp = (
-            transform.header.stamp.sec * 1_000_000_000
-            + transform.header.stamp.nanosec
+        poses, stamp, sequence = self._stage9d_poses
+        entity_name = (
+            STAGE9D_OBJECT_MODEL
+            if kind is ObservedEntityKind.GRASP_OBJECT
+            else STAGE9D_END_EFFECTOR_ENTITY
         )
-        self._stage9d_tf_sequence += 1
+        values = poses[entity_name]
         return EntityPoseEvidence(
             interaction_request_id=request.interaction_request_id,
             interaction_request_fingerprint=request.interaction_request_fingerprint,
             run_session_id=request.run_session_id,
             kind=kind,
-            entity_name=STAGE9D_END_EFFECTOR_ENTITY,
+            entity_name=entity_name,
             frame_id='world',
-            position_xyz=(translation.x, translation.y, translation.z),
-            orientation_xyzw=(rotation.x, rotation.y, rotation.z, rotation.w),
+            position_xyz=values[:3],
+            orientation_xyzw=values[3:],
             observed_at_ns=stamp,
-            sequence=self._stage9d_tf_sequence,
+            sequence=sequence,
             entity_count=1,
-            source='stage9d.tf2-gazebo-base.v1',
+            source='stage9d.gazebo-exact-pose-pair.v1',
         )
 
     def _fixture_evidence(self):
@@ -361,7 +346,11 @@ class Stage9DClient:
             rclpy.spin_once(self, timeout_sec=0.05)
             try:
                 contact = self._contact_evidence()
-            except GraspInteractionValidationError:
+            except GraspInteractionValidationError as error:
+                print(
+                    f'FAIL: rejected Stage 9D contact evidence: {error}',
+                    file=sys.stderr,
+                )
                 return None
             if contact is not None and contact.sequence > after_sequence:
                 now = self._simulation_now()
@@ -376,7 +365,7 @@ class Stage9DClient:
         self._stage9d_detach.publish(Empty())
 
 
-def _client_type(stage9c):
+def _client_type():
     return type(
         'ReviewedStage9DClient',
         (Stage9DClient, stage9c.Stage9CClient),
@@ -391,23 +380,22 @@ def _client_type(stage9c):
 
 def main() -> int:
     try:
-        stage9c = _load_stage9c_adapter()
-        profile = stage9c._profile_fingerprints()
+        profile = stage9c.reviewed_profile_fingerprints()
         if profile != (
             stage9c.STAGE9C_REVIEWED_SIMULATION_DESCRIPTION_FINGERPRINT,
             stage9c.STAGE9C_REVIEWED_CONTROLLER_CONFIGURATION_FINGERPRINT,
         ):
             print('FAIL: installed Stage 9C profile is not reviewed', file=sys.stderr)
             return 2
-        urdf, srdf, srdf_path = stage9c._reviewed_descriptions()
+        urdf, srdf, srdf_path = stage9c.reviewed_descriptions()
         planning_request = stage9c.reviewed_planning_request(urdf, srdf)
-        stage9c_request, stage9c_collision = stage9c._moveit_reports(
+        stage9c_request, stage9c_collision = stage9c.reviewed_moveit_reports(
             urdf,
             srdf_path,
             planning_request,
         )
         rclpy.init()
-        node = _client_type(stage9c)()
+        node = _client_type()()
         try:
             requested_at = node._simulation_now()
             request = create_grasp_interaction_request(
@@ -433,7 +421,12 @@ def main() -> int:
             )
             contact = node.wait_for_contact(node._stage9d_contact_sequence)
             if contact is None:
-                print('FAIL: fresh exact hand/object contact is unavailable', file=sys.stderr)
+                print(
+                    'FAIL: fresh exact hand/object contact is unavailable; '
+                    f'messages={node._stage9d_contact_messages}; '
+                    f'rejection={node._stage9d_contact_rejection}',
+                    file=sys.stderr,
+                )
                 return 2
             node.command_attach_once()
             attached_snapshot = node.wait_for_stage9d_snapshot(
@@ -492,10 +485,12 @@ def main() -> int:
                 print('FAIL: exact Stage 9C execution did not complete', file=sys.stderr)
                 return 2
 
+            post_motion_pose_sequence = node._stage9d_pose_sequence
+            post_motion_fixture_sequence = node._stage9d_fixture_sequence
             final_snapshot = node.wait_for_stage9d_snapshot(
                 fixture_state=FixtureAttachmentState.ATTACHED,
-                after_fixture_sequence=attached.sequence,
-                after_object_sequence=initial_object.sequence,
+                after_fixture_sequence=post_motion_fixture_sequence,
+                after_object_sequence=post_motion_pose_sequence,
             )
             if final_snapshot is None:
                 print('FAIL: fresh attached object evidence is unavailable', file=sys.stderr)
@@ -580,7 +575,6 @@ def main() -> int:
         OSError,
         RuntimeError,
         subprocess.SubprocessError,
-        TransformException,
         TypeError,
         ValueError,
     ) as error:

@@ -30,6 +30,10 @@ def test_stage9d_launch_is_explicit_and_non_actuating() -> None:
     assert "'enable_stage9d_grasp_contact': 'true'" in source
     assert "'enable_development_control': 'false'" in source
     assert "'allow_renaming': False" in source
+    assert "'x': -0.07774664053275518" in source
+    assert "'y': 0.19" in source
+    assert "'z': 0.5757939902418903" in source
+    assert "'P': 0.2" in source
     assert "'stage9d_grasp_object'" in source
     assert 'stage9d_interaction.py' not in source
     assert 'FollowJointTrajectory' not in source
@@ -41,13 +45,15 @@ def test_bridge_has_only_five_fixed_directional_seams() -> None:
     )
     assert [(item['ros_topic_name'], item['direction']) for item in entries] == [
         ('/ayyo/stage9d/grasp_object/contacts', 'GZ_TO_ROS'),
-        ('/ayyo/stage9d/grasp_object/odometry', 'GZ_TO_ROS'),
+        ('/ayyo/stage9d/grasp_fixture/entity_poses', 'GZ_TO_ROS'),
         ('/ayyo/stage9d/grasp_fixture/state', 'GZ_TO_ROS'),
         ('/ayyo/stage9d/grasp_fixture/attach', 'ROS_TO_GZ'),
         ('/ayyo/stage9d/grasp_fixture/detach', 'ROS_TO_GZ'),
     ]
     assert entries[0]['ros_type_name'] == 'ros_gz_interfaces/msg/Contacts'
     assert entries[0]['gz_type_name'] == 'gz.msgs.Contacts'
+    assert entries[1]['ros_type_name'] == 'tf2_msgs/msg/TFMessage'
+    assert entries[1]['gz_type_name'] == 'gz.msgs.Pose_V'
     assert all('/ayyo/stage9d/' in item['ros_topic_name'] for item in entries)
 
 
@@ -57,7 +63,7 @@ def test_object_sdf_is_the_one_dynamic_reviewed_primitive() -> None:
     assert model is not None and model.get('name') == 'stage9d_grasp_object'
     assert model.findtext('static') == 'false'
     assert model.findtext('pose') == (
-        '-0.07754797120196011 0.19 0.8567740568197316 0 0.2 0'
+        '-0.07774664053275518 0.19 0.5757939902418903 0 0.2 0'
     )
     link = model.find("link[@name='stage9d_grasp_object_link']")
     assert link is not None
@@ -71,16 +77,25 @@ def test_object_sdf_is_the_one_dynamic_reviewed_primitive() -> None:
     assert sensor.findtext('contact/topic') == (
         '/ayyo/stage9d/grasp_object/contacts'
     )
+    assert root.find('.//plugin[@name="gz::sim::systems::OdometryPublisher"]') is None
 
 
 def test_fixture_has_no_configurable_target_or_early_attachment() -> None:
     source = (PACKAGE_ROOT / 'src/stage9d_grasp_fixture.cpp').read_text()
     assert 'constexpr char kRobotModel[] = "ayyo"' in source
-    assert 'constexpr char kHandLink[] = "left_hand_link"' in source
+    assert 'constexpr char kPhysicalHandLink[] = "left_wrist_link"' in source
+    assert 'left_wrist_link_fixed_joint_lump__left_hand_link_collision_1' in source
     assert 'constexpr char kObjectModel[] = "stage9d_grasp_object"' in source
     assert 'bool attached_{false}' in source
     assert 'fresh_contact && this->Aligned(ecm)' in source
     assert 'DetachableJoint' in source
+    assert 'constexpr double kPregraspPreloadForceZ = 0.55' in source
+    assert 'ExternalWorldWrenchCmd' in source
+    assert 'Advertise<gz::msgs::Pose_V>(kPoseTopic)' in source
+    assert 'this->EndEffectorPose(ecm)' in source
+    assert 'gz::sim::worldPose(this->object_link_entity_, ecm)' in source
+    assert 'pregrasp_preload_active_{true}' in source
+    assert 'this->pregrasp_preload_active_ = false' in source
     assert '_sdf->Get' not in source
     assert 'RequestRemoveEntity(this->joint_entity_)' in source
 
@@ -94,6 +109,9 @@ def test_adapter_has_no_generic_command_or_retry_surface() -> None:
     assert 'shell=True' not in source
     assert 'retry' not in source.lower()
     assert 'FollowJointTrajectory' not in source
+    assert 'importlib' not in source
+    assert 'import stage9c_execution as stage9c' in source
+    assert 'stage9c.reviewed_moveit_reports(' in source
     subprocess_calls = [
         node for node in ast.walk(tree)
         if isinstance(node, ast.Call)

@@ -11,9 +11,14 @@ import tempfile
 from ament_index_python.packages import get_package_prefix, get_package_share_directory
 from ayyo_manipulation_grasp_interaction import (
     ContactEvidence,
+    create_grasp_interaction_request,
     EntityPoseEvidence,
+    establish_grasp,
+    evaluate_pregrasp,
     FixtureAttachmentState,
     FixtureStateEvidence,
+    interaction_preflight_input_document,
+    moveit_interaction_proof_from_canonical_json,
     ObservedEntityKind,
     STAGE9D_END_EFFECTOR_COLLISION,
     STAGE9D_END_EFFECTOR_ENTITY,
@@ -21,11 +26,6 @@ from ayyo_manipulation_grasp_interaction import (
     STAGE9D_OBJECT_COLLISION,
     STAGE9D_OBJECT_ID,
     STAGE9D_OBJECT_MODEL,
-    create_grasp_interaction_request,
-    establish_grasp,
-    evaluate_pregrasp,
-    interaction_preflight_input_document,
-    moveit_interaction_proof_from_canonical_json,
 )
 from ayyo_manipulation_planning import moveit_collision_proof_from_canonical_json
 
@@ -99,7 +99,7 @@ def _grasp():
         observed_at_ns=200,
         sequence=1,
         entity_count=1,
-        source='stage9d.tf2-gazebo-base.v1',
+        source='stage9d.gazebo-exact-pose-pair.v1',
     )
     obj = EntityPoseEvidence(
         **common,
@@ -111,7 +111,7 @@ def _grasp():
         observed_at_ns=200,
         sequence=1,
         entity_count=1,
-        source='stage9d.gazebo-object-odometry.v1',
+        source='stage9d.gazebo-exact-pose-pair.v1',
     )
     detached = FixtureStateEvidence(
         **common,
